@@ -11,6 +11,7 @@ use App\Models\AnaliseRunIp;
 use App\Models\AnaliseInvestigation;
 use App\Models\Bilhetagem;
 use App\Models\IpEnrichment;
+use App\Services\AnaliseInteligente\RunStepper;
 use App\Services\AnaliseInteligente\Whatsapp\RecordsHtmlParser;
 use App\Services\AnaliseInteligente\Whatsapp\ReportAggregator;
 use BezhanSalleh\FilamentShield\Traits\HasPageShield;
@@ -623,7 +624,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
 
         $selectedId = $this->selectedTargetRunId ?: $this->runId ?: ($this->targetRuns[0]['id'] ?? null);
         $selected = $this->loadRunLight($selectedId);
-        if ($selected && $selected->status === 'done' && ($this->report === null || $this->runId !== $selected->id)) {
+        if ($selected && $this->isRunCompleted($selected) && ($this->report === null || $this->runId !== $selected->id)) {
             $selectedRun = $this->loadRunForReport($selected->id);
             if (! $selectedRun) {
                 return;
@@ -675,7 +676,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         $this->running = $runs->contains(fn (AnaliseRun $run) => in_array((string) $run->status, ['queued', 'running'], true));
 
         $selected = $this->loadRunLight($this->selectedTargetRunId ?: $this->runId);
-        if ($selected && $selected->status === 'done' && ($this->report === null || $this->runId !== $selected->id)) {
+        if ($selected && $this->isRunCompleted($selected) && ($this->report === null || $this->runId !== $selected->id)) {
             $selectedRun = $this->loadRunForReport($selected->id);
             if (! $selectedRun) {
                 return;
@@ -724,7 +725,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         $this->tab = 'timeline';
         $this->runWarnings = [];
 
-        if ($run->status !== 'done') {
+        if (! $this->isRunCompleted($run)) {
             $this->report = null;
             Notification::make()->title('Este alvo ainda está processando')->warning()->send();
             return;
@@ -756,7 +757,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         }
 
         $run = $this->loadRunForReport($this->runId);
-        if ($run && $run->status === 'done') {
+        if ($run && $this->isRunCompleted($run)) {
             $this->hydrateReportFromRun($run, $tab);
         }
     }
@@ -768,12 +769,18 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
                 'id' => $run->id,
                 'target' => $run->target ?: 'Alvo não identificado',
                 'status' => $run->status,
+                'is_completed' => $this->isRunCompleted($run),
                 'progress' => (int) $run->progress,
                 'total_ips' => isset($run->events_count) ? (int) $run->events_count : $run->events()->count(),
                 'unique_ips' => (int) $run->total_unique_ips,
                 'created_at' => $run->created_at?->format('d/m/Y H:i:s'),
             ];
         }, $runs));
+    }
+
+    protected function isRunCompleted(AnaliseRun $run): bool
+    {
+        return (string) $run->status === 'done' || (int) $run->progress >= 100;
     }
 
     public function setVinculoPage(int $page): void
@@ -1472,6 +1479,13 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         $parsed = $this->loadParsedPayload($run);
         if (! is_array($parsed)) return null;
 
+        $addedBilhetagemIps = $this->ensureRunIpsForBilhetagem($run);
+        if ($activeTab === 'bilhetagem') {
+            $this->enrichPendingIpsNow($run, batchSize: 15, maxBatches: 40);
+        } elseif ($addedBilhetagemIps > 0 || $activeTab === 'providers') {
+            $this->enrichPendingIpsNow($run, batchSize: 10, maxBatches: 20);
+        }
+
         $parsed['message_log'] = [];
 
         $ips = AnaliseRunIp::where('analise_run_id', $run->id)->pluck('ip')->all();
@@ -1526,6 +1540,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
 
         $cards = [];
         $latestIps = [];
+        $recipientCandidateIps = [];
 
         foreach ($summaryRows as $summary) {
             $recipient = trim((string) $summary->recipient);
@@ -1543,6 +1558,24 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
                 $ipBase = $this->extractIpBase($latest->sender_ip);
                 if ($ipBase) {
                     $latestIps[$ipBase] = true;
+                }
+
+                $recipientCandidateIps[$recipient] = Bilhetagem::query()
+                    ->where('analise_run_id', $run->id)
+                    ->where('recipient', $recipient)
+                    ->whereNotNull('sender_ip')
+                    ->orderByDesc('timestamp_utc')
+                    ->orderByDesc('id')
+                    ->limit(20)
+                    ->pluck('sender_ip')
+                    ->map(fn ($ip) => $this->extractIpBase(is_string($ip) ? $ip : null))
+                    ->filter(fn ($ip) => is_string($ip) && trim($ip) !== '')
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                foreach ($recipientCandidateIps[$recipient] as $candidateIp) {
+                    $latestIps[$candidateIp] = true;
                 }
 
                 $latestRow = [
@@ -1572,19 +1605,37 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
 
         foreach ($cards as &$card) {
             $ipBase = $this->extractIpBase(data_get($card, 'latest.sender_ip'));
-            if (! $ipBase || ! $enrichments->has($ipBase)) continue;
+            $provider = $ipBase ? $this->resolveProviderFromEnrichment($enrichments->get($ipBase)) : null;
 
-            $en = $enrichments->get($ipBase);
-            $provider = trim(($en?->isp ?? '') ?: ($en?->org ?? ''));
-            $provider = preg_replace('/\s+/u', ' ', $provider ?? '') ?? '';
+            if ($provider === null) {
+                $recipient = trim((string) ($card['recipient'] ?? ''));
+                foreach ($recipientCandidateIps[$recipient] ?? [] as $candidateIp) {
+                    $provider = $this->resolveProviderFromEnrichment($enrichments->get($candidateIp));
+                    if ($provider !== null) {
+                        break;
+                    }
+                }
+            }
 
-            if ($provider !== '') {
+            if ($provider !== null) {
                 $card['latest']['sender_provider'] = $provider;
             }
         }
         unset($card);
 
         return $cards;
+    }
+
+    protected function resolveProviderFromEnrichment(mixed $enrichment): ?string
+    {
+        if (! $enrichment) {
+            return null;
+        }
+
+        $provider = trim((string) (($enrichment?->isp ?? '') ?: ($enrichment?->org ?? '')));
+        $provider = preg_replace('/\s+/u', ' ', $provider ?? '') ?? '';
+
+        return $provider !== '' ? $provider : null;
     }
 
     protected function countBilhetagemCards(AnaliseRun $run): int
@@ -1990,7 +2041,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         $this->awaitingRunCreationUntil = null;
         $this->awaitingRunCreationBaseCount = null;
 
-        $selected = $runs->firstWhere('status', 'done') ?: $runs->first();
+        $selected = $runs->first(fn (AnaliseRun $run) => $this->isRunCompleted($run)) ?: $runs->first();
         if (! $selected) {
             return;
         }
@@ -1999,7 +2050,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         $this->selectedTargetRunId = $selected->id;
         $this->progress = (int) $selected->progress;
 
-        if ($selected->status === 'done') {
+        if ($this->isRunCompleted($selected)) {
             $this->tab = 'timeline';
             $selectedRun = $this->loadRunForReport($selected->id);
             if ($selectedRun) {
@@ -2058,7 +2109,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
 
         $this->runWarnings = [];
 
-        if ($run->status === 'done') {
+        if ($this->isRunCompleted($run)) {
             $this->tab = 'timeline';
             $fullRun = $this->loadRunForReport($run->id);
             if ($fullRun) {
@@ -2118,7 +2169,9 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
     {
         $pending = AnaliseRunIp::query()
             ->where('analise_run_id', $run->id)
-            ->where('enriched', false)
+            ->where(function ($query): void {
+                $query->where('enriched', false)->orWhereNull('enriched');
+            })
             ->count();
 
         if ($pending <= 0) return;
@@ -2134,7 +2187,9 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         for ($i = 0; $i < $maxBatches; $i++) {
             $before = AnaliseRunIp::query()
                 ->where('analise_run_id', $run->id)
-                ->where('enriched', false)
+                ->where(function ($query): void {
+                    $query->where('enriched', false)->orWhereNull('enriched');
+                })
                 ->count();
 
             if ($before === 0) break;
@@ -2144,7 +2199,9 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
 
             $after = AnaliseRunIp::query()
                 ->where('analise_run_id', $run->id)
-                ->where('enriched', false)
+                ->where(function ($query): void {
+                    $query->where('enriched', false)->orWhereNull('enriched');
+                })
                 ->count();
 
             if ($after >= $before) break;

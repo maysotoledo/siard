@@ -1,69 +1,50 @@
 <x-filament-panels::page>
     <div class="space-y-6">
-
         <x-filament::section>
             <x-slot name="heading">
-                Selecionar modelo
+                Selecionar investigacao
             </x-slot>
 
             <div class="space-y-4">
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-200">
-                        Modelo de IA local
+                        Investigacao
                     </label>
 
                     <select
-                        wire:model="modeloIa"
+                        wire:model.live="analise_investigation_id"
                         class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     >
-                        @foreach ($this->getModelosDisponiveis() as $modelo => $descricao)
-                            <option value="{{ $modelo }}">
-                                {{ $descricao }} — {{ $modelo }}
+                        <option value="">Selecione uma investigacao...</option>
+
+                        @foreach ($this->getInvestigacoesDisponiveis() as $investigation)
+                            <option value="{{ $investigation->id }}">
+                                {{ $investigation->name ?? ('Investigacao #' . $investigation->id) }}
                             </option>
                         @endforeach
                     </select>
                 </div>
 
-                <div class="text-sm text-gray-500 dark:text-gray-400">
-                    O modelo selecionado precisa estar instalado no Ollama.
-                    Exemplo: <code>ollama pull llama3.2:3b</code>
-                </div>
-            </div>
-        </x-filament::section>
-
-        <x-filament::section>
-            <x-slot name="heading">
-                Selecionar relatório
-            </x-slot>
-
-            <div class="space-y-4">
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-200">
-                        Relatório processado
+                        Alvo da investigacao
                     </label>
 
                     <select
                         wire:model="analise_run_id"
-                        class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                        @disabled(! $analise_investigation_id)
+                        class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white disabled:opacity-60"
                     >
-                        <option value="">Selecione um relatório...</option>
+                        <option value="">Selecione um alvo...</option>
 
-                        @foreach ($this->getRelatoriosDisponiveis() as $run)
+                        @foreach ($this->getAlvosDisponiveis() as $run)
                             <option value="{{ $run->id }}">
-                                #{{ $run->id }}
-                                —
-                                {{ $run->target ?? 'Sem alvo' }}
-                                —
-                                {{ optional($run->created_at)->format('d/m/Y H:i') }}
+                                {{ $run->target ?? ('Alvo #' . $run->id) }}
                             </option>
                         @endforeach
                     </select>
                 </div>
 
-                <div class="text-sm text-gray-500 dark:text-gray-400">
-                    Usuários comuns visualizam apenas relatórios criados por eles.
-                    O super_admin pode selecionar qualquer relatório processado.
-                </div>
             </div>
         </x-filament::section>
 
@@ -77,7 +58,7 @@
                     wire:model="perguntaLivre"
                     rows="4"
                     class="block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                    placeholder="Pergunte ao agente sobre este relatório..."
+                    placeholder="Pergunte ao agente sobre o alvo selecionado..."
                 ></textarea>
 
                 <x-filament::button
@@ -89,44 +70,76 @@
                 </x-filament::button>
 
                 <div wire:loading wire:target="gerarAnalise" class="text-sm text-gray-500 dark:text-gray-400">
-                    Gerando análise com IA local. Aguarde...
+                    Gerando analise com IA local. Aguarde...
                 </div>
             </div>
         </x-filament::section>
 
-        @if ($ultimaResposta)
-            <x-filament::section>
+        @if ($ultimaAnaliseId)
+            <div @if ($this->deveAtualizarUltimaAnalise()) wire:poll.5s="atualizarUltimaAnalise" @endif>
+                <x-filament::section>
                 <x-slot name="heading">
-                    Última resposta gerada
+                    Status da analise
                 </x-slot>
 
                 <x-slot name="description">
-                    Tipo: {{ $ultimoTipo }} | Modelo: {{ $modeloIa }}
+                    Tipo: {{ $ultimoTipo }} | Modelo: {{ $this->getModeloIaConfigurado() ?: 'nao configurado' }}
                 </x-slot>
 
-                <div class="prose dark:prose-invert max-w-none whitespace-pre-wrap">
-                    {{ $ultimaResposta }}
-                </div>
-            </x-filament::section>
+                    @if ($ultimoStatus === 'queued')
+                        <div class="text-sm text-gray-600 dark:text-gray-300">
+                            A analise foi enviada para a fila e esta aguardando processamento.
+                        </div>
+                    @elseif ($ultimoStatus === 'processing')
+                        <div class="text-sm text-gray-600 dark:text-gray-300">
+                            A IA esta processando a solicitacao. Esta tela atualiza automaticamente.
+                        </div>
+                    @elseif ($ultimoStatus === 'failed')
+                        <div class="text-sm text-red-600 dark:text-red-400 whitespace-pre-wrap">
+                            Falha ao gerar a analise.
+                            {{ $ultimoErro ? "\n" . $ultimoErro : '' }}
+                        </div>
+                    @elseif ($ultimaResposta)
+                        <div class="prose dark:prose-invert max-w-none whitespace-pre-wrap">
+                            {{ $ultimaResposta }}
+                        </div>
+                    @endif
+
+                    @if (in_array($ultimoStatus, ['queued', 'processing', 'completed'], true))
+                        <div class="mt-4 space-y-2">
+                            <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                                <span>Progresso</span>
+                                <span>{{ $ultimoProgresso }}%</span>
+                            </div>
+
+                            <div class="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+                                <div
+                                    class="h-2 rounded-full bg-primary-600 transition-all duration-500"
+                                    style="width: {{ max(0, min(100, $ultimoProgresso)) }}%;"
+                                ></div>
+                            </div>
+                        </div>
+                    @endif
+                </x-filament::section>
+            </div>
         @endif
 
         <x-filament::section>
             <x-slot name="heading">
-                Orientação de uso
+                Orientacao de uso
             </x-slot>
 
             <div class="text-sm text-gray-600 dark:text-gray-300 space-y-2">
                 <p>
-                    Este agente utiliza IA local via Ollama. A análise gerada é apenas apoio técnico
+                    Este agente utiliza IA local via Ollama. A analise gerada e apenas apoio tecnico
                     e deve ser validada pelo investigador.
                 </p>
 
                 <p>
-                    A IA não deve ser usada para afirmar autoria, culpa ou conclusão definitiva.
-                    Ela deve apontar padrões, indícios, limitações e diligências possíveis.
+                    A IA nao deve ser usada para afirmar autoria, culpa ou conclusao definitiva.
+                    Ela deve apontar padroes, indicios, limitacoes e diligencias possiveis.
                 </p>
             </div>
         </x-filament::section>
-
     </div>
 </x-filament-panels::page>

@@ -30,7 +30,7 @@ class RunStepper
             ->where(function ($query): void {
                 $query->where('enriched', false)->orWhereNull('enriched');
             })
-            ->limit(1)
+            ->limit(max(1, $chunkSize))
             ->get();
 
         if ($ips->count() === 0) {

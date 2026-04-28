@@ -28,7 +28,7 @@
         </div>
     </form>
 
-    @if ($runId || $investigationId)
+    @if ($running || $runId || $investigationId)
         <x-filament::section class="mt-6" heading="Progresso">
             <div class="space-y-3"
                 @if($running && empty($selectedContactType) && empty($selectedProvider) && empty($vinculoModalIp))
@@ -83,8 +83,8 @@
                             </div>
 
                             <div class="text-right text-xs text-gray-500 space-y-1">
-                                <x-filament::badge :color="(int) ($targetRun['progress'] ?? 0) >= 100 ? 'success' : 'warning'">
-                                    {{ (int) ($targetRun['progress'] ?? 0) >= 100 ? 'Concluído' : ((int) ($targetRun['progress'] ?? 0) . '%') }}
+                                <x-filament::badge :color="($targetRun['is_completed'] ?? false) ? 'success' : 'warning'">
+                                    {{ ($targetRun['is_completed'] ?? false) ? 'Concluído' : ((int) ($targetRun['progress'] ?? 0) . '%') }}
                                 </x-filament::badge>
                             </div>
                         </div>
