@@ -68,8 +68,19 @@ class AgenteIaInvestigativo extends Page
             return new Collection();
         }
 
+        $investigation = AnaliseInvestigation::query()
+            ->when(
+                ! Auth::user()?->hasRole('super_admin'),
+                fn ($query) => $query->where('user_id', Auth::id())
+            )
+            ->find($this->analise_investigation_id);
+
+        if (! $investigation) {
+            return new Collection();
+        }
+
         return AnaliseRun::query()
-            ->where('investigation_id', $this->analise_investigation_id)
+            ->where('investigation_id', $investigation->id)
             ->orderBy('id')
             ->get(['id', 'target', 'status', 'created_at']);
     }
