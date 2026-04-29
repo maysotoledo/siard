@@ -85,6 +85,7 @@ class AgendaPesquisaIntimados extends Page implements HasSchemas
 
             return [
                 'intimado' => (string) $evento->intimado,
+                'telefone' => trim((string) ($evento->whatsapp ?? '')) ?: '-',
                 'dia' => $startsAt?->format('d/m/Y') ?? '-',
                 'horario' => $startsAt
                     ? $startsAt->format('H:i') . ($endsAt ? ' - ' . $endsAt->format('H:i') : '')

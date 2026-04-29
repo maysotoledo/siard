@@ -26,6 +26,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Intimado</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Telefone</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Dia</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Horario</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Procedimento</th>
@@ -36,6 +37,7 @@
                             @foreach ($results as $row)
                                 <tr>
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $row['intimado'] }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $row['telefone'] }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $row['dia'] }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $row['horario'] }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $row['procedimento'] }}</td>
