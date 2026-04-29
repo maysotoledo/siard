@@ -9,12 +9,29 @@ class QueueWorkerStarter
 {
     private function resolveCliPhpBinary(): string
     {
+        $configuredBinary = (string) config('app.php_cli_binary', '');
+
+        if ($configuredBinary !== '') {
+            $basename = strtolower((string) basename($configuredBinary));
+
+            if (
+                ($configuredBinary === 'php' || (is_file($configuredBinary) && is_executable($configuredBinary)))
+                && ! str_contains($basename, 'fpm')
+                && ! str_contains($basename, 'cgi')
+            ) {
+                return $configuredBinary;
+            }
+        }
+
         $phpBinary = PHP_BINARY;
         $phpDir = dirname($phpBinary);
         $phpBase = basename($phpBinary);
         $phpCliFromCgi = preg_replace('/php-cgi(\.exe)?$/i', 'php$1', $phpBinary);
 
         $candidates = array_values(array_unique(array_filter([
+            '/usr/local/bin/php',
+            '/usr/bin/php',
+            '/bin/php',
             $phpCliFromCgi,
             str_contains($phpBase, 'fpm')
                 ? $phpDir . DIRECTORY_SEPARATOR . str_replace('-fpm', '', $phpBase)
@@ -33,7 +50,14 @@ class QueueWorkerStarter
                 return $candidate;
             }
 
-            if (is_file($candidate) && is_executable($candidate) && ! str_contains(basename($candidate), 'fpm')) {
+            $basename = strtolower((string) basename($candidate));
+
+            if (
+                is_file($candidate)
+                && is_executable($candidate)
+                && ! str_contains($basename, 'fpm')
+                && ! str_contains($basename, 'cgi')
+            ) {
                 return $candidate;
             }
         }

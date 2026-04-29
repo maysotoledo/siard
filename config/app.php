@@ -58,6 +58,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | PHP CLI Binary
+    |--------------------------------------------------------------------------
+    |
+    | Some background tasks need to spawn Artisan commands from a web request.
+    | In containerized environments, PHP_BINARY may point to php-fpm instead
+    | of the CLI binary, so we allow an explicit override via .env.
+    |
+    */
+
+    'php_cli_binary' => env('PHP_CLI_BINARY'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
