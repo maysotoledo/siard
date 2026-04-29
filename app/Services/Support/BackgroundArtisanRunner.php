@@ -26,12 +26,18 @@ class BackgroundArtisanRunner
             return;
         }
 
+        $logPath = storage_path('logs/' . $logFile);
         $command = sprintf(
-            '%s %s %s >> %s 2>&1 &',
+            'mkdir -p %s && if command -v nohup >/dev/null 2>&1; then nohup %s %s %s >> %s 2>&1 < /dev/null & else %s %s %s >> %s 2>&1 < /dev/null & fi',
+            escapeshellarg(dirname($logPath)),
             escapeshellarg($phpBinary),
             escapeshellarg($artisan),
             implode(' ', array_map('escapeshellarg', $arguments)),
-            escapeshellarg(storage_path('logs/' . $logFile)),
+            escapeshellarg($logPath),
+            escapeshellarg($phpBinary),
+            escapeshellarg($artisan),
+            implode(' ', array_map('escapeshellarg', $arguments)),
+            escapeshellarg($logPath),
         );
 
         Process::path(base_path())

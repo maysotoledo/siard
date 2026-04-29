@@ -12,13 +12,14 @@ use Carbon\Carbon;
 use Filament\Actions\Action as FilamentAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\GridDirection;
 use Filament\Support\RawJs;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -181,6 +182,10 @@ class CalendarWidget extends FullCalendarWidget
             ->selectRaw('COUNT(*) as total, MAX(updated_at) as last_updated_at')
             ->first();
 
+        $agendaUser = User::query()
+            ->select(['id', 'attendance_hours', 'updated_at'])
+            ->find($this->agendaUserId);
+
         return implode('|', [
             $this->agendaUserId,
             (int) ($eventStats?->total ?? 0),
@@ -188,6 +193,8 @@ class CalendarWidget extends FullCalendarWidget
             (string) ($eventStats?->last_deleted_at ?? ''),
             (int) ($blockStats?->total ?? 0),
             (string) ($blockStats?->last_updated_at ?? ''),
+            md5(json_encode($agendaUser?->attendance_hours ?? [])),
+            (string) ($agendaUser?->updated_at ?? ''),
         ]);
     }
 
@@ -325,14 +332,40 @@ JS;
 
     private function baseHourOptions(): array
     {
-        $hours = array_merge(range(8, 11), range(14, 17));
+        $hours = $this->resolveAgendaAttendanceHours();
         $options = [];
 
         foreach ($hours as $h) {
-            $options[sprintf('%02d:00', $h)] = sprintf('%02d:00', $h);
+            if (is_int($h)) {
+                $options[sprintf('%02d:00', $h)] = sprintf('%02d:00', $h);
+            } elseif (is_string($h) && preg_match('/^\d{2}:\d{2}$/', $h)) {
+                $options[$h] = $h;
+            }
         }
 
         return $options;
+    }
+
+    private function resolveAgendaAttendanceHours(): array
+    {
+        $default = ['08:00', '14:00', '09:00', '15:00', '10:00', '16:00', '11:00', '17:00'];
+
+        if (! $this->agendaUserId) {
+            return $default;
+        }
+
+        $user = User::query()
+            ->select(['id', 'attendance_hours'])
+            ->find($this->agendaUserId);
+
+        $hours = is_array($user?->attendance_hours) ? $user->attendance_hours : [];
+
+        $valid = collect($hours)
+            ->filter(fn ($hour) => is_string($hour) && preg_match('/^\d{2}:\d{2}$/', $hour))
+            ->values()
+            ->all();
+
+        return $valid !== [] ? $valid : $default;
     }
 
     private function availableHourOptions(?string $dia, ?int $ignoreEventoId = null): array
@@ -351,7 +384,7 @@ JS;
             ->whereDate('starts_at', $dia)
             ->when($ignoreEventoId, fn ($q) => $q->whereKeyNot($ignoreEventoId))
             ->pluck('starts_at')
-            ->map(fn ($dt) => Carbon::parse($dt)->format('H:00'))
+            ->map(fn ($dt) => Carbon::parse($dt)->format('H:i'))
             ->unique()
             ->all();
 
@@ -441,32 +474,41 @@ JS;
                     trueLabel: 'Online',
                     falseLabel: 'Presencial',
                 )
+                ->inline()
                 ->colors([
                     0 => 'success', // Presencial
                     1 => 'info',    // Online
                 ])
+                ->extraAttributes(['class' => 'agenda-modalidade-toggle'])
                 ->default(false) // ✅ Presencial selecionado por padrão
                 ->visible(fn (Get $get) => ! $get('somente_msg')),
 
-            Select::make('hora_inicio')
-                ->label('Horário')
+            Fieldset::make('Horário')
                 ->visible(fn (Get $get) => ! $get('somente_msg'))
-                ->options(fn (Get $get) => $this->availableHourOptions($get('dia'), $get('evento_id')))
-                ->disabled(fn (Get $get) => (bool) $get('somente_msg'))
-                ->required(fn (Get $get) => ! $get('somente_msg'))
-                ->live()
-                ->afterStateUpdated(function (?string $state, Set $set, Get $get) {
-                    if ($get('somente_msg')) return;
+                ->extraAttributes(['class' => 'agenda-horario-card'])
+                ->schema([
+                    ToggleButtons::make('hora_inicio')
+                        ->hiddenLabel()
+                        ->options(fn (Get $get) => $this->availableHourOptions($get('dia'), $get('evento_id')))
+                        ->columns(2)
+                        ->gridDirection(GridDirection::Row)
+                        ->disabled(fn (Get $get) => (bool) $get('somente_msg'))
+                        ->required(fn (Get $get) => ! $get('somente_msg'))
+                        ->extraAttributes(['class' => 'agenda-horario-toggle'])
+                        ->live()
+                        ->afterStateUpdated(function (?string $state, Set $set, Get $get) {
+                            if ($get('somente_msg')) return;
 
-                    $dia = $get('dia');
-                    if (! $dia || ! $state) return;
+                            $dia = $get('dia');
+                            if (! $dia || ! $state) return;
 
-                    $inicio = Carbon::parse("{$dia} {$state}");
-                    $fim = $inicio->copy()->addHour();
+                            $inicio = Carbon::parse("{$dia} {$state}");
+                            $fim = $inicio->copy()->addHour();
 
-                    $set('starts_at', $inicio->toDateTimeString());
-                    $set('ends_at', $fim->toDateTimeString());
-                }),
+                            $set('starts_at', $inicio->toDateTimeString());
+                            $set('ends_at', $fim->toDateTimeString());
+                        }),
+                ]),
 
             Hidden::make('starts_at')
                 ->required(fn (Get $get) => ! $get('somente_msg')),

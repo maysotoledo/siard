@@ -64,6 +64,16 @@
                         Conectar Google Agenda
                     </x-filament::button>
                 @endif
+
+                <x-filament::button
+                    color="warning"
+                    icon="heroicon-o-clock"
+                    labeled-from="sm"
+                    tag="a"
+                    :href="\App\Filament\Pages\DefinirHorarioAtendimento::getUrl()"
+                >
+                    Definir horario de atendimento
+                </x-filament::button>
             @endif
 
             @if($profileUrl)

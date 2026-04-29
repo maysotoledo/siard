@@ -25,3 +25,53 @@
 .fc .fc-epcLabel-button:focus {
     box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35) !important;
 }
+
+.agenda-modalidade-toggle .fi-fo-toggle-buttons {
+    @apply gap-3;
+}
+
+.agenda-modalidade-toggle .fi-fo-toggle-buttons-btn {
+    @apply min-w-0 flex-1 justify-center rounded-full px-4 py-2 text-sm font-semibold;
+}
+
+.agenda-horario-card {
+    @apply rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40;
+}
+
+.agenda-horario-card [data-field-wrapper] {
+    display: block !important;
+}
+
+.agenda-horario-card .fi-fo-field-label-col {
+    @apply hidden;
+}
+
+.agenda-horario-card .fi-fo-field-content-col {
+    @apply w-full;
+    max-width: 20rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.agenda-horario-cabecalho {
+    @apply mb-2 text-sm font-semibold text-gray-600 dark:text-gray-300;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+    max-width: 20rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.agenda-horario-cabecalho span {
+    @apply block text-center;
+}
+
+.agenda-horario-toggle .fi-fo-toggle-buttons {
+    @apply grid grid-cols-2 gap-3;
+    width: 100%;
+}
+
+.agenda-horario-toggle .fi-fo-toggle-buttons-btn {
+    @apply min-h-0 w-full rounded-full border border-gray-400 px-4 py-2 text-base font-semibold;
+}

@@ -19,6 +19,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'attendance_hours',
         'google_calendar_token',
         'google_calendar_refresh_token',
         'google_calendar_token_expires_at',
@@ -37,6 +38,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'attendance_hours' => 'array',
             'google_calendar_token' => 'encrypted',
             'google_calendar_refresh_token' => 'encrypted',
             'google_calendar_token_expires_at' => 'datetime',
