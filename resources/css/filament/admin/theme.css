@@ -35,7 +35,7 @@
 }
 
 .agenda-horario-card {
-    @apply rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40;
+    @apply rounded-3xl border border-gray-200 bg-gradient-to-b from-white to-gray-50 p-5 shadow-sm dark:border-gray-700 dark:from-gray-900 dark:to-gray-900/70;
 }
 
 .agenda-horario-card [data-field-wrapper] {
@@ -48,7 +48,7 @@
 
 .agenda-horario-card .fi-fo-field-content-col {
     @apply w-full;
-    max-width: 20rem;
+    max-width: 22rem;
     margin-left: auto;
     margin-right: auto;
 }
@@ -73,5 +73,19 @@
 }
 
 .agenda-horario-toggle .fi-fo-toggle-buttons-btn {
-    @apply min-h-0 w-full rounded-full border border-gray-400 px-4 py-2 text-base font-semibold;
+    @apply min-h-0 w-full rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-base font-semibold text-slate-800 shadow-sm transition dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100;
+}
+
+.agenda-horario-toggle .fi-fo-toggle-buttons-btn:hover:not(:disabled) {
+    @apply border-amber-300 shadow;
+    transform: translateY(-1px);
+}
+
+.agenda-horario-toggle .fi-fo-toggle-buttons-btn[aria-checked="true"] {
+    @apply border-amber-400 bg-amber-400 text-slate-900 shadow-md;
+}
+
+.agenda-horario-toggle .fi-fo-toggle-buttons-input:disabled + .fi-btn {
+    visibility: hidden;
+    pointer-events: none;
 }

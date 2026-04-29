@@ -348,7 +348,7 @@ JS;
 
     private function resolveAgendaAttendanceHours(): array
     {
-        $default = ['08:00', '14:00', '09:00', '15:00', '10:00', '16:00', '11:00', '17:00'];
+        $default = ['08:00', '09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
 
         if (! $this->agendaUserId) {
             return $default;
@@ -362,6 +362,7 @@ JS;
 
         $valid = collect($hours)
             ->filter(fn ($hour) => is_string($hour) && preg_match('/^\d{2}:\d{2}$/', $hour))
+            ->sort()
             ->values()
             ->all();
 
@@ -377,22 +378,81 @@ JS;
             return [];
         }
 
-        $options = $this->baseHourOptions();
+        return array_diff_key(
+            $this->baseHourOptions(),
+            array_flip($this->occupiedHourValues($dia, $ignoreEventoId))
+        );
+    }
 
-        $ocupados = Evento::query()
+    private function displayHourOptions(?string $dia, ?int $ignoreEventoId = null): array
+    {
+        return $this->formatHourOptionsForTwoColumns(
+            $this->availableHourOptions($dia, $ignoreEventoId),
+        );
+    }
+
+    private function formatHourOptionsForTwoColumns(array $options): array
+    {
+        $morning = [];
+        $afternoon = [];
+
+        foreach ($options as $value => $label) {
+            $hour = (int) substr((string) $value, 0, 2);
+
+            if ($hour < 12) {
+                $morning[$value] = $label;
+            } else {
+                $afternoon[$value] = $label;
+            }
+        }
+
+        $morning = array_values(array_map(
+            fn ($value, $label) => ['value' => $value, 'label' => $label],
+            array_keys($morning),
+            $morning,
+        ));
+
+        $afternoon = array_values(array_map(
+            fn ($value, $label) => ['value' => $value, 'label' => $label],
+            array_keys($afternoon),
+            $afternoon,
+        ));
+
+        $maxRows = max(count($morning), count($afternoon));
+        $formatted = [];
+
+        for ($i = 0; $i < $maxRows; $i++) {
+            if (isset($morning[$i])) {
+                $formatted[$morning[$i]['value']] = $morning[$i]['label'];
+            } elseif (isset($afternoon[$i])) {
+                $formatted["__placeholder_morning_{$i}"] = ' ';
+            }
+
+            if (isset($afternoon[$i])) {
+                $formatted[$afternoon[$i]['value']] = $afternoon[$i]['label'];
+            } elseif (isset($morning[$i])) {
+                $formatted["__placeholder_afternoon_{$i}"] = ' ';
+            }
+        }
+
+        return $formatted;
+    }
+
+    private function occupiedHourValues(?string $dia, ?int $ignoreEventoId = null): array
+    {
+        if (! $dia || ! $this->agendaUserId || $this->isDiaBloqueadoOuFimDeSemana($dia)) {
+            return [];
+        }
+
+        return Evento::query()
             ->where('user_id', $this->agendaUserId)
             ->whereDate('starts_at', $dia)
             ->when($ignoreEventoId, fn ($q) => $q->whereKeyNot($ignoreEventoId))
             ->pluck('starts_at')
             ->map(fn ($dt) => Carbon::parse($dt)->format('H:i'))
             ->unique()
+            ->values()
             ->all();
-
-        foreach ($ocupados as $hora) {
-            unset($options[$hora]);
-        }
-
-        return $options;
     }
 
     private function assertDiaAgendavelOrThrow(string $dia): void
@@ -489,9 +549,10 @@ JS;
                 ->schema([
                     ToggleButtons::make('hora_inicio')
                         ->hiddenLabel()
-                        ->options(fn (Get $get) => $this->availableHourOptions($get('dia'), $get('evento_id')))
+                        ->options(fn (Get $get) => $this->displayHourOptions($get('dia'), $get('evento_id')))
                         ->columns(2)
                         ->gridDirection(GridDirection::Row)
+                        ->disableOptionWhen(fn (string $value): bool => str_starts_with($value, '__placeholder_'))
                         ->disabled(fn (Get $get) => (bool) $get('somente_msg'))
                         ->required(fn (Get $get) => ! $get('somente_msg'))
                         ->extraAttributes(['class' => 'agenda-horario-toggle'])
@@ -500,7 +561,7 @@ JS;
                             if ($get('somente_msg')) return;
 
                             $dia = $get('dia');
-                            if (! $dia || ! $state) return;
+                            if (! $dia || ! $state || str_starts_with($state, '__placeholder_')) return;
 
                             $inicio = Carbon::parse("{$dia} {$state}");
                             $fim = $inicio->copy()->addHour();
