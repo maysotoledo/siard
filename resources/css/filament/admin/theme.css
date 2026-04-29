@@ -48,7 +48,7 @@
 
 .agenda-horario-card .fi-fo-field-content-col {
     @apply w-full;
-    max-width: 22rem;
+    max-width: 13rem;
     margin-left: auto;
     margin-right: auto;
 }
@@ -68,12 +68,12 @@
 }
 
 .agenda-horario-toggle .fi-fo-toggle-buttons {
-    @apply grid grid-cols-2 gap-3;
+    @apply grid grid-cols-1 gap-3;
     width: 100%;
 }
 
 .agenda-horario-toggle .fi-fo-toggle-buttons-btn {
-    @apply min-h-0 w-full rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-base font-semibold text-slate-800 shadow-sm transition dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100;
+    @apply min-h-0 w-full rounded-full border border-gray-300 bg-white px-4 py-2.5 text-base font-semibold text-blue-700 shadow-sm transition dark:border-gray-600 dark:bg-gray-800 dark:text-blue-300;
 }
 
 .agenda-horario-toggle .fi-fo-toggle-buttons-btn:hover:not(:disabled) {

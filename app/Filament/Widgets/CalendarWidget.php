@@ -19,7 +19,6 @@ use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
-use Filament\Support\Enums\GridDirection;
 use Filament\Support\RawJs;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -386,56 +385,7 @@ JS;
 
     private function displayHourOptions(?string $dia, ?int $ignoreEventoId = null): array
     {
-        return $this->formatHourOptionsForTwoColumns(
-            $this->availableHourOptions($dia, $ignoreEventoId),
-        );
-    }
-
-    private function formatHourOptionsForTwoColumns(array $options): array
-    {
-        $morning = [];
-        $afternoon = [];
-
-        foreach ($options as $value => $label) {
-            $hour = (int) substr((string) $value, 0, 2);
-
-            if ($hour < 12) {
-                $morning[$value] = $label;
-            } else {
-                $afternoon[$value] = $label;
-            }
-        }
-
-        $morning = array_values(array_map(
-            fn ($value, $label) => ['value' => $value, 'label' => $label],
-            array_keys($morning),
-            $morning,
-        ));
-
-        $afternoon = array_values(array_map(
-            fn ($value, $label) => ['value' => $value, 'label' => $label],
-            array_keys($afternoon),
-            $afternoon,
-        ));
-
-        $maxRows = max(count($morning), count($afternoon));
-        $formatted = [];
-
-        for ($i = 0; $i < $maxRows; $i++) {
-            if (isset($morning[$i])) {
-                $formatted[$morning[$i]['value']] = $morning[$i]['label'];
-            } elseif (isset($afternoon[$i])) {
-                $formatted["__placeholder_morning_{$i}"] = ' ';
-            }
-
-            if (isset($afternoon[$i])) {
-                $formatted[$afternoon[$i]['value']] = $afternoon[$i]['label'];
-            } elseif (isset($morning[$i])) {
-                $formatted["__placeholder_afternoon_{$i}"] = ' ';
-            }
-        }
-
-        return $formatted;
+        return $this->availableHourOptions($dia, $ignoreEventoId);
     }
 
     private function occupiedHourValues(?string $dia, ?int $ignoreEventoId = null): array
@@ -550,9 +500,6 @@ JS;
                     ToggleButtons::make('hora_inicio')
                         ->hiddenLabel()
                         ->options(fn (Get $get) => $this->displayHourOptions($get('dia'), $get('evento_id')))
-                        ->columns(2)
-                        ->gridDirection(GridDirection::Row)
-                        ->disableOptionWhen(fn (string $value): bool => str_starts_with($value, '__placeholder_'))
                         ->disabled(fn (Get $get) => (bool) $get('somente_msg'))
                         ->required(fn (Get $get) => ! $get('somente_msg'))
                         ->extraAttributes(['class' => 'agenda-horario-toggle'])
@@ -561,7 +508,7 @@ JS;
                             if ($get('somente_msg')) return;
 
                             $dia = $get('dia');
-                            if (! $dia || ! $state || str_starts_with($state, '__placeholder_')) return;
+                            if (! $dia || ! $state) return;
 
                             $inicio = Carbon::parse("{$dia} {$state}");
                             $fim = $inicio->copy()->addHour();
