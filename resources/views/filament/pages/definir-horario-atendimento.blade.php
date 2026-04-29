@@ -5,7 +5,7 @@
         </x-slot>
 
         <x-slot name="description">
-            Defina os horarios que aparecerao no menu de agendamento da sua agenda.
+            Defina a duracao da oitiva e monte os horarios disponiveis da sua agenda.
         </x-slot>
 
         {{ $this->form }}

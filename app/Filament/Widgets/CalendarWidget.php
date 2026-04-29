@@ -182,7 +182,7 @@ class CalendarWidget extends FullCalendarWidget
             ->first();
 
         $agendaUser = User::query()
-            ->select(['id', 'attendance_hours', 'updated_at'])
+            ->select(['id', 'attendance_hours', 'attendance_slot_duration_minutes', 'updated_at'])
             ->find($this->agendaUserId);
 
         return implode('|', [
@@ -193,6 +193,7 @@ class CalendarWidget extends FullCalendarWidget
             (int) ($blockStats?->total ?? 0),
             (string) ($blockStats?->last_updated_at ?? ''),
             md5(json_encode($agendaUser?->attendance_hours ?? [])),
+            (string) ($agendaUser?->attendance_slot_duration_minutes ?? 60),
             (string) ($agendaUser?->updated_at ?? ''),
         ]);
     }
@@ -368,6 +369,21 @@ JS;
         return $valid !== [] ? $valid : $default;
     }
 
+    private function resolveAgendaAttendanceDurationMinutes(): int
+    {
+        if (! $this->agendaUserId) {
+            return 60;
+        }
+
+        $user = User::query()
+            ->select(['id', 'attendance_slot_duration_minutes'])
+            ->find($this->agendaUserId);
+
+        $duration = (int) ($user?->attendance_slot_duration_minutes ?? 60);
+
+        return $duration > 0 ? $duration : 60;
+    }
+
     private function availableHourOptions(?string $dia, ?int $ignoreEventoId = null): array
     {
         if (! $dia) return $this->baseHourOptions();
@@ -511,7 +527,7 @@ JS;
                             if (! $dia || ! $state) return;
 
                             $inicio = Carbon::parse("{$dia} {$state}");
-                            $fim = $inicio->copy()->addHour();
+                            $fim = $inicio->copy()->addMinutes($this->resolveAgendaAttendanceDurationMinutes());
 
                             $set('starts_at', $inicio->toDateTimeString());
                             $set('ends_at', $fim->toDateTimeString());
@@ -686,7 +702,7 @@ JS;
 
                     $hora = array_key_first($options);
                     $inicio = Carbon::parse("{$dia} {$hora}");
-                    $fim = $inicio->copy()->addHour();
+                    $fim = $inicio->copy()->addMinutes($this->resolveAgendaAttendanceDurationMinutes());
 
                     $form->fill([
                         'evento_id' => null,
@@ -911,7 +927,7 @@ JS;
                     }
 
                     $inicio = Carbon::parse("{$targetDia} {$hora}");
-                    $fim = $inicio->copy()->addHour();
+                    $fim = $inicio->copy()->addMinutes($this->resolveAgendaAttendanceDurationMinutes());
 
                     $form->fill([
                         'evento_id' => $record->id,
