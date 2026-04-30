@@ -533,6 +533,9 @@
                 <ul style="margin-top: 12px;">
                     <li><a href="https://github.com/sepinf-inc/IPED/" target="_blank" rel="noopener">GitHub do Projeto IPED</a></li>
                     <li><a href="https://github.com/sepinf-inc/IPED/wiki/Beginner%E2%80%99s-Start-Guide" target="_blank" rel="noopener">Guia do iniciante do IPED</a></li>
+                    <li><a href="https://github.com/thiagofuer/IPEDTools_Releases/releases" target="_blank" rel="noopener">IPEDTools</a></li>
+                    <li><a href="{{ asset('storage/telematica/iped/buscaporfaceiped.pdf') }}" download>Busca por face</a></li>
+                    <li><a href="{{ asset('storage/telematica/iped/ipedacadepol.pdf') }}" download>Apostila IPED Acadepol</a></li>
                     <li><a href="https://academiadeforensedigital.com.br/sistema-iped-forense/" target="_blank" rel="noopener">Matéria original da Academia de Forense Digital</a></li>
                 </ul>
             </div>

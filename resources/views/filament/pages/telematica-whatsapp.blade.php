@@ -1,12 +1,10 @@
 <x-filament-panels::page>
 
-<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; margin-bottom:16px; text-align:center;">
-    <div style="font-size:28px; font-weight:800;">WhatsApp</div>
-
+<div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:22px;">
     <img
         src="{{ asset('storage/telematica/logos/whatsapp.png') }}"
-        alt="Apple"
-        style="width:145px; height:145px; object-fit:contain;"
+        alt="WhatsApp"
+        style="width:360px; max-width:100%; height:auto; object-fit:contain; object-position:left center;"
     >
 </div>
 
