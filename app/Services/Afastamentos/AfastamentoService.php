@@ -200,13 +200,21 @@ class AfastamentoService
         $temp->exists = (bool) $solicitacao?->exists;
         $temp->setRelation('periodoAquisitivo', null);
 
-        if (! empty($data['periodo_aquisitivo_id'])) {
-            $temp->periodo_aquisitivo_id = (int) $data['periodo_aquisitivo_id'];
-            $temp->load('periodoAquisitivo');
+        if (empty($data['periodo_aquisitivo_id'])) {
+            throw ValidationException::withMessages([
+                'periodo_aquisitivo_id' => 'Selecione um período aquisitivo adquirido com saldo disponível para solicitar este afastamento.',
+            ]);
         }
 
-        if (empty($data['periodo_aquisitivo_id'])) {
-            app(AfastamentoSaldoService::class)->validarSaldo($temp);
+        $temp->periodo_aquisitivo_id = (int) $data['periodo_aquisitivo_id'];
+        $temp->load('periodoAquisitivo');
+
+        if (! $temp->periodoAquisitivo
+            || (int) $temp->periodoAquisitivo->user_id !== (int) $temp->user_id
+            || $temp->periodoAquisitivo->tipo_afastamento !== $temp->tipo_afastamento) {
+            throw ValidationException::withMessages([
+                'periodo_aquisitivo_id' => 'O período aquisitivo selecionado não pertence ao servidor ou ao tipo de afastamento informado.',
+            ]);
         }
 
         $this->validarRegrasParaSolicitacao($temp, $solicitacao);

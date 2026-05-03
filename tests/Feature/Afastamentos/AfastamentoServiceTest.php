@@ -195,7 +195,20 @@ it('bloqueia criacao quando usuario nao tem direito ao tipo de afastamento', fun
         'data_fim' => now()->addMonth()->addDays(9)->toDateString(),
         'status' => StatusAfastamento::RASCUNHO->value,
     ]);
-})->throws(ValidationException::class, 'Saldo insuficiente para este tipo de afastamento. Verifique se há período aquisitivo adquirido com saldo disponível.');
+})->throws(ValidationException::class, 'Selecione um período aquisitivo adquirido com saldo disponível para solicitar este afastamento.');
+
+it('bloqueia criacao sem selecionar periodo aquisitivo mesmo com saldo existente', function (): void {
+    $user = User::factory()->create();
+    periodo($user, TipoAfastamento::FERIAS, 30);
+
+    app(AfastamentoService::class)->salvar([
+        'user_id' => $user->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => now()->addMonth()->toDateString(),
+        'data_fim' => now()->addMonth()->addDays(9)->toDateString(),
+        'status' => StatusAfastamento::RASCUNHO->value,
+    ]);
+})->throws(ValidationException::class, 'Selecione um período aquisitivo adquirido com saldo disponível para solicitar este afastamento.');
 
 it('bloqueia criacao antes do periodo aquisitivo estar adquirido', function (): void {
     $user = User::factory()->create(['data_ingresso' => '2026-01-01']);
@@ -208,7 +221,7 @@ it('bloqueia criacao antes do periodo aquisitivo estar adquirido', function (): 
         'data_fim' => now()->addMonth()->addDays(9)->toDateString(),
         'status' => StatusAfastamento::RASCUNHO->value,
     ]);
-})->throws(ValidationException::class, 'Saldo insuficiente para este tipo de afastamento. Verifique se há período aquisitivo adquirido com saldo disponível.');
+})->throws(ValidationException::class, 'Selecione um período aquisitivo adquirido com saldo disponível para solicitar este afastamento.');
 
 it('bloqueia afastamento com dias abaixo do minimo por parcela configurado', function (): void {
     $user = User::factory()->create();
