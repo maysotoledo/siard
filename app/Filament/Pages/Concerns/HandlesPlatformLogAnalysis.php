@@ -407,7 +407,7 @@ trait HandlesPlatformLogAnalysis
 
     protected function hydrateReportFromRun(AnaliseRun $run): void
     {
-        $report = (array) ($run->summary ?: app(PlatformRunSummaryService::class)->buildSummary($run));
+        $report = (array) app(PlatformRunSummaryService::class)->buildSummary($run);
         $report['selected_target'] = $this->resolveRunTarget($run);
         $report['selected_run_id'] = (int) $run->id;
 

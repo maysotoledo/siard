@@ -7,6 +7,7 @@ use App\Jobs\AnaliseInteligente\Whatsapp\ProcessWhatsappInvestigationJob;
 use App\Jobs\AnaliseInteligente\Whatsapp\ProcessWhatsappTargetGroupJob;
 use App\Models\AnaliseRun;
 use App\Models\AnaliseRunContact;
+use App\Models\AnaliseRunEvent;
 use App\Models\AnaliseRunIp;
 use App\Models\AnaliseInvestigation;
 use App\Models\Bilhetagem;
@@ -1477,7 +1478,13 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
     protected function buildReportFromRun(AnaliseRun $run, string $activeTab): ?array
     {
         $parsed = $this->loadParsedPayload($run);
-        if (! is_array($parsed)) return null;
+        if (! is_array($parsed)) {
+            $parsed = $this->buildParsedPayloadFromDatabase($run);
+        }
+
+        if (! is_array($parsed)) {
+            return $this->existingReportWithSheets($run);
+        }
 
         $addedBilhetagemIps = $this->ensureRunIpsForBilhetagem($run);
         if ($activeTab === 'bilhetagem') {
@@ -1515,6 +1522,84 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
             : [];
 
         return $report;
+    }
+
+    protected function buildParsedPayloadFromDatabase(AnaliseRun $run): ?array
+    {
+        $events = AnaliseRunEvent::query()
+            ->where('analise_run_id', $run->id)
+            ->where('event_type', 'access')
+            ->whereNotNull('occurred_at')
+            ->orderBy('occurred_at')
+            ->get(['occurred_at', 'timezone_label', 'ip', 'logical_port', 'description', 'metadata']);
+
+        if ($events->isEmpty()) {
+            return null;
+        }
+
+        $summary = is_array($run->summary) ? $run->summary : [];
+
+        return [
+            'target' => $run->target ?: data_get($summary, 'target'),
+            'account_identifier' => data_get($summary, 'account_identifier'),
+            'device' => data_get($summary, 'device'),
+            'device_build' => data_get($summary, 'device_build'),
+            'registered_emails' => array_values((array) data_get($summary, 'registered_emails', [])),
+            'symmetric_contacts' => [],
+            'asymmetric_contacts' => [],
+            'symmetric_contacts_count' => (int) data_get($summary, 'symmetric_contacts_count', 0),
+            'asymmetric_contacts_count' => (int) data_get($summary, 'asymmetric_contacts_count', 0),
+            'connection_info' => (array) data_get($summary, 'connection_info', []),
+            'groups' => array_values((array) data_get($summary, 'groups_rows', [])),
+            'ip_events' => $events->map(function (AnaliseRunEvent $event): array {
+                $metadata = is_array($event->metadata) ? $event->metadata : [];
+                $ip = trim((string) ($event->ip ?: data_get($metadata, 'ip')));
+                $logicalPort = $event->logical_port ?: data_get($metadata, 'logical_port');
+                $ipWithPort = data_get($metadata, 'ip_with_port');
+
+                if (! is_string($ipWithPort) || trim($ipWithPort) === '') {
+                    $ipWithPort = $logicalPort ? "{$ip}:{$logicalPort}" : $ip;
+                }
+
+                return [
+                    'ip' => $ip,
+                    'ip_with_port' => $ipWithPort,
+                    'logical_port' => $logicalPort,
+                    'description' => $event->description ?: data_get($metadata, 'description'),
+                    'time_utc' => $event->occurred_at?->copy()->setTimezone('UTC')->toIso8601String(),
+                    'tz_label' => $event->timezone_label ?: data_get($metadata, 'tz_label', 'UTC'),
+                ];
+            })->filter(fn (array $event): bool => trim((string) ($event['ip'] ?? '')) !== '')->values()->all(),
+            'message_log' => [],
+        ];
+    }
+
+    protected function existingReportWithSheets(AnaliseRun $run): ?array
+    {
+        $report = is_array($run->report) ? $run->report : null;
+        if (! is_array($report)) {
+            return null;
+        }
+
+        $sheetKeys = [
+            'timeline_rows',
+            'unique_ip_rows',
+            'provider_stats_rows',
+            'city_stats_rows',
+            'night_events_rows',
+            'mobile_events_rows',
+            'groups_rows',
+            'bilhetagem_cards',
+            'vinculo_rows',
+        ];
+
+        foreach ($sheetKeys as $key) {
+            if (array_key_exists($key, $report)) {
+                return $report;
+            }
+        }
+
+        return null;
     }
 
     protected function buildBilhetagemCardsFromDb(AnaliseRun $run, array $parsed): array

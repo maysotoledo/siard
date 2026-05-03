@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Jobs\AnaliseInteligente\Instagram\ProcessInstagramInvestigationJob;
 use App\Models\AnaliseRun;
 use App\Models\AnaliseInvestigation;
+use App\Models\AnaliseRunEvent;
 use App\Models\AnaliseRunIp;
 use App\Filament\Pages\RelatoriosProcessados;
 use App\Models\IpEnrichment;
@@ -792,8 +793,11 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
         $parsed = app(RunPayloadStorage::class)->loadParsedPayload($run);
 
         if (! is_array($parsed)) {
-            Notification::make()->title('Sem dados para montar relatório')->danger()->send();
-            return null;
+            $parsed = $this->buildParsedPayloadFromDatabase($run);
+        }
+
+        if (! is_array($parsed)) {
+            return $this->existingReportWithSheets($run);
         }
 
         $ips = AnaliseRunIp::where('analise_run_id', $run->id)->pluck('ip')->all();
@@ -813,6 +817,87 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
         }
 
         return (new ReportAggregator())->buildReport($parsed, $enrichedByIp);
+    }
+
+    protected function buildParsedPayloadFromDatabase(AnaliseRun $run): ?array
+    {
+        $events = AnaliseRunEvent::query()
+            ->where('analise_run_id', $run->id)
+            ->where('event_type', 'access')
+            ->whereNotNull('occurred_at')
+            ->orderBy('occurred_at')
+            ->get(['occurred_at', 'timezone_label', 'ip', 'logical_port', 'description', 'metadata']);
+
+        if ($events->isEmpty()) {
+            return null;
+        }
+
+        $summary = is_array($run->summary) ? $run->summary : [];
+
+        return [
+            'target' => $run->target ?: data_get($summary, 'target'),
+            'account_identifier' => data_get($summary, 'account_identifier'),
+            'vanity_name' => data_get($summary, 'vanity_name'),
+            'first_name' => data_get($summary, 'first_name'),
+            'registration_date' => data_get($summary, 'registration_date'),
+            'registration_ip' => data_get($summary, 'registration_ip'),
+            'registration_phone' => data_get($summary, 'registration_phone'),
+            'registration_phone_verified_on' => data_get($summary, 'registration_phone_verified_on'),
+            'last_location_time' => data_get($summary, 'last_location_time'),
+            'last_location_latitude' => data_get($summary, 'last_location_latitude'),
+            'last_location_longitude' => data_get($summary, 'last_location_longitude'),
+            'last_location_maps_url' => data_get($summary, 'last_location_maps_url'),
+            'followers' => array_values((array) data_get($summary, 'followers', [])),
+            'following' => array_values((array) data_get($summary, 'following', [])),
+            'direct_threads' => array_values((array) data_get($summary, 'direct_threads', [])),
+            'ip_events' => $events->map(function (AnaliseRunEvent $event): array {
+                $metadata = is_array($event->metadata) ? $event->metadata : [];
+                $ip = trim((string) ($event->ip ?: data_get($metadata, 'ip')));
+                $logicalPort = $event->logical_port ?: data_get($metadata, 'logical_port');
+                $ipWithPort = data_get($metadata, 'ip_with_port');
+
+                if (! is_string($ipWithPort) || trim($ipWithPort) === '') {
+                    $ipWithPort = $logicalPort ? "{$ip}:{$logicalPort}" : $ip;
+                }
+
+                return [
+                    'ip' => $ip,
+                    'ip_with_port' => $ipWithPort,
+                    'logical_port' => $logicalPort,
+                    'description' => $event->description ?: data_get($metadata, 'description'),
+                    'time_utc' => $event->occurred_at?->copy()->setTimezone('UTC')->toIso8601String(),
+                    'tz_label' => $event->timezone_label ?: data_get($metadata, 'tz_label', 'UTC'),
+                ];
+            })->filter(fn (array $event): bool => trim((string) ($event['ip'] ?? '')) !== '')->values()->all(),
+        ];
+    }
+
+    protected function existingReportWithSheets(AnaliseRun $run): ?array
+    {
+        $report = is_array($run->report) ? $run->report : null;
+        if (! is_array($report)) {
+            return null;
+        }
+
+        $sheetKeys = [
+            'timeline_rows',
+            'unique_ip_rows',
+            'provider_stats_rows',
+            'city_stats_rows',
+            'night_events_rows',
+            'mobile_events_rows',
+            'direct_threads',
+            'followers',
+            'following',
+        ];
+
+        foreach ($sheetKeys as $key) {
+            if (array_key_exists($key, $report)) {
+                return $report;
+            }
+        }
+
+        return null;
     }
 
     protected function fullCachedReport(): array
@@ -889,7 +974,7 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
 
     protected function reportCacheKey(AnaliseRun $run): string
     {
-        return 'analise-insta-report:' . $run->getKey();
+        return 'analise-insta-report:v2:' . $run->getKey();
     }
 
     protected function availableTabs(): array

@@ -74,7 +74,11 @@ class GenericTimelineTable extends TableComponent
             ->where('event_type', 'access');
 
         if ($this->scope === 'night') {
-            $query->whereRaw('HOUR(CONVERT_TZ(occurred_at, "+00:00", "-03:00")) >= 23 OR HOUR(CONVERT_TZ(occurred_at, "+00:00", "-03:00")) <= 6');
+            $query->where(function ($builder): void {
+                $builder
+                    ->whereRaw('HOUR(CONVERT_TZ(occurred_at, "+00:00", "-03:00")) >= 23')
+                    ->orWhereRaw('HOUR(CONVERT_TZ(occurred_at, "+00:00", "-03:00")) <= 6');
+            });
         }
 
         if ($this->scope === 'mobile') {
