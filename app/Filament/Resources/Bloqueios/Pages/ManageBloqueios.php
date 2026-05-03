@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\Bloqueios\BloqueioResource\Pages;
+namespace App\Filament\Resources\Bloqueios\Pages;
 
 use App\Filament\Resources\Bloqueios\BloqueioResource;
 use App\Models\Bloqueio;

@@ -16,4 +16,11 @@ class EditUser extends EditRecord
             DeleteAction::make(),
         ];
     }
+
+    protected function afterSave(): void
+    {
+        if (! auth()->user()?->hasRole('super_admin') && $this->record->hasRole('super_admin')) {
+            $this->record->removeRole('super_admin');
+        }
+    }
 }

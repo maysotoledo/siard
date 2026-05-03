@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\Ferias\FeriasResource\Pages;
+namespace App\Filament\Resources\Ferias\Pages;
 
 use App\Filament\Resources\Ferias\FeriasResource;
 use App\Filament\Widgets\FeriasCalendarWidget;

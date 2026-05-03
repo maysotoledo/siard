@@ -2,10 +2,11 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
-use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 
 class UserForm
 {
@@ -23,6 +24,10 @@ class UserForm
                     ->validationMessages([
                         'unique' => 'Este e-mail já foi cadastrado para outro usuário.',
                     ]),
+                DatePicker::make('data_ingresso')
+                    ->label('Data de ingresso')
+                    ->native(false)
+                    ->closeOnDateSelection(),
                // DateTimePicker::make('email_verified_at'),
                 //TextInput::make('password')
                 //    ->password()
@@ -38,7 +43,13 @@ class UserForm
                     ->autocomplete('new-password')
                     ->helperText('Deixe em branco para manter a senha atual.'),
                 Select::make('roles')
-                    ->relationship('roles', 'name')
+                    ->relationship(
+                        'roles',
+                        'name',
+                        modifyQueryUsing: fn (Builder $query) => auth()->user()?->hasRole('super_admin')
+                            ? $query
+                            : $query->where('name', '!=', 'super_admin'),
+                    )
                     ->multiple()
                     ->preload()
                     ->searchable(),

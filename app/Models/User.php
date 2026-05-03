@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\FuncaoOperacional;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -18,6 +19,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'data_ingresso',
         'password',
         'attendance_hours',
         'attendance_slot_duration_minutes',
@@ -38,6 +40,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'data_ingresso' => 'date',
             'password' => 'hashed',
             'attendance_hours' => 'array',
             'attendance_slot_duration_minutes' => 'integer',
@@ -55,5 +58,16 @@ class User extends Authenticatable
     public function analiseRuns(): HasMany
     {
         return $this->hasMany(AnaliseRun::class);
+    }
+
+    public function getFuncaoOperacionalAttribute(): ?FuncaoOperacional
+    {
+        foreach (['ipc_plantao', 'epc_plantao', 'cartorio_central', 'dpc', 'ipc', 'epc'] as $role) {
+            if ($this->hasRole($role)) {
+                return FuncaoOperacional::fromRole($role);
+            }
+        }
+
+        return null;
     }
 }

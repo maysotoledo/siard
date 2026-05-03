@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Ferias;
 
-use App\Filament\Resources\Ferias\FeriasResource\Pages\ManageFerias;
+use App\Filament\Resources\Ferias\Pages\ManageFerias;
 use App\Models\Ferias;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -11,6 +11,8 @@ use UnitEnum;
 class FeriasResource extends Resource
 {
     protected static ?string $model = Ferias::class;
+
+    protected static bool $shouldRegisterNavigation = false;
 
     public static function getNavigationLabel(): string
     {
@@ -34,7 +36,7 @@ class FeriasResource extends Resource
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
-        return 'Férias';
+        return 'Gestão Administrativa';
     }
 
     public static function getPages(): array

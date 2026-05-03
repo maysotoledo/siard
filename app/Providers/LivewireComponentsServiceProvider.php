@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Filament\Widgets\AfastamentosAllWidget;
+use App\Filament\Widgets\AfastamentosApprovalWidget;
+use App\Filament\Widgets\AfastamentosCalendarWidget;
+use App\Filament\Widgets\AfastamentosStatsWidget;
+use App\Filament\Widgets\AfastamentosUpcomingWidget;
 use App\Filament\Widgets\CalendarWidget;
 use App\Filament\Widgets\FeriasCalendarWidget;
 use App\Filament\Widgets\SelecionarUsuarioAgendaWidget;
@@ -26,6 +31,31 @@ class LivewireComponentsServiceProvider extends ServiceProvider
         Livewire::component(
             'app.filament.widgets.ferias-calendar-widget',
             FeriasCalendarWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.afastamentos-stats-widget',
+            AfastamentosStatsWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.afastamentos-upcoming-widget',
+            AfastamentosUpcomingWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.afastamentos-approval-widget',
+            AfastamentosApprovalWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.afastamentos-all-widget',
+            AfastamentosAllWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.afastamentos-calendar-widget',
+            AfastamentosCalendarWidget::class
         );
     }
 }

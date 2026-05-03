@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Bloqueios;
 
-use App\Filament\Resources\Bloqueios\BloqueioResource\Pages\ManageBloqueios;
+use App\Filament\Resources\Bloqueios\Pages\ManageBloqueios;
 use App\Models\Bloqueio;
 use App\Models\User;
 use BackedEnum;

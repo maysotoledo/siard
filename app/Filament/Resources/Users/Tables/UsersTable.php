@@ -21,7 +21,9 @@ class UsersTable
                     ->searchable(),
                 TextColumn::make('roles_badge')
                     ->label('Tipo')
-                    ->state(fn ($record) => $record->getRoleNames()->implode(',')) // "admin,editor"
+                    ->state(fn ($record) => $record->getRoleNames()
+                        ->when(! auth()->user()?->hasRole('super_admin'), fn ($roles) => $roles->reject(fn (string $role): bool => $role === 'super_admin'))
+                        ->implode(',')) // "admin,editor"
                     ->badge()
                     ->separator(','), // vira múltiplos badges
             ])

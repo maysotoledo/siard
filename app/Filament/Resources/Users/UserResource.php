@@ -12,6 +12,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
  
@@ -49,6 +50,17 @@ class UserResource extends Resource
     public static function table(Table $table): Table
     {
         return UsersTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+
+        if (! auth()->user()?->hasRole('super_admin')) {
+            $query->whereDoesntHave('roles', fn (Builder $query) => $query->where('name', 'super_admin'));
+        }
+
+        return $query;
     }
 
     public static function getRelations(): array
