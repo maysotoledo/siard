@@ -255,9 +255,7 @@ class PlantaoCqhService
 
     private function nomeCurto(string $nome): string
     {
-        $partes = preg_split('/\s+/', trim($nome)) ?: [];
-
-        return mb_strtoupper(implode(' ', array_slice(array_filter($partes), 0, 2)));
+        return app(PlantaoNomeService::class)->abreviar($nome);
     }
 
     private function estaAfastado(int $userId, Carbon $date): bool

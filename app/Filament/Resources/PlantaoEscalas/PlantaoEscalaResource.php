@@ -118,7 +118,7 @@ class PlantaoEscalaResource extends Resource
                 ])
                 ->action(function (array $data): void {
                     $summary = app(PlantaoEscalaService::class)->gerarEscalaMensal((int) $data['mes'], (int) $data['ano'], (int) $data['equipe_inicial_id'], (bool) ($data['force'] ?? false));
-                    Notification::make()->title('Escala gerada')->body("Criados: {$summary['criados']} | Ignorados: {$summary['ignorados']}")->success()->send();
+                    Notification::make()->title('Escala gerada')->body("Criados: {$summary['criados']} | Atualizados: {$summary['atualizados']} | Ignorados: {$summary['ignorados']}")->success()->send();
                 }),
             Actions\Action::make('gerar_cqh')
                 ->label('Gerar Escala CQH')
