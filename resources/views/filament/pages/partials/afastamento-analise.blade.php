@@ -5,6 +5,9 @@
             <div>Servidor: {{ $record->user?->name ?? '-' }}</div>
             <div>Função: {{ $record->user?->funcao_operacional?->label() ?? '-' }}</div>
             <div>Grupo: {{ $record->user?->funcao_operacional?->grupoOperacional() === 'plantao' ? 'Plantão' : 'Expediente' }}</div>
+            <div>Prioridade: {{ $record->prioridade_score ?? '-' }} / {{ $record->prioridade_nivel ?? '-' }}</div>
+            <div>Ranking: {{ $record->prioridade_posicao ?? '-' }}</div>
+            <div>{{ $record->prioridade_motivo ?? 'Prioridade ainda não calculada.' }}</div>
         </div>
     </div>
 

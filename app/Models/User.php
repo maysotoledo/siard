@@ -8,6 +8,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Concerns\Auditable;
 
 
@@ -20,6 +21,9 @@ class User extends Authenticatable
         'name',
         'email',
         'data_ingresso',
+        'data_ingresso_servico_publico',
+        'data_ingresso_unidade',
+        'data_ingresso_carreira',
         'password',
         'attendance_hours',
         'attendance_slot_duration_minutes',
@@ -41,6 +45,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'data_ingresso' => 'date',
+            'data_ingresso_servico_publico' => 'date',
+            'data_ingresso_unidade' => 'date',
+            'data_ingresso_carreira' => 'date',
             'password' => 'hashed',
             'attendance_hours' => 'array',
             'attendance_slot_duration_minutes' => 'integer',
@@ -58,6 +65,16 @@ class User extends Authenticatable
     public function analiseRuns(): HasMany
     {
         return $this->hasMany(AnaliseRun::class);
+    }
+
+    public function plantaoCqh(): HasOne
+    {
+        return $this->hasOne(PlantaoCqhServidor::class);
+    }
+
+    public function isDerf(): bool
+    {
+        return $this->plantaoCqh?->unidade_operacional === 'DERF_CONFRESA';
     }
 
     public function getFuncaoOperacionalAttribute(): ?FuncaoOperacional

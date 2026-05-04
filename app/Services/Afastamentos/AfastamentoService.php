@@ -179,6 +179,8 @@ class AfastamentoService
             'nivel_impacto' => $impacto['nivel'],
         ])->save();
 
+        app(AfastamentoPrioridadeService::class)->atualizarSolicitacao($solicitacao);
+
         return $solicitacao->refresh();
     }
 

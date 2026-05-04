@@ -185,6 +185,9 @@ class AfastamentoSolicitacaoResource extends Resource
                     ->badge()
                     ->color(fn ($state) => $state?->color() ?? 'gray'),
                 Tables\Columns\TextColumn::make('impacto_score')->label('Score')->sortable(),
+                Tables\Columns\TextColumn::make('prioridade_score')->label('Prioridade')->sortable(),
+                Tables\Columns\TextColumn::make('prioridade_nivel')->label('Nível prioridade')->badge(),
+                Tables\Columns\TextColumn::make('prioridade_posicao')->label('Ranking')->sortable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('tipo_afastamento')->label('Tipo')->options(TipoAfastamento::options()),
@@ -286,6 +289,9 @@ class AfastamentoSolicitacaoResource extends Resource
                         'sugestoes' => app(AfastamentoSuggestionService::class)->sugerir($record),
                         'coberturas' => app(AfastamentoOperacionalService::class)->servidoresDisponiveisParaCobertura($record),
                     ])),
+                Actions\DeleteAction::make()
+                    ->label('Excluir')
+                    ->visible(fn (AfastamentoSolicitacao $record): bool => self::podeExcluirProprioCanceladoOuIndeferido($record)),
             ])
             ->toolbarActions([
                 Actions\CreateAction::make()
@@ -363,6 +369,12 @@ class AfastamentoSolicitacaoResource extends Resource
     {
         $user = auth()->user();
         return (bool) $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('chefia') || $user->hasRole('dpc'));
+    }
+
+    private static function podeExcluirProprioCanceladoOuIndeferido(AfastamentoSolicitacao $record): bool
+    {
+        return (int) $record->user_id === (int) auth()->id()
+            && in_array($record->status, [StatusAfastamento::CANCELADO, StatusAfastamento::INDEFERIDO], true);
     }
 
 }

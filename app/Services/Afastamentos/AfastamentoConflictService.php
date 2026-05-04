@@ -69,6 +69,10 @@ class AfastamentoConflictService
 
         $operacional = app(AfastamentoOperacionalService::class);
         $conflitos = [];
+        $conflitoPrioridade = $this->conflitoPrioridade($solicitacao, $user, $funcao);
+        if ($conflitoPrioridade) {
+            $conflitos[] = $conflitoPrioridade;
+        }
 
         if ($operacional->servidorEstaEmCobertura($user, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)) {
             $conflitos[] = $this->conflito(NivelImpacto::CRITICO, 'Servidor está designado como cobertura de plantão no período.', 'Cancele ou substitua a cobertura antes de aprovar este afastamento.', 'operacional');
@@ -121,6 +125,34 @@ class AfastamentoConflictService
         }
 
         return $conflitos;
+    }
+
+    private function conflitoPrioridade(AfastamentoSolicitacao $solicitacao, User $user, FuncaoOperacional $funcao): ?array
+    {
+        $concorrente = AfastamentoSolicitacao::query()
+            ->with('user')
+            ->whereKeyNot($solicitacao->id ?? 0)
+            ->whereDate('data_inicio', '<=', $solicitacao->data_fim)
+            ->whereDate('data_fim', '>=', $solicitacao->data_inicio)
+            ->whereIn('status', [StatusAfastamento::SOLICITADO->value, StatusAfastamento::EM_ANALISE->value, StatusAfastamento::APROVADO->value])
+            ->whereHas('user.roles', fn ($query) => $query->where('name', $funcao->role()))
+            ->first();
+
+        if (! $concorrente?->user) {
+            return null;
+        }
+
+        $prioridade = app(AfastamentoPrioridadeService::class);
+        $atual = $prioridade->calcularPrioridadeServidor($user, $solicitacao->tipo_afastamento);
+        $outro = $prioridade->calcularPrioridadeServidor($concorrente->user, $solicitacao->tipo_afastamento);
+        $preferido = $atual['score'] >= $outro['score'] ? $user->name : $concorrente->user->name;
+
+        return $this->conflito(
+            NivelImpacto::MODERADO,
+            "Há solicitação conflitante com {$concorrente->user->name}. Prioridade recomendada: {$preferido}.",
+            'A antiguidade é critério de desempate, mas a decisão continua subordinada ao interesse do serviço, efetivo mínimo e cobertura operacional.',
+            'prioridade',
+        );
     }
 
     private function conflito(NivelImpacto $nivel, string $mensagem, string $sugestao, string $origem = 'geral'): array

@@ -25,7 +25,15 @@ class UserForm
                         'unique' => 'Este e-mail já foi cadastrado para outro usuário.',
                     ]),
                 DatePicker::make('data_ingresso')
-                    ->label('Data de ingresso')
+                    ->label('Data de ingresso na carreira')
+                    ->native(false)
+                    ->closeOnDateSelection(),
+                DatePicker::make('data_ingresso_servico_publico')
+                    ->label('Ingresso no serviço público')
+                    ->native(false)
+                    ->closeOnDateSelection(),
+                DatePicker::make('data_ingresso_unidade')
+                    ->label('Ingresso na unidade')
                     ->native(false)
                     ->closeOnDateSelection(),
                // DateTimePicker::make('email_verified_at'),

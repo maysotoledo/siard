@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AnaliseInvestigationPdfController;
+use App\Http\Controllers\PlantaoPdfController;
 use Illuminate\Support\Facades\Route;
 use Filament\Facades\Filament;
 use App\Http\Controllers\GoogleCalendarController;
@@ -22,4 +23,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('/analises/investigacoes/{investigation}/pdf', AnaliseInvestigationPdfController::class)
         ->name('analises.investigacoes.pdf');
+
+    Route::get('/plantao/pdf', PlantaoPdfController::class)
+        ->name('plantao.pdf');
 });

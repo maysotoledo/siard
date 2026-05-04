@@ -6,6 +6,7 @@ use App\Enums\StatusAfastamento;
 use App\Models\AfastamentoSolicitacao;
 use App\Services\Afastamentos\AfastamentoConflictService;
 use App\Services\Afastamentos\AfastamentoOperacionalService;
+use App\Services\Afastamentos\AfastamentoPrioridadeService;
 use App\Services\Afastamentos\AfastamentoService;
 use App\Services\Afastamentos\AfastamentoSuggestionService;
 use Filament\Actions;
@@ -33,6 +34,7 @@ class AfastamentosApprovalWidget extends TableWidget
             )
             ->columns([
                 Tables\Columns\TextColumn::make('user.name')->label('Servidor')->searchable(),
+                Tables\Columns\TextColumn::make('user.data_ingresso')->label('Data de ingresso')->date('d/m/Y')->sortable(),
                 Tables\Columns\TextColumn::make('tipo_afastamento')->label('Tipo')->formatStateUsing(fn ($state) => $state?->label())->badge(),
                 Tables\Columns\TextColumn::make('data_inicio')->label('Início')->date('d/m/Y')->sortable(),
                 Tables\Columns\TextColumn::make('data_fim')->label('Fim')->date('d/m/Y')->sortable(),
@@ -40,6 +42,8 @@ class AfastamentosApprovalWidget extends TableWidget
                 Tables\Columns\TextColumn::make('status')->label('Status')->formatStateUsing(fn ($state) => $state?->label())->badge()->color(fn ($state) => $state?->color() ?? 'gray'),
                 Tables\Columns\TextColumn::make('nivel_impacto')->label('Impacto')->formatStateUsing(fn ($state) => $state?->label() ?? '-')->badge()->color(fn ($state) => $state?->color() ?? 'gray'),
                 Tables\Columns\TextColumn::make('impacto_score')->label('Score'),
+                Tables\Columns\TextColumn::make('prioridade_score')->label('Prioridade')->sortable(),
+                Tables\Columns\TextColumn::make('prioridade_posicao')->label('Ranking')->sortable(),
             ])
             ->recordActions([
                 Actions\Action::make('aprovar')
@@ -83,6 +87,34 @@ class AfastamentosApprovalWidget extends TableWidget
                         'sugestoes' => app(AfastamentoSuggestionService::class)->sugerir($record),
                         'coberturas' => app(AfastamentoOperacionalService::class)->servidoresDisponiveisParaCobertura($record),
                     ])),
+            ])
+            ->headerActions([
+                Actions\Action::make('recalcular_todos_impactos')
+                    ->label('Calcular/recalcular impactos')
+                    ->icon('heroicon-o-arrow-path')
+                    ->requiresConfirmation()
+                    ->modalDescription('Recalcula o impacto de todas as solicitações pendentes de aprovação.')
+                    ->action(function (): void {
+                        $total = 0;
+
+                        AfastamentoSolicitacao::query()
+                            ->with(['user', 'coberturasPlantao'])
+                            ->whereIn('status', [StatusAfastamento::SOLICITADO->value, StatusAfastamento::EM_ANALISE->value])
+                            ->orderBy('id')
+                            ->chunkById(50, function ($solicitacoes) use (&$total): void {
+                                foreach ($solicitacoes as $solicitacao) {
+                                    app(AfastamentoService::class)->recalcularImpacto($solicitacao);
+                                    app(AfastamentoPrioridadeService::class)->atualizarSolicitacao($solicitacao);
+                                    $total++;
+                                }
+                            });
+
+                        Notification::make()
+                            ->title('Impactos recalculados')
+                            ->body("Solicitações recalculadas: {$total}.")
+                            ->success()
+                            ->send();
+                    }),
             ])
             ->emptyStateHeading('Nenhuma solicitação pendente');
     }

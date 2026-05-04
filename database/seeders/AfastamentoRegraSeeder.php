@@ -62,6 +62,25 @@ class AfastamentoRegraSeeder extends Seeder
                 ],
             );
         }
+
+        DB::table('afastamento_prioridade_regras')->updateOrInsert(
+            ['nome' => 'Regra Geral de Prioridade'],
+            [
+                'usar_antiguidade_servico_publico' => true,
+                'usar_antiguidade_carreira' => true,
+                'usar_antiguidade_unidade' => true,
+                'peso_antiguidade_servico_publico' => 2,
+                'peso_antiguidade_carreira' => 3,
+                'peso_antiguidade_unidade' => 1,
+                'peso_periodo_aquisitivo_mais_antigo' => 5,
+                'peso_tempo_sem_gozo' => 5,
+                'peso_saldo_vencido_ou_antigo' => 8,
+                'peso_impacto_operacional' => -10,
+                'ativo' => true,
+                'updated_at' => $now,
+                'created_at' => $now,
+            ],
+        );
     }
 
     private function regrasOperacionaisPadrao(): array

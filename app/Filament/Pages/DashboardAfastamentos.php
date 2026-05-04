@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\AfastamentosAllWidget;
 use App\Filament\Widgets\AfastamentosApprovalWidget;
+use App\Filament\Widgets\AfastamentosPriorityWidget;
 use App\Filament\Widgets\AfastamentosStatsWidget;
 use App\Filament\Widgets\AfastamentosUpcomingWidget;
 use BackedEnum;
@@ -36,6 +37,7 @@ class DashboardAfastamentos extends Page
         return [
             AfastamentosStatsWidget::class,
             AfastamentosApprovalWidget::class,
+            AfastamentosPriorityWidget::class,
             AfastamentosAllWidget::class,
             AfastamentosUpcomingWidget::class,
         ];

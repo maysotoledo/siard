@@ -13,6 +13,7 @@ use App\Models\AfastamentoSolicitacao;
 use App\Models\User;
 use App\Services\Afastamentos\AfastamentoConflictService;
 use App\Services\Afastamentos\AfastamentoPeriodoAquisitivoService;
+use App\Services\Afastamentos\AfastamentoPrioridadeService;
 use App\Services\Afastamentos\AfastamentoSaldoService;
 use App\Services\Afastamentos\AfastamentoService;
 use App\Services\Afastamentos\AfastamentoSuggestionService;
@@ -88,6 +89,84 @@ it('calcula saldo separado de ferias e licenca premio', function (): void {
 
     expect(app(AfastamentoSaldoService::class)->saldoDisponivel($user, TipoAfastamento::FERIAS))->toBe(30)
         ->and(app(AfastamentoSaldoService::class)->saldoDisponivel($user, TipoAfastamento::LICENCA_PREMIO))->toBe(90);
+});
+
+it('servidor mais antigo tem score maior em igualdade de condicoes', function (): void {
+    $antigo = User::factory()->create([
+        'data_ingresso' => '2010-01-01',
+        'data_ingresso_servico_publico' => '2010-01-01',
+        'data_ingresso_carreira' => '2010-01-01',
+        'data_ingresso_unidade' => '2010-01-01',
+    ]);
+    $novo = User::factory()->create([
+        'data_ingresso' => '2020-01-01',
+        'data_ingresso_servico_publico' => '2020-01-01',
+        'data_ingresso_carreira' => '2020-01-01',
+        'data_ingresso_unidade' => '2020-01-01',
+    ]);
+    periodo($antigo, TipoAfastamento::FERIAS, 30);
+    periodo($novo, TipoAfastamento::FERIAS, 30);
+
+    $service = app(AfastamentoPrioridadeService::class);
+
+    expect($service->calcularPrioridadeServidor($antigo, TipoAfastamento::FERIAS)['score'])
+        ->toBeGreaterThan($service->calcularPrioridadeServidor($novo, TipoAfastamento::FERIAS)['score']);
+});
+
+it('periodo aquisitivo mais antigo aumenta prioridade', function (): void {
+    $a = User::factory()->create(['data_ingresso' => '2020-01-01']);
+    $b = User::factory()->create(['data_ingresso' => '2020-01-01']);
+    periodo($a, TipoAfastamento::FERIAS, 30)->forceFill(['data_aquisicao' => '2021-01-01'])->save();
+    periodo($b, TipoAfastamento::FERIAS, 30)->forceFill(['data_aquisicao' => '2025-01-01'])->save();
+
+    $service = app(AfastamentoPrioridadeService::class);
+
+    expect($service->calcularPrioridadeServidor($a, TipoAfastamento::FERIAS)['score'])
+        ->toBeGreaterThan($service->calcularPrioridadeServidor($b, TipoAfastamento::FERIAS)['score']);
+});
+
+it('servidor ha mais tempo sem gozo aumenta prioridade', function (): void {
+    $a = User::factory()->create(['data_ingresso' => '2015-01-01']);
+    $b = User::factory()->create(['data_ingresso' => '2015-01-01']);
+    periodo($a, TipoAfastamento::FERIAS, 30);
+    periodo($b, TipoAfastamento::FERIAS, 30);
+    AfastamentoSolicitacao::query()->create([
+        'user_id' => $b->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => '2025-06-01',
+        'data_fim' => '2025-06-10',
+        'dias_solicitados' => 10,
+        'status' => StatusAfastamento::CONCLUIDO->value,
+    ]);
+
+    $service = app(AfastamentoPrioridadeService::class);
+
+    expect($service->calcularPrioridadeServidor($a, TipoAfastamento::FERIAS)['score'])
+        ->toBeGreaterThan($service->calcularPrioridadeServidor($b, TipoAfastamento::FERIAS)['score']);
+});
+
+it('ranking separa ferias e licenca premio', function (): void {
+    $ferias = User::factory()->create(['data_ingresso' => '2020-01-01']);
+    $licenca = User::factory()->create(['data_ingresso' => '2020-01-01']);
+    periodo($ferias, TipoAfastamento::FERIAS, 30)->forceFill(['data_aquisicao' => '2021-01-01'])->save();
+    periodo($licenca, TipoAfastamento::LICENCA_PREMIO, 90)->forceFill(['data_aquisicao' => '2021-01-01'])->save();
+
+    $service = app(AfastamentoPrioridadeService::class);
+
+    expect($service->calcularRanking(TipoAfastamento::FERIAS)[0]['user']->id)->toBe($ferias->id)
+        ->and($service->calcularRanking(TipoAfastamento::LICENCA_PREMIO)[0]['user']->id)->toBe($licenca->id);
+});
+
+it('ranking respeita funcao operacional', function (): void {
+    $ipc = servidorComRole('ipc');
+    $epc = servidorComRole('epc');
+    periodo($ipc, TipoAfastamento::FERIAS, 30);
+    periodo($epc, TipoAfastamento::FERIAS, 30);
+
+    $ranking = app(AfastamentoPrioridadeService::class)->calcularRanking(TipoAfastamento::FERIAS, funcaoOperacional: FuncaoOperacional::IPC_EXPEDIENTE);
+
+    expect(collect($ranking)->pluck('user.id')->all())->toContain($ipc->id)
+        ->and(collect($ranking)->pluck('user.id')->all())->not->toContain($epc->id);
 });
 
 it('gera ferias para servidor com tres anos de exercicio', function (): void {

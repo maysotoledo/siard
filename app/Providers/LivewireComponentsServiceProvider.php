@@ -5,10 +5,13 @@ namespace App\Providers;
 use App\Filament\Widgets\AfastamentosAllWidget;
 use App\Filament\Widgets\AfastamentosApprovalWidget;
 use App\Filament\Widgets\AfastamentosCalendarWidget;
+use App\Filament\Widgets\AfastamentosPriorityWidget;
 use App\Filament\Widgets\AfastamentosStatsWidget;
 use App\Filament\Widgets\AfastamentosUpcomingWidget;
 use App\Filament\Widgets\CalendarWidget;
 use App\Filament\Widgets\FeriasCalendarWidget;
+use App\Filament\Widgets\PlantaoCqhExternosWidget;
+use App\Filament\Widgets\PlantaoCalendarWidget;
 use App\Filament\Widgets\SelecionarUsuarioAgendaWidget;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
@@ -56,6 +59,21 @@ class LivewireComponentsServiceProvider extends ServiceProvider
         Livewire::component(
             'app.filament.widgets.afastamentos-calendar-widget',
             AfastamentosCalendarWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.afastamentos-priority-widget',
+            AfastamentosPriorityWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.plantao-calendar-widget',
+            PlantaoCalendarWidget::class
+        );
+
+        Livewire::component(
+            'app.filament.widgets.plantao-cqh-externos-widget',
+            PlantaoCqhExternosWidget::class
         );
     }
 }
