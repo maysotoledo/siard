@@ -21,7 +21,6 @@ class PlantaoCqhExternosWidget extends TableWidget
         return $table
             ->query($this->query())
             ->columns([
-                Tables\Columns\TextColumn::make('ordem')->sortable(),
                 Tables\Columns\TextColumn::make('nome')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('unidade_operacional')->badge(),
                 Tables\Columns\TextColumn::make('telefone')->searchable(),
@@ -38,7 +37,7 @@ class PlantaoCqhExternosWidget extends TableWidget
                 Actions\EditAction::make()->schema($this->formSchema()),
                 Actions\DeleteAction::make(),
             ])
-            ->defaultSort('ordem');
+            ->defaultSort('nome');
     }
 
     private function query(): Builder
@@ -55,7 +54,6 @@ class PlantaoCqhExternosWidget extends TableWidget
                 ->default('DERF_CONFRESA')
                 ->required(),
             Forms\Components\TextInput::make('telefone')->tel()->maxLength(50),
-            Forms\Components\TextInput::make('ordem')->numeric(),
             Forms\Components\Toggle::make('apto_cqh')->label('Apto CQH')->default(true),
             Forms\Components\Toggle::make('ativo')->default(true),
             Forms\Components\Textarea::make('observacao')->columnSpanFull(),

@@ -40,4 +40,9 @@ class AnaliseInteligenteGenerico extends Page implements HasSchemas
     {
         return 'Genérico';
     }
+
+    protected function uploadDirectory(): string
+    {
+        return 'uploads/generic-logs';
+    }
 }

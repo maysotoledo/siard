@@ -6,6 +6,7 @@ use App\Models\AnaliseRunIp;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Tables\TableComponent;
+use Illuminate\Database\Eloquent\Builder;
 
 class GenericCitiesTable extends TableComponent
 {
@@ -13,21 +14,25 @@ class GenericCitiesTable extends TableComponent
 
     public function table(Table $table): Table
     {
+        $aggregatedQuery = AnaliseRunIp::query()
+            ->leftJoin('ip_enrichments', 'ip_enrichments.ip', '=', 'analise_run_ips.ip')
+            ->where('analise_run_id', $this->runId)
+            ->selectRaw("
+                MAX(analise_run_ips.id) as id,
+                COALESCE(NULLIF(ip_enrichments.city, ''), 'Desconhecida') as city,
+                SUM(analise_run_ips.occurrences) as occurrences,
+                COUNT(*) as unique_ips,
+                COUNT(DISTINCT COALESCE(NULLIF(ip_enrichments.isp, ''), NULLIF(ip_enrichments.org, ''), 'Desconhecido')) as providers,
+                SUM(CASE WHEN ip_enrichments.mobile = 1 THEN analise_run_ips.occurrences ELSE 0 END) as mobile_occurrences,
+                MAX(analise_run_ips.last_seen_at) as last_seen_at
+            ")
+            ->groupBy('city');
+
         return $table
             ->query(
                 AnaliseRunIp::query()
-                    ->leftJoin('ip_enrichments', 'ip_enrichments.ip', '=', 'analise_run_ips.ip')
-                    ->where('analise_run_id', $this->runId)
-                    ->selectRaw("
-                        MIN(analise_run_ips.id) as id,
-                        COALESCE(NULLIF(ip_enrichments.city, ''), 'Desconhecida') as city,
-                        SUM(analise_run_ips.occurrences) as occurrences,
-                        COUNT(*) as unique_ips,
-                        COUNT(DISTINCT COALESCE(NULLIF(ip_enrichments.isp, ''), NULLIF(ip_enrichments.org, ''), 'Desconhecido')) as providers,
-                        SUM(CASE WHEN ip_enrichments.mobile = 1 THEN analise_run_ips.occurrences ELSE 0 END) as mobile_occurrences,
-                        MAX(analise_run_ips.last_seen_at) as last_seen_at
-                    ")
-                    ->groupBy('city')
+                    ->fromSub($aggregatedQuery->toBase(), 'city_stats')
+                    ->select('city_stats.*')
             )
             ->columns([
                 TextColumn::make('city')
@@ -65,6 +70,7 @@ class GenericCitiesTable extends TableComponent
                     ->sortable(),
             ])
             ->defaultSort('occurrences', 'desc')
+            ->modifyQueryUsing(fn (Builder $query) => $query->orderByDesc('occurrences')->orderByDesc('id'))
             ->paginated([25, 50, 100])
             ->defaultPaginationPageOption(25);
     }

@@ -217,19 +217,20 @@
 
         @php
             $componentPrefix = (($investigation['source'] ?? null) === 'google') ? 'google' : 'generic';
+            $isGoogle = (($investigation['source'] ?? null) === 'google');
             $tabs = [
                 'timeline' => ['label' => 'Timeline', 'icon' => 'heroicon-o-clock'],
                 'unique_ips' => ['label' => 'IPs unicos', 'icon' => 'heroicon-o-globe-alt'],
                 'providers' => ['label' => 'Provedores', 'icon' => 'heroicon-o-building-office-2'],
                 'cities' => ['label' => 'Cidades', 'icon' => 'heroicon-o-map-pin'],
-                'maps' => ['label' => 'Maps', 'icon' => 'heroicon-o-map'],
-                'search' => ['label' => 'Pesquisa', 'icon' => 'heroicon-o-magnifying-glass'],
-                'user_agents' => ['label' => 'Dispositivo/UA', 'icon' => 'heroicon-o-device-phone-mobile'],
                 'residencial' => ['label' => 'Noturno (23-06)', 'icon' => 'heroicon-o-moon'],
                 'movel' => ['label' => 'Movel', 'icon' => 'heroicon-o-device-phone-mobile'],
             ];
 
-            if (($investigation['source'] ?? null) === 'google') {
+            if ($isGoogle) {
+                $tabs['maps'] = ['label' => 'Maps', 'icon' => 'heroicon-o-map'];
+                $tabs['search'] = ['label' => 'Pesquisa', 'icon' => 'heroicon-o-magnifying-glass'];
+                $tabs['user_agents'] = ['label' => 'Dispositivo/UA', 'icon' => 'heroicon-o-device-phone-mobile'];
                 $tabs['vinculo'] = ['label' => 'Vinculo', 'icon' => 'heroicon-o-link'];
             }
 
@@ -238,13 +239,16 @@
                 'unique_ips' => (int) data_get($report, '_counts.unique_ips', 0),
                 'providers' => (int) data_get($report, '_counts.providers', 0),
                 'cities' => (int) data_get($report, '_counts.cities', 0),
-                'maps' => (int) data_get($report, '_counts.maps', 0),
-                'search' => (int) data_get($report, '_counts.search', 0),
-                'user_agents' => (int) data_get($report, '_counts.user_agents', 0),
                 'residencial' => (int) data_get($report, '_counts.residencial', $report['night_total_events'] ?? 0),
                 'movel' => (int) data_get($report, '_counts.movel', $report['mobile_total_events'] ?? 0),
                 'vinculo' => (int) data_get($report, '_counts.vinculo', count($report['vinculo_rows'] ?? [])),
             ];
+
+            if ($isGoogle) {
+                $counts['maps'] = (int) data_get($report, '_counts.maps', 0);
+                $counts['search'] = (int) data_get($report, '_counts.search', 0);
+                $counts['user_agents'] = (int) data_get($report, '_counts.user_agents', 0);
+            }
         @endphp
 
         <x-filament::section class="mt-6" heading="Planilhas">
@@ -299,19 +303,19 @@
                 </x-filament::section>
             @endif
 
-            @if ($tab === 'maps')
+            @if ($isGoogle && $tab === 'maps')
                 <x-filament::section heading="Maps">
                     @livewire('analise-inteligente.' . $componentPrefix . '-maps-table', ['runId' => $runId], key('platform-maps-' . $componentPrefix . '-' . $runId))
                 </x-filament::section>
             @endif
 
-            @if ($tab === 'search')
+            @if ($isGoogle && $tab === 'search')
                 <x-filament::section heading="Pesquisa">
                     @livewire('analise-inteligente.' . $componentPrefix . '-search-table', ['runId' => $runId], key('platform-search-' . $componentPrefix . '-' . $runId))
                 </x-filament::section>
             @endif
 
-            @if ($tab === 'user_agents')
+            @if ($isGoogle && $tab === 'user_agents')
                 @include('filament.pages.partials.sheet-platform-devices', ['report' => $report, 'runId' => $runId, 'componentPrefix' => $componentPrefix])
             @endif
 

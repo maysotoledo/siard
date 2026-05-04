@@ -17,8 +17,8 @@ class DashboardAfastamentos extends Page
     use HasPageShield;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
-    protected static ?string $navigationLabel = 'Adminitração de Afastamentos';
-    protected static ?string $title = 'Dashboard de Afastamentos';
+    protected static ?string $navigationLabel = 'Administração de Afastamento';
+    protected static ?string $title = 'Administração de Afastamento';
     protected static ?string $slug = 'dashboard-afastamentos';
     protected string $view = 'filament.pages.dashboard-afastamentos';
 

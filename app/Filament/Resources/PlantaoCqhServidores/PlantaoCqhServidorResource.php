@@ -31,7 +31,6 @@ class PlantaoCqhServidorResource extends Resource
             Forms\Components\Select::make('user_id')->label('Servidor')->relationship('user', 'name')->searchable()->preload()->required(),
             Forms\Components\Hidden::make('unidade_operacional')->default('CONFRESA'),
             Forms\Components\Toggle::make('apto_cqh')->default(true),
-            Forms\Components\TextInput::make('ordem')->numeric(),
             Forms\Components\Toggle::make('ativo')->default(true),
             Forms\Components\Textarea::make('observacao')->columnSpanFull(),
         ]);
@@ -40,8 +39,7 @@ class PlantaoCqhServidorResource extends Resource
     public static function table(Table $table): Table
     {
         return $table->columns([
-            Tables\Columns\TextColumn::make('ordem')->sortable(),
-            Tables\Columns\TextColumn::make('user.name')->label('Servidor')->searchable(),
+            Tables\Columns\TextColumn::make('user.name')->label('Servidor')->searchable()->sortable(),
             Tables\Columns\IconColumn::make('apto_cqh')->boolean(),
             Tables\Columns\IconColumn::make('ativo')->boolean(),
         ])->recordActions([Actions\EditAction::make(), Actions\DeleteAction::make()]);

@@ -14,6 +14,14 @@ use Illuminate\Validation\ValidationException;
 
 class PlantaoCqhService
 {
+    /**
+     * Gera a escala CQH mensal com algoritmo inteligente de rotação.
+     *
+     * Regra de descanso: um servidor não pode fazer CQH se tiver plantão
+     * no dia anterior, no mesmo dia ou no dia seguinte (intervalo mínimo de 24h).
+     * O algoritmo percorre a lista de aptos em rotação e pula quem estiver bloqueado,
+     * garantindo distribuição justa mesmo com restrições de descanso.
+     */
     public function gerarEscalaCqhMensal(int $mes, int $ano): int
     {
         $aptos = $this->pessoasAptas();
@@ -22,21 +30,110 @@ class PlantaoCqhService
             return 0;
         }
 
-        $count = 0;
-        $i = 0;
         $inicio = Carbon::create($ano, $mes, 1);
-        for ($date = $inicio->copy(); $date->lte($inicio->copy()->endOfMonth()); $date->addDay()) {
-            $escala = PlantaoEscala::query()->whereDate('data_plantao', $date->toDateString())->first();
+        $fim = $inicio->copy()->endOfMonth();
+
+        // Pré-carrega mapa de plantões: data_string => [user_id, ...]
+        // Inclui ±1 dia do mês para cobrir bordas do intervalo de 24h
+        $plantoesPorData = $this->carregarPlantoesPorData(
+            $inicio->copy()->subDay(),
+            $fim->copy()->addDay()
+        );
+
+        $count = 0;
+        $total = $aptos->count();
+        $rotacao = 0; // índice atual na lista de rotação
+
+        for ($date = $inicio->copy(); $date->lte($fim); $date->addDay()) {
+            $escala = PlantaoEscala::query()
+                ->whereDate('data_plantao', $date->toDateString())
+                ->first();
+
             if (! $escala) {
                 continue;
             }
 
-            $this->setCqhPessoaForDay($escala, $aptos[$i % $aptos->count()]['key']);
-            $i++;
-            $count++;
+            // Monta set de user_ids bloqueados por conflito de 24h (dia -1, dia, dia +1)
+            $bloqueados = array_unique(array_merge(
+                $plantoesPorData[$date->copy()->subDay()->toDateString()] ?? [],
+                $plantoesPorData[$date->toDateString()] ?? [],
+                $plantoesPorData[$date->copy()->addDay()->toDateString()] ?? [],
+            ));
+
+            // Algoritmo de rotação inteligente: tenta cada candidato a partir do índice atual
+            $atribuido = false;
+            for ($tentativa = 0; $tentativa < $total; $tentativa++) {
+                $idx = ($rotacao + $tentativa) % $total;
+                $candidato = $aptos[$idx];
+
+                if ($this->candidatoEstaBloqueado($candidato, $bloqueados, $date)) {
+                    continue;
+                }
+
+                $this->setCqhPessoaForDay($escala, $candidato['key']);
+                $rotacao = ($idx + 1) % $total; // avança rotação para além do candidato escolhido
+                $count++;
+                $atribuido = true;
+                break;
+            }
+
+            // Fallback: todos bloqueados — atribui o próximo da rotação sem restrição
+            if (! $atribuido) {
+                $this->setCqhPessoaForDay($escala, $aptos[$rotacao % $total]['key']);
+                $rotacao = ($rotacao + 1) % $total;
+                $count++;
+            }
         }
 
         return $count;
+    }
+
+    /**
+     * Retorna mapa [data_string => [user_id, ...]] de servidores escalados para plantão
+     * dentro do período informado (inclusive).
+     */
+    private function carregarPlantoesPorData(Carbon $inicio, Carbon $fim): array
+    {
+        $escalas = PlantaoEscala::query()
+            ->whereBetween('data_plantao', [$inicio->toDateString(), $fim->toDateString()])
+            ->whereNotNull('equipe_id')
+            ->with(['equipe.servidores' => fn ($q) => $q->where('ativo', true)])
+            ->get();
+
+        $mapa = [];
+        foreach ($escalas as $escala) {
+            $dataStr = $escala->data_plantao->toDateString();
+            $mapa[$dataStr] ??= [];
+            foreach ($escala->equipe?->servidores ?? [] as $membro) {
+                $mapa[$dataStr][] = $membro->user_id;
+            }
+        }
+
+        return $mapa;
+    }
+
+    /**
+     * Verifica se um candidato está bloqueado para CQH em determinada data.
+     * Servidores externos não têm plantão no sistema e nunca são bloqueados por esta regra.
+     */
+    private function candidatoEstaBloqueado(array $candidato, array $bloqueados, Carbon $date): bool
+    {
+        if (str_starts_with($candidato['key'], 'externo:')) {
+            return false;
+        }
+
+        [, $userId] = explode(':', $candidato['key'], 2);
+        $userId = (int) $userId;
+
+        if (in_array($userId, $bloqueados, true)) {
+            return true;
+        }
+
+        if ($this->estaAfastado($userId, $date)) {
+            return true;
+        }
+
+        return false;
     }
 
     public function setCqhForDay(PlantaoEscala $escala, int $userId): PlantaoEscala
@@ -119,10 +216,8 @@ class PlantaoCqhService
             ->with('user')
             ->where('ativo', true)
             ->where('apto_cqh', true)
-            ->orderByRaw('ordem is null, ordem')
             ->get()
             ->map(fn (PlantaoCqhServidor $row): array => [
-                'ordem' => $row->ordem,
                 'id' => $row->id,
                 'key' => 'user:'.$row->user_id,
                 'label' => ($row->user?->name ?? 'Servidor').($row->unidade_operacional === 'DERF_CONFRESA' ? '(DERF)' : ''),
@@ -131,22 +226,17 @@ class PlantaoCqhService
         $externos = PlantaoCqhExterno::query()
             ->where('ativo', true)
             ->where('apto_cqh', true)
-            ->orderByRaw('ordem is null, ordem')
             ->get()
             ->map(fn (PlantaoCqhExterno $row): array => [
-                'ordem' => $row->ordem,
                 'id' => $row->id,
                 'key' => 'externo:'.$row->id,
                 'label' => $row->nome.($row->isDerf() ? '(DERF)' : ''),
             ]);
 
+        // Ordena alfabeticamente pelo nome para rotação consistente e imparcial
         return $internos
             ->concat($externos)
-            ->sortBy([
-                fn (array $a, array $b): int => (($a['ordem'] === null) <=> ($b['ordem'] === null)),
-                fn (array $a, array $b): int => ($a['ordem'] ?? PHP_INT_MAX) <=> ($b['ordem'] ?? PHP_INT_MAX),
-                fn (array $a, array $b): int => strcmp($a['key'], $b['key']),
-            ])
+            ->sortBy('label')
             ->values();
     }
 

@@ -47,6 +47,7 @@ enum FuncaoOperacional: string
     {
         return match ($this) {
             self::IPC_PLANTAO => [self::IPC_EXPEDIENTE],
+            self::EPC_PLANTAO => [self::EPC_EXPEDIENTE, self::EPC_PLANTAO],
             default => [],
         };
     }

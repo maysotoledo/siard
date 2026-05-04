@@ -82,11 +82,34 @@ class AfastamentoOperacionalService
         );
     }
 
+    /**
+     * Lista os servidores efetivamente disponíveis da função no período (não afastados e não em cobertura).
+     *
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    public function disponiveisDaFuncaoLista(FuncaoOperacional $funcao, CarbonInterface|string $inicio, CarbonInterface|string $fim, ?int $ignorarSolicitacaoId = null): \Illuminate\Support\Collection
+    {
+        return $this->usuariosDaFuncao($funcao)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (User $user): bool => ! $this->servidorEstaAfastado($user, $inicio, $fim, $ignorarSolicitacaoId)
+                && ! $this->servidorEstaEmCobertura($user, $inicio, $fim, $ignorarSolicitacaoId))
+            ->values();
+    }
+
     public function expedienteFicaComMinimoAposCobertura(CarbonInterface|string $inicio, CarbonInterface|string $fim, ?int $ignorarSolicitacaoId = null): bool
     {
-        $disponiveis = $this->disponiveisDaFuncao(FuncaoOperacional::IPC_EXPEDIENTE, $inicio, $fim, $ignorarSolicitacaoId);
+        return $this->funcaoFicaComMinimoApos(FuncaoOperacional::IPC_EXPEDIENTE, $inicio, $fim, $ignorarSolicitacaoId);
+    }
 
-        return ($disponiveis - 1) >= $this->minimoDisponivel(FuncaoOperacional::IPC_EXPEDIENTE);
+    /**
+     * Verifica se a função fica com o mínimo operacional após ceder 1 servidor para cobertura.
+     */
+    public function funcaoFicaComMinimoApos(FuncaoOperacional $funcao, CarbonInterface|string $inicio, CarbonInterface|string $fim, ?int $ignorarSolicitacaoId = null): bool
+    {
+        $disponiveis = $this->disponiveisDaFuncao($funcao, $inicio, $fim, $ignorarSolicitacaoId);
+
+        return ($disponiveis - 1) >= $this->minimoDisponivel($funcao);
     }
 
     public function servidorEstaAfastado(User|int $user, CarbonInterface|string $inicio, CarbonInterface|string $fim, ?int $ignorarSolicitacaoId = null): bool
@@ -129,20 +152,47 @@ class AfastamentoOperacionalService
 
     public function servidoresDisponiveisParaCobertura(AfastamentoSolicitacao $solicitacao): array
     {
-        if (! $solicitacao->user || $solicitacao->user->funcao_operacional !== FuncaoOperacional::IPC_PLANTAO) {
+        $funcaoAfastado = $solicitacao->user?->funcao_operacional;
+
+        if (! $solicitacao->user || ! $funcaoAfastado instanceof FuncaoOperacional) {
             return [];
         }
 
-        if (! $this->expedienteFicaComMinimoAposCobertura($solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)) {
+        $funcoesCandidatas = $funcaoAfastado->podeSerCobertaPor();
+
+        if (empty($funcoesCandidatas)) {
             return [];
         }
 
-        return $this->usuariosDaFuncao(FuncaoOperacional::IPC_EXPEDIENTE)
+        // Para qualquer função candidata que não seja a própria do afastado, exigimos
+        // que o mínimo operacional dela continue garantido após ceder 1 servidor.
+        $funcoesValidas = collect($funcoesCandidatas)
+            ->filter(fn (FuncaoOperacional $candidata): bool => $candidata === $funcaoAfastado
+                ? true
+                : $this->funcaoFicaComMinimoApos($candidata, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id))
+            ->values();
+
+        if ($funcoesValidas->isEmpty()) {
+            return [];
+        }
+
+        $roles = $funcoesValidas->map(fn (FuncaoOperacional $f): string => $f->role())->all();
+
+        return User::query()
+            ->whereHas('roles', fn (Builder $query) => $query->whereIn('name', $roles))
+            ->whereKeyNot($solicitacao->user_id)
             ->orderBy('name')
             ->get()
             ->filter(fn (User $user): bool => ! $this->servidorEstaAfastado($user, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)
                 && ! $this->servidorEstaEmCobertura($user, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id))
-            ->mapWithKeys(fn (User $user): array => [$user->id => $user->name])
+            ->mapWithKeys(function (User $user): array {
+                $rotulo = $user->name;
+                if ($user->funcao_operacional instanceof FuncaoOperacional) {
+                    $rotulo .= ' ('.$user->funcao_operacional->label().')';
+                }
+
+                return [$user->id => $rotulo];
+            })
             ->all();
     }
 }

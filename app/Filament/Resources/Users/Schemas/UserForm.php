@@ -28,10 +28,10 @@ class UserForm
                     ->label('Data de ingresso na carreira')
                     ->native(false)
                     ->closeOnDateSelection(),
-                DatePicker::make('data_ingresso_servico_publico')
-                    ->label('Ingresso no serviço público')
-                    ->native(false)
-                    ->closeOnDateSelection(),
+                //DatePicker::make('data_ingresso_servico_publico')
+                //    ->label('Ingresso no serviço público')
+                //    ->native(false)
+                //    ->closeOnDateSelection(),
                 DatePicker::make('data_ingresso_unidade')
                     ->label('Ingresso na unidade')
                     ->native(false)

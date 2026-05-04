@@ -8,6 +8,7 @@ use App\Enums\StatusAfastamento;
 use App\Models\AfastamentoHistorico;
 use App\Models\AfastamentoInterrupcao;
 use App\Models\AfastamentoSolicitacao;
+use App\Services\Plantao\PlantaoSubstituicaoService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -83,6 +84,9 @@ class AfastamentoService
             $this->historico($solicitacao, 'aprovacao', $old, StatusAfastamento::APROVADO, 'Afastamento aprovado.');
             app(AfastamentoNotificationService::class)->notificarDecisao($solicitacao, 'Afastamento aprovado');
 
+            // Propaga substituição automática nas escalas de plantão (se houver cobertura aprovada).
+            app(PlantaoSubstituicaoService::class)->aplicar($solicitacao->refresh());
+
             return $solicitacao->refresh();
         });
     }
@@ -116,6 +120,8 @@ class AfastamentoService
         return DB::transaction(function () use ($solicitacao, $justificativa): AfastamentoSolicitacao {
             if ($solicitacao->status === StatusAfastamento::APROVADO) {
                 app(AfastamentoSaldoService::class)->devolver($solicitacao);
+                // Remove permutas automáticas de plantão antes de cancelar.
+                app(PlantaoSubstituicaoService::class)->reverter($solicitacao);
             }
 
             $old = $solicitacao->status;
@@ -166,6 +172,9 @@ class AfastamentoService
                 app(AfastamentoPeriodoAquisitivoService::class)->recalcular($solicitacao->periodoAquisitivo);
             }
             $this->historico($solicitacao, 'interrupcao', $old, StatusAfastamento::INTERROMPIDO, 'Afastamento interrompido.');
+
+            // Mantém permutas dos plantões já realizados (data <= interrupção) e remove os posteriores.
+            app(PlantaoSubstituicaoService::class)->reverter($solicitacao->refresh(), $data);
 
             return $solicitacao->refresh();
         });
@@ -316,17 +325,20 @@ class AfastamentoService
         $funcao = $solicitacao->user?->funcao_operacional;
         $operacional = app(AfastamentoOperacionalService::class);
 
-        if ($funcao === FuncaoOperacional::IPC_PLANTAO && ! $operacional->coberturaAprovada($solicitacao) && ! $forcar) {
+        $funcoesPlantao = [FuncaoOperacional::IPC_PLANTAO, FuncaoOperacional::EPC_PLANTAO];
+        $funcoesExpediente = [FuncaoOperacional::IPC_EXPEDIENTE, FuncaoOperacional::EPC_EXPEDIENTE];
+
+        if (in_array($funcao, $funcoesPlantao, true) && ! $operacional->coberturaAprovada($solicitacao) && ! $forcar) {
             throw ValidationException::withMessages([
-                'cobertura' => 'Afastamento de IPC plantão exige cobertura aprovada ou exceção justificada por super_admin.',
+                'cobertura' => "Afastamento de {$funcao->label()} exige cobertura aprovada ou exceção justificada por super_admin.",
             ]);
         }
 
-        if ($funcao === FuncaoOperacional::IPC_EXPEDIENTE
+        if (in_array($funcao, $funcoesExpediente, true)
             && $operacional->servidorEstaEmCobertura($solicitacao->user, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)
             && ! $forcar) {
             throw ValidationException::withMessages([
-                'cobertura' => 'Servidor IPC expediente está designado como cobertura de plantão neste período.',
+                'cobertura' => "Servidor {$funcao->label()} está designado como cobertura de plantão neste período.",
             ]);
         }
     }
