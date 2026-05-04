@@ -14,7 +14,7 @@ class PlantaoPdfService
         $this->validarProntoParaPdf($mes, $ano);
 
         $escalas = PlantaoEscala::query()
-            ->with(['equipe.servidores.user.plantaoCqh', 'cqhGeral', 'permutas.servidorOriginal', 'permutas.servidorSubstituto'])
+            ->with(['equipe.servidores.user.plantaoCqh', 'cqhGeral', 'delegadoDelta', 'permutas.servidorOriginal', 'permutas.servidorSubstituto'])
             ->whereYear('data_plantao', $ano)
             ->whereMonth('data_plantao', $mes)
             ->orderBy('data_plantao')
@@ -39,6 +39,8 @@ class PlantaoPdfService
                     'ipc1' => $ipc[0] ? $calendar->nomeCqh($ipc[0]) : '',
                     'ipc2' => $ipc[1] ? $calendar->nomeCqh($ipc[1]) : '',
                     'epc' => $epc[0] ? $calendar->nomeCqh($epc[0]) : '',
+                    'dpc' => $escala->delegadoDelta?->nome_delegado ?? '',
+                    'dpc_contato' => $escala->delegadoDelta?->contato ?? '',
                     'cqh' => $escala->cqhGeral ? $calendar->nomeCqh($escala->cqhGeral) : '',
                     'cqh_derf' => (bool) ($escala->cqhGeral && method_exists($escala->cqhGeral, 'isDerf') && $escala->cqhGeral->isDerf()),
                     'horario' => '07h às 07h',

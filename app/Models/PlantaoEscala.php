@@ -7,6 +7,7 @@ use InvalidArgumentException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class PlantaoEscala extends Model
@@ -21,6 +22,8 @@ class PlantaoEscala extends Model
         'cqh_pessoa',
         'cqh_geral_type',
         'cqh_geral_id',
+        'dpc_nome',
+        'dpc_contato',
         'status',
         'observacao',
         'criado_por',
@@ -49,6 +52,11 @@ class PlantaoEscala extends Model
     public function historicos(): HasMany
     {
         return $this->hasMany(PlantaoHistorico::class, 'escala_id');
+    }
+
+    public function delegadoDelta(): HasOne
+    {
+        return $this->hasOne(PlantaoDelegadoEscala::class, 'data_plantao', 'data_plantao');
     }
 
     public function getCqhPessoaAttribute(): ?string

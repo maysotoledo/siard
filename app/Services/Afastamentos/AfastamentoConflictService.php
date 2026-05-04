@@ -129,28 +129,20 @@ class AfastamentoConflictService
 
     private function conflitoPrioridade(AfastamentoSolicitacao $solicitacao, User $user, FuncaoOperacional $funcao): ?array
     {
-        $concorrente = AfastamentoSolicitacao::query()
-            ->with('user')
-            ->whereKeyNot($solicitacao->id ?? 0)
-            ->whereDate('data_inicio', '<=', $solicitacao->data_fim)
-            ->whereDate('data_fim', '>=', $solicitacao->data_inicio)
-            ->whereIn('status', [StatusAfastamento::SOLICITADO->value, StatusAfastamento::EM_ANALISE->value, StatusAfastamento::APROVADO->value])
-            ->whereHas('user.roles', fn ($query) => $query->where('name', $funcao->role()))
-            ->first();
+        $analise = app(AfastamentoPrioridadeService::class)->analisarConflitosPorPrioridade($solicitacao);
+        $ranking = $analise['ranking'] ?? [];
 
-        if (! $concorrente?->user) {
+        if (count($ranking) <= 1) {
             return null;
         }
 
-        $prioridade = app(AfastamentoPrioridadeService::class);
-        $atual = $prioridade->calcularPrioridadeServidor($user, $solicitacao->tipo_afastamento);
-        $outro = $prioridade->calcularPrioridadeServidor($concorrente->user, $solicitacao->tipo_afastamento);
-        $preferido = $atual['score'] >= $outro['score'] ? $user->name : $concorrente->user->name;
+        $preferido = $analise['preferido']['servidor'] ?? 'não definido';
+        $total = count($ranking);
 
         return $this->conflito(
             NivelImpacto::MODERADO,
-            "Há solicitação conflitante com {$concorrente->user->name}. Prioridade recomendada: {$preferido}.",
-            'A antiguidade é critério de desempate, mas a decisão continua subordinada ao interesse do serviço, efetivo mínimo e cobertura operacional.',
+            "Há {$total} servidores/solicitações conflitantes na mesma função operacional. Prioridade recomendada: {$preferido}.",
+            'Verifique a fila de prioridade: ingresso na carreira, ingresso na unidade e ordem da solicitação. A decisão continua subordinada ao interesse do serviço, efetivo mínimo e cobertura operacional.',
             'prioridade',
         );
     }

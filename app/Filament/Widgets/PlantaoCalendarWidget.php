@@ -102,6 +102,12 @@ class PlantaoCalendarWidget extends FullCalendarWidget
                 }
 
                 addLine('EPC', props.epc, '#2563eb');
+                if (props.dpc) {
+                    addLine('DPC', props.dpc, '#7c3aed');
+                }
+                if (props.dpcContato) {
+                    addLine('Contato', props.dpcContato, '#6b7280');
+                }
                 addLine('CQH', props.cqh, '#f97316');
 
                 return { domNodes: [wrapper] };

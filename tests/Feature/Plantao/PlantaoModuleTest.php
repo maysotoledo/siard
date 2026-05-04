@@ -2,12 +2,15 @@
 
 use App\Models\PlantaoCqhServidor;
 use App\Models\PlantaoCqhExterno;
+use App\Models\PlantaoDelegadoEscala;
 use App\Models\PlantaoEquipe;
 use App\Models\PlantaoEquipeServidor;
 use App\Models\PlantaoEscala;
+use App\Models\PlantaoHistorico;
 use App\Models\User;
 use App\Services\Plantao\PlantaoCalendarService;
 use App\Services\Plantao\PlantaoCqhService;
+use App\Services\Plantao\PlantaoDeltaImportService;
 use App\Services\Plantao\PlantaoEquipeService;
 use App\Services\Plantao\PlantaoEscalaService;
 use App\Services\Plantao\PlantaoPdfService;
@@ -167,4 +170,112 @@ it('fullcalendar retorna eventos corretos', function (): void {
     app(PlantaoEscalaService::class)->gerarEscalaMensal(5, 2026, $equipe->id);
 
     expect(app(PlantaoCalendarService::class)->eventos())->toHaveCount(31);
+});
+
+it('detecta mes e ano da escala delta', function (): void {
+    $detectado = app(PlantaoDeltaImportService::class)->detectarMesAno('◄ Abr 2026 Maio 2026 Jun 2026 ►');
+
+    expect($detectado)->toMatchArray(['mes' => 5, 'ano' => 2026]);
+});
+
+it('extrai escala delta dos delegados com unidade contato horario e regionalizado', function (): void {
+    $texto = <<<'TEXT'
+Maio 2026
+1
+DR. ROGÉRIO
+IRLANDES (DP
+CONFRESA)
+REGIONALIZADO
+Contato: (67) 9201-0207
+(Horário: Início às 08h de sexta até segunda às 08h.))
+2
+DRA. MARCELLA
+MORISCO – Delegada de
+Porto Alegre do Norte
+Contato: (67) 9971-3236
+TEXT;
+
+    $registros = app(PlantaoDeltaImportService::class)->extrairRegistros($texto, 5, 2026);
+
+    expect($registros)->toHaveCount(2)
+        ->and($registros[0]['data'])->toBe('2026-05-01')
+        ->and($registros[0]['nome'])->toBe('DR. ROGÉRIO IRLANDES')
+        ->and($registros[0]['unidade'])->toBe('DP CONFRESA')
+        ->and($registros[0]['contato'])->toBe('(67) 9201-0207')
+        ->and($registros[0]['horario'])->toBe('Início às 08h de sexta até segunda às 08h.')
+        ->and($registros[0]['regionalizado'])->toBeTrue()
+        ->and($registros[1]['unidade'])->toBe('DP PORTO ALEGRE DO NORTE');
+});
+
+it('salva escala delta sem duplicar e sobrescreve somente com confirmacao', function (): void {
+    $dados = [
+        [
+            'data_plantao' => '2026-05-01',
+            'nome_delegado' => 'DR. ROGÉRIO IRLANDES',
+            'unidade_delegado' => 'DP CONFRESA',
+            'contato' => '(67) 9201-0207',
+            'horario' => 'Início às 08h',
+            'regionalizado' => true,
+        ],
+    ];
+
+    $service = app(PlantaoDeltaImportService::class);
+    $primeiro = $service->salvarEscalaDelegados($dados, false, 'maio.pdf');
+    $segundo = $service->salvarEscalaDelegados([
+        [
+            ...$dados[0],
+            'nome_delegado' => 'DRA. MARCELLA MORISCO',
+        ],
+    ], false, 'maio-v2.pdf');
+
+    expect($primeiro['importados'])->toBe(1)
+        ->and($segundo['ignorados'])->toBe(1)
+        ->and(PlantaoDelegadoEscala::query()->count())->toBe(1)
+        ->and(PlantaoDelegadoEscala::query()->first()->nome_delegado)->toBe('DR. ROGÉRIO IRLANDES');
+
+    $terceiro = $service->salvarEscalaDelegados([
+        [
+            ...$dados[0],
+            'nome_delegado' => 'DRA. MARCELLA MORISCO',
+        ],
+    ], true, 'maio-v2.pdf');
+
+    expect($terceiro['sobrescritos'])->toBe(1)
+        ->and(PlantaoDelegadoEscala::query()->first()->nome_delegado)->toBe('DRA. MARCELLA MORISCO')
+        ->and(PlantaoHistorico::query()->where('acao', 'sobrescrever_escala_delta')->exists())->toBeTrue();
+});
+
+it('fullcalendar exibe dpc e contato da tabela delta', function (): void {
+    $equipe = equipeValida();
+    app(PlantaoEscalaService::class)->gerarEscalaMensal(5, 2026, $equipe->id);
+    PlantaoDelegadoEscala::query()->create([
+        'data_plantao' => '2026-05-01',
+        'nome_delegado' => 'DR. ROGÉRIO IRLANDES',
+        'contato' => '(67) 9201-0207',
+    ]);
+
+    $evento = collect(app(PlantaoCalendarService::class)->eventos())
+        ->firstWhere('start', '2026-05-01');
+
+    expect($evento['extendedProps']['dpc'])->toBe('DR. ROGÉRIO IRLANDES')
+        ->and($evento['extendedProps']['dpcContato'])->toBe('(67) 9201-0207');
+});
+
+it('pdf mensal inclui dpc e contato da escala delta', function (): void {
+    plantaoUser('dpc', 'Delegado Teste');
+    $equipe = equipeValida();
+    app(PlantaoEscalaService::class)->gerarEscalaMensal(5, 2026, $equipe->id);
+    PlantaoCqhServidor::query()->create(['user_id' => plantaoUser('ipc', 'JOAO')->id, 'unidade_operacional' => 'CONFRESA', 'ordem' => 1]);
+    app(PlantaoCqhService::class)->gerarEscalaCqhMensal(5, 2026);
+    PlantaoDelegadoEscala::query()->create([
+        'data_plantao' => '2026-05-01',
+        'nome_delegado' => 'DR. ROGÉRIO IRLANDES',
+        'contato' => '(67) 9201-0207',
+    ]);
+
+    $linha = collect(app(PlantaoPdfService::class)->dadosMensais(5, 2026)['linhas'])
+        ->firstWhere('dia', '01');
+
+    expect($linha['dpc'])->toBe('DR. ROGÉRIO IRLANDES')
+        ->and($linha['dpc_contato'])->toBe('(67) 9201-0207');
 });

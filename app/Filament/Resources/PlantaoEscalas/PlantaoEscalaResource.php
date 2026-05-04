@@ -8,6 +8,7 @@ use App\Models\PlantaoEquipe;
 use App\Models\PlantaoEscala;
 use App\Models\User;
 use App\Services\Plantao\PlantaoCqhService;
+use App\Services\Plantao\PlantaoDeltaImportService;
 use App\Services\Plantao\PlantaoEscalaService;
 use App\Services\Plantao\PlantaoPdfService;
 use App\Services\Plantao\PlantaoPermutaService;
@@ -20,6 +21,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use UnitEnum;
 
@@ -128,6 +130,39 @@ class PlantaoEscalaResource extends Resource
                 ->action(function (array $data): void {
                     $total = app(PlantaoCqhService::class)->gerarEscalaCqhMensal((int) $data['mes'], (int) $data['ano']);
                     Notification::make()->title('CQH gerado')->body("Dias atualizados: {$total}")->success()->send();
+                }),
+            Actions\Action::make('importar_delta')
+                ->label('Importar Escala Delta')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->modalSubmitActionLabel('Confirmar importação')
+                ->visible(fn (): bool => static::canPlantao('importar_escala_delta'))
+                ->schema([
+                    Forms\Components\FileUpload::make('delta_pdf')
+                        ->label('PDF da escala Delta')
+                        ->disk('local')
+                        ->directory('imports/plantao-delta')
+                        ->acceptedFileTypes(['application/pdf'])
+                        ->preserveFilenames()
+                        ->required(),
+                    Forms\Components\Toggle::make('sobrescrever')
+                        ->label('Sobrescrever delegados já importados para as mesmas datas')
+                        ->default(false),
+                ])
+                ->action(function (array $data): void {
+                    $arquivo = is_array($data['delta_pdf']) ? collect($data['delta_pdf'])->first() : $data['delta_pdf'];
+                    $path = Storage::disk('local')->path($arquivo);
+                    $resultado = app(PlantaoDeltaImportService::class)->importarPdf(
+                        $path,
+                        null,
+                        null,
+                        (bool) ($data['sobrescrever'] ?? false),
+                    );
+
+                    Notification::make()
+                        ->title('Escala Delta importada')
+                        ->body("Encontrados: {$resultado['encontrados']} | Importados: {$resultado['importados']} | Sobrescritos: {$resultado['sobrescritos']} | Ignorados: {$resultado['ignorados']}.")
+                        ->success()
+                        ->send();
                 }),
             Actions\Action::make('gerar_pdf')
                 ->label('Gerar PDF')

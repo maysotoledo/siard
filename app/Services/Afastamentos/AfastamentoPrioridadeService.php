@@ -4,6 +4,7 @@ namespace App\Services\Afastamentos;
 
 use App\Enums\NivelImpacto;
 use App\Enums\NivelPrioridadeAfastamento;
+use App\Enums\StatusAfastamento;
 use App\Enums\TipoAfastamento;
 use App\Models\AfastamentoPeriodoAquisitivo;
 use App\Models\AfastamentoPrioridadeRegra;
@@ -107,9 +108,79 @@ class AfastamentoPrioridadeService
         return $b <=> $a;
     }
 
+    public function analisarConflitosPorPrioridade(AfastamentoSolicitacao $solicitacao): array
+    {
+        $solicitacao->loadMissing('user');
+        $user = $solicitacao->user;
+        $funcao = $user?->funcao_operacional;
+
+        if (! $user || ! $funcao || ! $solicitacao->data_inicio || ! $solicitacao->data_fim) {
+            return [
+                'criterios' => $this->criteriosDesempate(),
+                'ranking' => [],
+                'preferido' => null,
+                'mensagem' => 'Não foi possível montar ranking: servidor, função ou período não informado.',
+            ];
+        }
+
+        $solicitacoes = AfastamentoSolicitacao::query()
+            ->with(['user.roles'])
+            ->whereDate('data_inicio', '<=', $solicitacao->data_fim)
+            ->whereDate('data_fim', '>=', $solicitacao->data_inicio)
+            ->whereIn('status', [
+                StatusAfastamento::SOLICITADO->value,
+                StatusAfastamento::EM_ANALISE->value,
+                StatusAfastamento::APROVADO->value,
+            ])
+            ->whereHas('user.roles', fn (Builder $query) => $query->where('name', $funcao->role()))
+            ->get();
+
+        if (! $solicitacoes->contains('id', $solicitacao->id)) {
+            $solicitacoes->push($solicitacao);
+        }
+
+        $ranking = $solicitacoes
+            ->unique('id')
+            ->map(fn (AfastamentoSolicitacao $item): array => $this->linhaRankingConflito($item, $solicitacao))
+            ->sort(function (array $a, array $b): int {
+                return $a['data_carreira_sort'] <=> $b['data_carreira_sort']
+                    ?: $a['data_unidade_sort'] <=> $b['data_unidade_sort']
+                    ?: $a['solicitado_em_sort'] <=> $b['solicitado_em_sort']
+                    ?: $a['servidor'] <=> $b['servidor'];
+            })
+            ->values()
+            ->map(function (array $item, int $index): array {
+                $item['posicao'] = $index + 1;
+                unset($item['data_carreira_sort'], $item['data_unidade_sort'], $item['solicitado_em_sort']);
+
+                return $item;
+            })
+            ->all();
+
+        $preferido = $ranking[0] ?? null;
+
+        return [
+            'criterios' => $this->criteriosDesempate(),
+            'ranking' => $ranking,
+            'preferido' => $preferido,
+            'mensagem' => $preferido
+                ? "Fila de prioridade recomendada: {$preferido['servidor']} em 1º lugar. A chefia deve confirmar se o interesse do serviço, efetivo mínimo e cobertura operacional permitem a decisão."
+                : 'Nenhum servidor conflitante encontrado para montar fila de prioridade.',
+        ];
+    }
+
     public function explicarPrioridade(User|int $servidor, TipoAfastamento|string $tipoAfastamento): string
     {
         return $this->calcularPrioridadeServidor($servidor, $tipoAfastamento)['motivo'];
+    }
+
+    public function criteriosDesempate(): array
+    {
+        return [
+            '1. Data de ingresso na carreira mais antiga.',
+            '2. Data de ingresso na unidade mais antiga.',
+            '3. Solicitação cadastrada primeiro.',
+        ];
     }
 
     public function recalcularPrioridadesPendentes(): int
@@ -196,5 +267,50 @@ class AfastamentoPrioridadeService
     private function anosDesde(mixed $data): int
     {
         return $data ? max(0, (int) Carbon::parse($data)->diffInYears(now())) : 0;
+    }
+
+    private function linhaRankingConflito(AfastamentoSolicitacao $solicitacao, AfastamentoSolicitacao $referencia): array
+    {
+        $user = $solicitacao->user;
+        $dataCarreira = $this->dataCarreira($user);
+        $dataUnidade = $this->dataUnidade($user);
+        $solicitadoEm = $solicitacao->created_at ?: now();
+
+        return [
+            'solicitacao_id' => $solicitacao->id,
+            'servidor' => $user?->name ?? 'Servidor não identificado',
+            'status' => $solicitacao->status?->label() ?? (string) $solicitacao->status?->value,
+            'periodo' => ($solicitacao->data_inicio?->format('d/m/Y') ?? '-') . ' a ' . ($solicitacao->data_fim?->format('d/m/Y') ?? '-'),
+            'data_carreira' => $dataCarreira ? Carbon::parse($dataCarreira)->format('d/m/Y') : '-',
+            'data_unidade' => $dataUnidade ? Carbon::parse($dataUnidade)->format('d/m/Y') : '-',
+            'solicitado_em' => Carbon::parse($solicitadoEm)->format('d/m/Y H:i'),
+            'eh_solicitacao_atual' => (int) $solicitacao->id === (int) $referencia->id,
+            'motivo' => $this->explicarLinhaRanking($user, $dataCarreira, $dataUnidade, $solicitadoEm),
+            'data_carreira_sort' => $this->sortDate($dataCarreira),
+            'data_unidade_sort' => $this->sortDate($dataUnidade),
+            'solicitado_em_sort' => Carbon::parse($solicitadoEm)->timestamp,
+        ];
+    }
+
+    private function explicarLinhaRanking(?User $user, mixed $dataCarreira, mixed $dataUnidade, mixed $solicitadoEm): string
+    {
+        return 'Carreira: ' . ($dataCarreira ? Carbon::parse($dataCarreira)->format('d/m/Y') : 'sem data') .
+            '; Unidade: ' . ($dataUnidade ? Carbon::parse($dataUnidade)->format('d/m/Y') : 'sem data') .
+            '; Solicitação: ' . Carbon::parse($solicitadoEm)->format('d/m/Y H:i') . '.';
+    }
+
+    private function dataCarreira(?User $user): mixed
+    {
+        return $user?->data_ingresso_carreira ?: $user?->data_ingresso;
+    }
+
+    private function dataUnidade(?User $user): mixed
+    {
+        return $user?->data_ingresso_unidade ?: $user?->data_ingresso;
+    }
+
+    private function sortDate(mixed $data): int
+    {
+        return $data ? Carbon::parse($data)->timestamp : PHP_INT_MAX;
     }
 }

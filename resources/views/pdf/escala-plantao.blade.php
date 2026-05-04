@@ -4,22 +4,24 @@
     <meta charset="utf-8">
     <style>
         @page { margin: 14px 18px 18px 18px; }
-        body { font-family: DejaVu Sans, sans-serif; font-size: 8.5px; color: #111; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 7.8px; color: #111; }
         .center { text-align: center; }
-        .header-wrap { width: 100%; position: relative; min-height: 64px; margin-bottom: 2px; }
+        .header-wrap { width: 100%; position: relative; min-height: 76px; margin-bottom: 2px; }
         .header { font-size: 9.5px; line-height: 1.18; font-weight: bold; text-transform: uppercase; padding-top: 6px; }
-        .header-logo { position: absolute; top: 0; width: 58px; height: 58px; object-fit: contain; }
+        .header-logo { position: absolute; top: 0; width: 70px; height: 70px; object-fit: contain; }
         .header-logo.left { left: 18px; }
         .header-logo.right { right: 18px; }
         .title { margin: 10px 0 7px; font-size: 12px; font-weight: bold; text-align: center; text-transform: uppercase; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th, td { border: 1px solid #111; padding: 2px 2px; text-align: center; vertical-align: middle; height: 16px; }
-        th { background: #e5e5e5; font-weight: bold; font-size: 8px; }
-        .day { width: 5%; }
-        .week { width: 11%; }
-        .name { width: 18%; }
-        .epc { width: 14%; }
-        .hour { width: 10%; }
+        th, td { border: 1px solid #111; padding: 2px 2px; text-align: center; vertical-align: middle; height: 16px; word-wrap: break-word; }
+        th { background: #e5e5e5; font-weight: bold; font-size: 7.2px; }
+        .day { width: 4%; }
+        .week { width: 9%; }
+        .name { width: 13%; }
+        .epc { width: 10%; }
+        .dpc { width: 14%; }
+        .contact { width: 10%; }
+        .hour { width: 8%; }
         .derf { color: #c00000; font-weight: bold; }
         .obs { margin-top: 8px; font-size: 8px; line-height: 1.28; text-align: justify; }
         .signature { margin-top: 76px; text-align: center; font-size: 10px; }
@@ -51,6 +53,8 @@
             <th class="name">PLANTÃO IPC</th>
             <th class="name">PLANTÃO IPC</th>
             <th class="epc">EPC</th>
+            <th class="dpc">DPC / DELTA</th>
+            <th class="contact">CONTATO DPC</th>
             <th class="name">CQH GERAL</th>
             <th class="hour">HORÁRIO</th>
         </tr>
@@ -63,6 +67,8 @@
                 <td>{{ $linha['ipc1'] }}</td>
                 <td>{{ $linha['ipc2'] }}</td>
                 <td>{{ $linha['epc'] }}</td>
+                <td>{{ $linha['dpc'] }}</td>
+                <td>{{ $linha['dpc_contato'] }}</td>
                 <td class="{{ $linha['cqh_derf'] ? 'derf' : '' }}">{{ $linha['cqh'] }}</td>
                 <td>{{ $linha['horario'] }}</td>
             </tr>

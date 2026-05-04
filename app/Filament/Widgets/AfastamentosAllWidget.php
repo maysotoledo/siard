@@ -7,6 +7,7 @@ use App\Enums\TipoAfastamento;
 use App\Filament\Resources\AfastamentoSolicitacoes\AfastamentoSolicitacaoResource;
 use App\Models\AfastamentoSolicitacao;
 use App\Services\Afastamentos\AfastamentoConflictService;
+use App\Services\Afastamentos\AfastamentoPrioridadeService;
 use App\Services\Afastamentos\AfastamentoService;
 use App\Services\Afastamentos\AfastamentoSuggestionService;
 use Filament\Actions;
@@ -113,7 +114,9 @@ class AfastamentosAllWidget extends TableWidget
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Fechar')
                     ->modalContent(fn (AfastamentoSolicitacao $record) => view('filament.pages.partials.afastamento-analise', [
+                        'record' => $record->loadMissing('user'),
                         'conflitos' => app(AfastamentoConflictService::class)->detectar($record),
+                        'analisePrioridade' => app(AfastamentoPrioridadeService::class)->analisarConflitosPorPrioridade($record),
                         'sugestoes' => app(AfastamentoSuggestionService::class)->sugerir($record),
                     ])),
                 Actions\DeleteAction::make()

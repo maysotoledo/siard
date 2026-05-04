@@ -2,9 +2,9 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Resources\PlantaoCqhExternos\PlantaoCqhExternoResource;
 use App\Models\PlantaoCqhExterno;
 use Filament\Actions;
+use Filament\Forms;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -29,10 +29,14 @@ class PlantaoCqhExternosWidget extends TableWidget
                 Tables\Columns\IconColumn::make('ativo')->boolean(),
             ])
             ->headerActions([
-                Actions\Action::make('gerenciarExternos')
-                    ->label('Gerenciar externos')
-                    ->icon('heroicon-o-identification')
-                    ->url(PlantaoCqhExternoResource::getUrl()),
+                Actions\CreateAction::make()
+                    ->label('Adicionar servidor CQH Externo')
+                    ->icon('heroicon-o-plus-circle')
+                    ->schema($this->formSchema()),
+            ])
+            ->recordActions([
+                Actions\EditAction::make()->schema($this->formSchema()),
+                Actions\DeleteAction::make(),
             ])
             ->defaultSort('ordem');
     }
@@ -40,5 +44,21 @@ class PlantaoCqhExternosWidget extends TableWidget
     private function query(): Builder
     {
         return PlantaoCqhExterno::query();
+    }
+
+    private function formSchema(): array
+    {
+        return [
+            Forms\Components\TextInput::make('nome')->required()->maxLength(255),
+            Forms\Components\Select::make('unidade_operacional')
+                ->options(['DERF_CONFRESA' => 'DERF Confresa'])
+                ->default('DERF_CONFRESA')
+                ->required(),
+            Forms\Components\TextInput::make('telefone')->tel()->maxLength(50),
+            Forms\Components\TextInput::make('ordem')->numeric(),
+            Forms\Components\Toggle::make('apto_cqh')->label('Apto CQH')->default(true),
+            Forms\Components\Toggle::make('ativo')->default(true),
+            Forms\Components\Textarea::make('observacao')->columnSpanFull(),
+        ];
     }
 }

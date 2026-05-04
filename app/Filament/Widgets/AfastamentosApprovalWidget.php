@@ -34,7 +34,8 @@ class AfastamentosApprovalWidget extends TableWidget
             )
             ->columns([
                 Tables\Columns\TextColumn::make('user.name')->label('Servidor')->searchable(),
-                Tables\Columns\TextColumn::make('user.data_ingresso')->label('Data de ingresso')->date('d/m/Y')->sortable(),
+                Tables\Columns\TextColumn::make('user.data_ingresso')->label('Ingresso carreira')->date('d/m/Y')->sortable(),
+                Tables\Columns\TextColumn::make('user.data_ingresso_unidade')->label('Ingresso unidade')->date('d/m/Y')->sortable(),
                 Tables\Columns\TextColumn::make('tipo_afastamento')->label('Tipo')->formatStateUsing(fn ($state) => $state?->label())->badge(),
                 Tables\Columns\TextColumn::make('data_inicio')->label('Início')->date('d/m/Y')->sortable(),
                 Tables\Columns\TextColumn::make('data_fim')->label('Fim')->date('d/m/Y')->sortable(),
@@ -84,6 +85,7 @@ class AfastamentosApprovalWidget extends TableWidget
                     ->modalContent(fn (AfastamentoSolicitacao $record) => view('filament.pages.partials.afastamento-analise', [
                         'record' => $record->loadMissing('user'),
                         'conflitos' => app(AfastamentoConflictService::class)->detectar($record),
+                        'analisePrioridade' => app(AfastamentoPrioridadeService::class)->analisarConflitosPorPrioridade($record),
                         'sugestoes' => app(AfastamentoSuggestionService::class)->sugerir($record),
                         'coberturas' => app(AfastamentoOperacionalService::class)->servidoresDisponiveisParaCobertura($record),
                     ])),

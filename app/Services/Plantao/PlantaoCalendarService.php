@@ -11,7 +11,7 @@ class PlantaoCalendarService
     public function eventos(?Carbon $inicio = null, ?Carbon $fim = null): array
     {
         return PlantaoEscala::query()
-            ->with(['equipe.servidores.user.plantaoCqh', 'cqhGeral', 'permutas.servidorOriginal', 'permutas.servidorSubstituto'])
+            ->with(['equipe.servidores.user.plantaoCqh', 'cqhGeral', 'delegadoDelta', 'permutas.servidorOriginal', 'permutas.servidorSubstituto'])
             ->when($inicio, fn ($query) => $query->whereDate('data_plantao', '>=', $inicio->toDateString()))
             ->when($fim, fn ($query) => $query->whereDate('data_plantao', '<=', $fim->toDateString()))
             ->orderBy('data_plantao')
@@ -31,6 +31,8 @@ class PlantaoCalendarService
                         'ipc' => $linhas['ipc'],
                         'epc' => $linhas['epc'],
                         'cqh' => $linhas['cqh'],
+                        'dpc' => $escala->delegadoDelta?->nome_delegado,
+                        'dpcContato' => $escala->delegadoDelta?->contato,
                     ],
                 ];
             })
@@ -39,7 +41,7 @@ class PlantaoCalendarService
 
     public function linhasCalendario(PlantaoEscala $escala): array
     {
-        $escala->loadMissing(['equipe.servidores.user', 'cqhGeral', 'permutas.servidorOriginal', 'permutas.servidorSubstituto']);
+        $escala->loadMissing(['equipe.servidores.user', 'cqhGeral', 'delegadoDelta', 'permutas.servidorOriginal', 'permutas.servidorSubstituto']);
         $ipc = $escala->equipe?->servidores->where('ativo', true)->where('funcao_plantao', 'ipc_plantao')->pluck('user')->filter()->values() ?? collect();
         $epc = $escala->equipe?->servidores->where('ativo', true)->where('funcao_plantao', 'epc_plantao')->pluck('user')->filter()->values() ?? collect();
 
@@ -56,9 +58,10 @@ class PlantaoCalendarService
         $ipc = collect($membros['ipc'])->map(fn (Model $pessoa): string => $this->nomePessoa($pessoa))->filter()->values();
         $epcPessoa = collect($membros['epc'])->first();
         $epc = $epcPessoa ? $this->nomePessoa($epcPessoa) : '-';
+        $dpc = $escala->delegadoDelta?->nome_delegado ?: '-';
         $cqh = $escala->cqhGeral ? $this->nomeCqh($escala->cqhGeral) : '-';
 
-        return 'PLANTÃO: '.($ipc->isNotEmpty() ? $ipc->implode(', ') : '-').' | EPC: '.$epc.' | CQH: '.$cqh;
+        return 'PLANTÃO: '.($ipc->isNotEmpty() ? $ipc->implode(', ') : '-').' | EPC: '.$epc.' | DPC: '.$dpc.' | CQH: '.$cqh;
     }
 
     public function membrosFinais(PlantaoEscala $escala): array
@@ -99,13 +102,6 @@ class PlantaoCalendarService
     private function nomePessoaCurto(Model $pessoa): string
     {
         return app(PlantaoCqhService::class)->nomePessoa($pessoa, true);
-    }
-
-    private function nomeCurto(string $nome): string
-    {
-        $partes = preg_split('/\s+/', trim($nome)) ?: [];
-
-        return mb_strtoupper(implode(' ', array_slice(array_filter($partes), 0, 2)));
     }
 
     private function aplicarTroca($membros, $permuta)
