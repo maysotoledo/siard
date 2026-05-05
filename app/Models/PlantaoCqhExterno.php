@@ -11,6 +11,7 @@ class PlantaoCqhExterno extends Model
     protected $fillable = [
         'nome',
         'unidade_operacional',
+        'nome_calendario',
         'telefone',
         'ordem',
         'apto_cqh',

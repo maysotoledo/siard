@@ -30,6 +30,12 @@ class PlantaoCqhServidorResource extends Resource
         return $schema->components([
             Forms\Components\Select::make('user_id')->label('Servidor')->relationship('user', 'name')->searchable()->preload()->required(),
             Forms\Components\Hidden::make('unidade_operacional')->default('CONFRESA'),
+            Forms\Components\TextInput::make('nome_calendario')
+                ->label('Nome no calendário')
+                ->placeholder('Ex: ANA BEATRIZ, ROSE MENEGAT')
+                ->helperText('Nome social ou apelido para exibição no calendário. Deixe em branco para usar a abreviação automática.')
+                ->maxLength(60)
+                ->nullable(),
             Forms\Components\Toggle::make('apto_cqh')->default(true),
             Forms\Components\Toggle::make('ativo')->default(true),
             Forms\Components\Textarea::make('observacao')->columnSpanFull(),
@@ -40,6 +46,7 @@ class PlantaoCqhServidorResource extends Resource
     {
         return $table->columns([
             Tables\Columns\TextColumn::make('user.name')->label('Servidor')->searchable()->sortable(),
+            Tables\Columns\TextColumn::make('nome_calendario')->label('Nome calendário')->placeholder('automático')->searchable(),
             Tables\Columns\IconColumn::make('apto_cqh')->boolean(),
             Tables\Columns\IconColumn::make('ativo')->boolean(),
         ])->recordActions([Actions\EditAction::make(), Actions\DeleteAction::make()]);

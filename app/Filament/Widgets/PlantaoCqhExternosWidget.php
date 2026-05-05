@@ -22,6 +22,7 @@ class PlantaoCqhExternosWidget extends TableWidget
             ->query($this->query())
             ->columns([
                 Tables\Columns\TextColumn::make('nome')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('nome_calendario')->label('Nome calendário')->placeholder('automático')->searchable(),
                 Tables\Columns\TextColumn::make('unidade_operacional')->badge(),
                 Tables\Columns\TextColumn::make('telefone')->searchable(),
                 Tables\Columns\IconColumn::make('apto_cqh')->label('Apto')->boolean(),
@@ -53,6 +54,12 @@ class PlantaoCqhExternosWidget extends TableWidget
                 ->options(['DERF_CONFRESA' => 'DERF Confresa'])
                 ->default('DERF_CONFRESA')
                 ->required(),
+            Forms\Components\TextInput::make('nome_calendario')
+                ->label('Nome no calendário')
+                ->placeholder('Ex: ROSE MENEGAT')
+                ->helperText('Nome social ou apelido para exibição no calendário. Deixe em branco para usar a abreviação automática.')
+                ->maxLength(60)
+                ->nullable(),
             Forms\Components\TextInput::make('telefone')->tel()->maxLength(50),
             Forms\Components\Toggle::make('apto_cqh')->label('Apto CQH')->default(true),
             Forms\Components\Toggle::make('ativo')->default(true),

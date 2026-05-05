@@ -9,7 +9,7 @@ class PlantaoCqhServidor extends Model
 {
     protected $table = 'plantao_cqh_servidores';
 
-    protected $fillable = ['user_id', 'unidade_operacional', 'apto_cqh', 'ordem', 'ativo', 'observacao'];
+    protected $fillable = ['user_id', 'unidade_operacional', 'nome_calendario', 'apto_cqh', 'ordem', 'ativo', 'observacao'];
 
     protected $casts = ['apto_cqh' => 'boolean', 'ativo' => 'boolean', 'ordem' => 'integer'];
 

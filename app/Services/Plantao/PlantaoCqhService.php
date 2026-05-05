@@ -177,11 +177,45 @@ class PlantaoCqhService
 
     public function nomePessoa(Model $pessoa, bool $curto = false): string
     {
-        $nome = $pessoa instanceof PlantaoCqhExterno ? $pessoa->nome : $pessoa->name;
-        $nome = $curto ? $this->nomeCurto($nome) : mb_strtoupper($nome);
         $derf = method_exists($pessoa, 'isDerf') && $pessoa->isDerf();
 
-        return $nome.($derf ? '(DERF)' : '');
+        if ($curto) {
+            // Prioridade 1: nome_calendario configurado manualmente no cadastro
+            $nomeCalendario = $this->nomeCalendarioConfigurado($pessoa);
+            if ($nomeCalendario !== null) {
+                return mb_strtoupper($nomeCalendario) . ($derf ? '(DERF)' : '');
+            }
+
+            // Prioridade 2: abreviação automática via IA/fallback
+            $nomeBase = $pessoa instanceof PlantaoCqhExterno ? $pessoa->nome : $pessoa->name;
+            return $this->nomeCurto($nomeBase) . ($derf ? '(DERF)' : '');
+        }
+
+        $nome = mb_strtoupper($pessoa instanceof PlantaoCqhExterno ? $pessoa->nome : $pessoa->name);
+        return $nome . ($derf ? '(DERF)' : '');
+    }
+
+    /**
+     * Retorna o nome_calendario configurado no cadastro, se existir.
+     * Para User: busca via plantaoCqh (já eager-loaded no calendário).
+     * Para PlantaoCqhExterno: lê diretamente do model.
+     */
+    private function nomeCalendarioConfigurado(Model $pessoa): ?string
+    {
+        if ($pessoa instanceof PlantaoCqhExterno) {
+            return filled($pessoa->nome_calendario) ? trim($pessoa->nome_calendario) : null;
+        }
+
+        // User: tenta via relacionamento plantaoCqh (carregado pelo calendário)
+        if ($pessoa instanceof User) {
+            $cqh = $pessoa->relationLoaded('plantaoCqh')
+                ? $pessoa->plantaoCqh
+                : $pessoa->plantaoCqh()->first();
+
+            return ($cqh && filled($cqh->nome_calendario)) ? trim($cqh->nome_calendario) : null;
+        }
+
+        return null;
     }
 
     public function keyFor(Model $pessoa): string
