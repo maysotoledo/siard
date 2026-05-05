@@ -96,8 +96,9 @@ class MinhasAnalisesIa extends Page implements HasTable
 
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Criada em')
+                    ->label('Criada em (GMT-3)')
                     ->dateTime('d/m/Y H:i:s')
+                    ->timezone('America/Sao_Paulo')
                     ->sortable(),
             ])
             ->actions([

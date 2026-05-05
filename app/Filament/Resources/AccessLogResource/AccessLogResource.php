@@ -100,8 +100,9 @@ class AccessLogResource extends Resource
                     ->copyable(),
 
                 TextColumn::make('occurred_at')
-                    ->label('Data/Hora')
+                    ->label('Data/Hora (GMT-3)')
                     ->dateTime('d/m/Y H:i:s')
+                    ->timezone('America/Sao_Paulo')
                     ->sortable(),
 
                 TextColumn::make('user_agent')

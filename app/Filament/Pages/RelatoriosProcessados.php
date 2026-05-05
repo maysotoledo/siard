@@ -135,8 +135,9 @@ class RelatoriosProcessados extends Page implements HasTable
                 //     ->sortable(),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Criado em')
+                    ->label('Criado em (GMT-3)')
                     ->dateTime('d/m/Y H:i:s')
+                    ->timezone('America/Sao_Paulo')
                     ->sortable(),
 
                 Tables\Columns\ViewColumn::make('acoes')

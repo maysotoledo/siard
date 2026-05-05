@@ -84,8 +84,9 @@ class AiAnalysisResource extends Resource
                     ->placeholder('Não informado'),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Criado em')
+                    ->label('Criado em (GMT-3)')
                     ->dateTime('d/m/Y H:i')
+                    ->timezone('America/Sao_Paulo')
                     ->sortable(),
             ])
             ->defaultSort('created_at', 'desc')
