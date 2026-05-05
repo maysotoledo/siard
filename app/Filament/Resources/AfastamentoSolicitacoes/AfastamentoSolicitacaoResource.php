@@ -83,17 +83,27 @@ class AfastamentoSolicitacaoResource extends Resource
             Forms\Components\Select::make('tipo_afastamento')
                 ->label('Tipo')
                 ->required()
+                ->placeholder('')
+                ->selectablePlaceholder(false)
                 ->options(TipoAfastamento::options())
                 ->default(TipoAfastamento::FERIAS->value)
                 ->live()
+                ->afterStateHydrated(function (?string $state, Set $set): void {
+                    if (blank($state)) {
+                        $set('tipo_afastamento', TipoAfastamento::FERIAS->value);
+                    }
+                })
                 ->afterStateUpdated(fn (Set $set) => $set('periodo_aquisitivo_id', null)),
 
             Forms\Components\Select::make('periodo_aquisitivo_id')
                 ->label('Período aquisitivo')
+                ->hidden(fn (Get $get): bool => self::isAtestado((string) $get('tipo_afastamento')))
+                ->hiddenJs("\$get('tipo_afastamento') === 'atestado'")
                 ->options(function (Get $get): array {
                     $userId = (int) $get('user_id');
                     $tipo = (string) $get('tipo_afastamento');
-                    if (! $userId || $tipo === '') {
+
+                    if (! $userId || $tipo === '' || self::isAtestado($tipo)) {
                         return [];
                     }
 
@@ -110,7 +120,7 @@ class AfastamentoSolicitacaoResource extends Resource
                         ->orderBy('data_aquisicao')
                         ->get()
                         ->mapWithKeys(fn (AfastamentoPeriodoAquisitivo $periodo): array => [
-                            $periodo->id => $periodo->data_inicio?->format('d/m/Y').' - '.$periodo->data_fim?->format('d/m/Y').' | saldo '.$periodo->dias_disponiveis,
+                            $periodo->id => $periodo->data_inicio?->format('d/m/Y') . ' - ' . $periodo->data_fim?->format('d/m/Y') . ' | saldo ' . $periodo->dias_disponiveis,
                         ])
                         ->all();
                 })
@@ -143,7 +153,9 @@ class AfastamentoSolicitacaoResource extends Resource
             Forms\Components\Select::make('status')
                 ->label('Status')
                 ->options(StatusAfastamento::options())
-                ->default(StatusAfastamento::RASCUNHO->value)
+                ->default(fn (Get $get): string => TipoAfastamento::tryFrom((string) $get('tipo_afastamento')) === TipoAfastamento::ATESTADO
+                    ? StatusAfastamento::APROVADO->value
+                    : StatusAfastamento::RASCUNHO->value)
                 ->disabled(fn () => ! self::isGestor())
                 ->dehydrated(true),
 
@@ -274,7 +286,6 @@ class AfastamentoSolicitacaoResource extends Resource
                             ])
                             ->save();
 
-                        // Se o afastamento já está aprovado, propaga a substituição na escala imediatamente.
                         if ($record->refresh()->status === StatusAfastamento::APROVADO) {
                             app(\App\Services\Plantao\PlantaoSubstituicaoService::class)->reconciliar($record);
                         }
@@ -288,7 +299,6 @@ class AfastamentoSolicitacaoResource extends Resource
                             ->whereIn('status', ['sugerida', 'aprovada'])
                             ->update(['status' => 'cancelada']);
 
-                        // Remove permutas automáticas associadas a este afastamento.
                         app(\App\Services\Plantao\PlantaoSubstituicaoService::class)->reverter($record);
                     }, 'Cobertura cancelada')),
                 Actions\Action::make('analise')
@@ -310,23 +320,6 @@ class AfastamentoSolicitacaoResource extends Resource
                 Actions\DeleteAction::make()
                     ->label('Excluir')
                     ->visible(fn (AfastamentoSolicitacao $record): bool => self::podeExcluirProprioCanceladoOuIndeferido($record)),
-            ])
-            ->toolbarActions([
-                Actions\CreateAction::make()
-                    ->label('Solicitar afastamento')
-                    ->using(function (array $data): AfastamentoSolicitacao {
-                        try {
-                            return app(AfastamentoService::class)->salvar($data);
-                        } catch (ValidationException $exception) {
-                            Notification::make()
-                                ->title('Ação não permitida')
-                                ->body(collect($exception->errors())->flatten()->first())
-                                ->danger()
-                                ->send();
-
-                            throw $exception;
-                        }
-                    }),
             ])
             ->defaultSort('data_inicio', 'desc');
     }
@@ -356,7 +349,7 @@ class AfastamentoSolicitacaoResource extends Resource
         $userId = (int) $get('user_id');
         $tipo = (string) $get('tipo_afastamento');
 
-        if (! $userId || $tipo === '') {
+        if (! $userId || $tipo === '' || self::isAtestado($tipo)) {
             return false;
         }
 
@@ -371,6 +364,11 @@ class AfastamentoSolicitacaoResource extends Resource
                 StatusPeriodoAquisitivo::APROVADO->value,
             ])
             ->exists();
+    }
+
+    private static function isAtestado(?string $tipo): bool
+    {
+        return TipoAfastamento::tryFrom((string) $tipo) === TipoAfastamento::ATESTADO;
     }
 
     private static function executar(callable $callback, string $ok): void

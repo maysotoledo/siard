@@ -269,10 +269,21 @@ class AfastamentoPeriodoAquisitivoService
     private function tipos(TipoAfastamento|string|null $tipo): array
     {
         if ($tipo) {
-            return [$tipo instanceof TipoAfastamento ? $tipo : TipoAfastamento::from($tipo)];
+            $tipoEnum = $tipo instanceof TipoAfastamento ? $tipo : TipoAfastamento::from($tipo);
+
+            // Atestado não possui período aquisitivo — ignorar geração.
+            if (! $tipoEnum->temPeriodoAquisitivo()) {
+                return [];
+            }
+
+            return [$tipoEnum];
         }
 
-        return TipoAfastamento::cases();
+        // Exclui tipos sem período aquisitivo (ex.: Atestado) da geração automática.
+        return array_values(array_filter(
+            TipoAfastamento::cases(),
+            fn (TipoAfastamento $t): bool => $t->temPeriodoAquisitivo(),
+        ));
     }
 
     private function emptySummary(bool $dryRun): array

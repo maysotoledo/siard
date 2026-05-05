@@ -123,12 +123,20 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
             Select::make('tipo_afastamento')
                 ->label('Tipo de afastamento')
                 ->required()
+                ->placeholder('')
+                ->selectablePlaceholder(false)
                 ->options(TipoAfastamento::options())
                 ->default(TipoAfastamento::FERIAS->value)
                 ->live()
+                ->afterStateHydrated(function (?string $state, Set $set): void {
+                    if (blank($state)) {
+                        $set('tipo_afastamento', TipoAfastamento::FERIAS->value);
+                    }
+                })
                 ->afterStateUpdated(fn (Set $set) => $set('periodo_aquisitivo_id', null)),
 
             Select::make('periodo_aquisitivo_id')
+                ->hidden(fn (Get $get): bool => $this->isAtestado((string) $get('tipo_afastamento')))
                 ->label('Período aquisitivo')
                 ->options(fn (Get $get): array => $this->periodosOptions((int) $get('user_id'), (string) $get('tipo_afastamento')))
                 ->searchable()
@@ -305,7 +313,7 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
 
     private function periodosOptions(int $userId, string $tipo): array
     {
-        if ($userId <= 0 || $tipo === '') {
+        if ($userId <= 0 || $tipo === '' || $this->isAtestado($tipo)) {
             return [];
         }
 
@@ -331,11 +339,16 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
 
     private function deveMostrarAvisoSemPeriodoAquisitivo(int $userId, string $tipo): bool
     {
-        if ($userId <= 0 || $tipo === '') {
+        if ($userId <= 0 || $tipo === '' || $this->isAtestado($tipo)) {
             return false;
         }
 
         return $this->periodosOptions($userId, $tipo) === [];
+    }
+
+    private function isAtestado(?string $tipo): bool
+    {
+        return TipoAfastamento::tryFrom((string) $tipo) === TipoAfastamento::ATESTADO;
     }
 
     private function corPorAfastamento(AfastamentoSolicitacao $solicitacao): string

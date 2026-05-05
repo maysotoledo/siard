@@ -5,6 +5,7 @@ namespace App\Services\Afastamentos;
 use App\Enums\FuncaoOperacional;
 use App\Enums\NivelImpacto;
 use App\Enums\StatusAfastamento;
+use App\Enums\TipoAfastamento;
 use App\Models\AfastamentoHistorico;
 use App\Models\AfastamentoInterrupcao;
 use App\Models\AfastamentoSolicitacao;
@@ -21,19 +22,29 @@ class AfastamentoService
         return DB::transaction(function () use ($data, $solicitacao): AfastamentoSolicitacao {
             $inicio = Carbon::parse($data['data_inicio'])->startOfDay();
             $fim = Carbon::parse($data['data_fim'])->startOfDay();
+            $tipoEnum = TipoAfastamento::tryFrom((string) ($data['tipo_afastamento'] ?? ''));
 
             if ($fim->lt($inicio)) {
                 throw ValidationException::withMessages(['data_fim' => 'A data final deve ser igual ou posterior à inicial.']);
             }
 
-            if (! $this->isAdmin() && $inicio->isPast()) {
+            // Atestado é retroativo por natureza — qualquer usuário pode registrar datas passadas.
+            $isAtestado = $tipoEnum === TipoAfastamento::ATESTADO;
+
+            if (! $isAtestado && ! $this->isAdmin() && $inicio->isPast()) {
                 throw ValidationException::withMessages(['data_inicio' => 'Solicitação retroativa exige perfil administrativo.']);
             }
 
             $data['dias_solicitados'] = $inicio->diffInDays($fim) + 1;
-            $data['status'] = $data['status'] ?? StatusAfastamento::RASCUNHO->value;
 
-            $this->validarSaldoParaDados($data, $solicitacao);
+            // Atestado é aprovado diretamente — sem fila de rascunho/análise.
+            if ($isAtestado) {
+                $data['status'] = $data['status'] ?? StatusAfastamento::APROVADO->value;
+                $data['periodo_aquisitivo_id'] = null;
+            } else {
+                $data['status'] = $data['status'] ?? StatusAfastamento::RASCUNHO->value;
+                $this->validarSaldoParaDados($data, $solicitacao);
+            }
 
             $solicitacao = $solicitacao
                 ? tap($solicitacao)->update($data)
