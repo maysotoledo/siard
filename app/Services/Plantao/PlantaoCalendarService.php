@@ -31,7 +31,7 @@ class PlantaoCalendarService
                         'ipc' => $linhas['ipc'],
                         'epc' => $linhas['epc'],
                         'cqh' => $linhas['cqh'],
-                        'dpc' => $escala->delegadoDelta?->nome_delegado,
+                        'dpc' => $linhas['dpc'],
                         'dpcContato' => $escala->delegadoDelta?->contato,
                     ],
                 ];
@@ -49,6 +49,7 @@ class PlantaoCalendarService
             'ipc' => $this->linhasPorFuncao($ipc, $escala, 'ipc_plantao'),
             'epc' => $this->linhasPorFuncao($epc, $escala, 'epc_plantao')->first(),
             'cqh' => $this->linhaCqh($escala),
+            'dpc' => $this->linhaDpc($escala->delegadoDelta?->nome_delegado),
         ];
     }
 
@@ -172,6 +173,24 @@ class PlantaoCalendarService
             'original' => $this->nomePessoaCurto($original),
             'atual' => $atual ? $this->nomePessoaCurto($atual) : null,
             'permutado' => $permutado,
+        ];
+    }
+
+    private function linhaDpc(?string $nome): ?array
+    {
+        if (! $nome) {
+            return null;
+        }
+
+        $nomeCurto = collect(preg_split('/\s+/', trim($nome)) ?: [])
+            ->filter()
+            ->take(3)
+            ->implode(' ');
+
+        return [
+            'original' => $nomeCurto,
+            'atual' => $nomeCurto,
+            'permutado' => false,
         ];
     }
 }

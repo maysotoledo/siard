@@ -10,6 +10,7 @@ use App\Models\AfastamentoSolicitacao;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 class AfastamentoOperacionalService
 {
@@ -152,16 +153,35 @@ class AfastamentoOperacionalService
 
     public function servidoresDisponiveisParaCobertura(AfastamentoSolicitacao $solicitacao): array
     {
+        return $this->filaCobertura($solicitacao)
+            ->mapWithKeys(function (array $item): array {
+                /** @var User $user */
+                $user = $item['user'];
+                $rotulo = $user->name;
+                if ($user->funcao_operacional instanceof FuncaoOperacional) {
+                    $rotulo .= ' ('.$user->funcao_operacional->label().')';
+                }
+
+                return [$user->id => $rotulo];
+            })
+            ->all();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    public function servidoresDisponiveisParaCoberturaLista(AfastamentoSolicitacao $solicitacao): \Illuminate\Support\Collection
+    {
         $funcaoAfastado = $solicitacao->user?->funcao_operacional;
 
         if (! $solicitacao->user || ! $funcaoAfastado instanceof FuncaoOperacional) {
-            return [];
+            return collect();
         }
 
         $funcoesCandidatas = $funcaoAfastado->podeSerCobertaPor();
 
         if (empty($funcoesCandidatas)) {
-            return [];
+            return collect();
         }
 
         // Para qualquer função candidata que não seja a própria do afastado, exigimos
@@ -173,7 +193,7 @@ class AfastamentoOperacionalService
             ->values();
 
         if ($funcoesValidas->isEmpty()) {
-            return [];
+            return collect();
         }
 
         $roles = $funcoesValidas->map(fn (FuncaoOperacional $f): string => $f->role())->all();
@@ -185,14 +205,155 @@ class AfastamentoOperacionalService
             ->get()
             ->filter(fn (User $user): bool => ! $this->servidorEstaAfastado($user, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)
                 && ! $this->servidorEstaEmCobertura($user, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id))
-            ->mapWithKeys(function (User $user): array {
-                $rotulo = $user->name;
-                if ($user->funcao_operacional instanceof FuncaoOperacional) {
-                    $rotulo .= ' ('.$user->funcao_operacional->label().')';
-                }
+            ->values();
+    }
 
-                return [$user->id => $rotulo];
-            })
-            ->all();
+    public function sugerirServidorCobertura(AfastamentoSolicitacao $solicitacao): ?User
+    {
+        $primeiro = $this->filaCobertura($solicitacao)->first();
+
+        return $primeiro['user'] ?? null;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array{user: User, coberturas: int, ultima_cobertura: ?string}>
+     */
+    public function filaCobertura(AfastamentoSolicitacao $solicitacao): \Illuminate\Support\Collection
+    {
+        return $this->servidoresDisponiveisParaCoberturaLista($solicitacao)
+            ->map(fn (User $user): array => [
+                'user' => $user,
+                'coberturas' => $this->totalCoberturasDoServidor($user, $solicitacao->id),
+                'ultima_cobertura' => $this->ultimaCoberturaDoServidor($user, $solicitacao->id),
+            ])
+            ->sort(fn (array $a, array $b): int => $a['coberturas'] <=> $b['coberturas']
+                ?: ($a['ultima_cobertura'] ? strtotime($a['ultima_cobertura']) : 0) <=> ($b['ultima_cobertura'] ? strtotime($b['ultima_cobertura']) : 0)
+                ?: ($a['user']->data_ingresso_unidade?->timestamp ?? PHP_INT_MAX) <=> ($b['user']->data_ingresso_unidade?->timestamp ?? PHP_INT_MAX)
+                ?: ($a['user']->data_ingresso_carreira?->timestamp ?? PHP_INT_MAX) <=> ($b['user']->data_ingresso_carreira?->timestamp ?? PHP_INT_MAX)
+                ?: $a['user']->name <=> $b['user']->name)
+            ->values();
+    }
+
+    public function sugerirCobertura(AfastamentoSolicitacao $solicitacao): ?AfastamentoCoberturaPlantao
+    {
+        $existente = $solicitacao->coberturasPlantao()
+            ->whereIn('status', ['sugerida', 'aprovada'])
+            ->latest()
+            ->first();
+
+        if ($existente instanceof AfastamentoCoberturaPlantao) {
+            return $existente;
+        }
+
+        $servidor = $this->sugerirServidorCobertura($solicitacao);
+
+        if (! $servidor instanceof User) {
+            return null;
+        }
+
+        return $this->definirCobertura($solicitacao, $servidor, 'sugerida', 'Sugerido automaticamente pela análise operacional.');
+    }
+
+    public function aprovarCoberturaSugerida(AfastamentoSolicitacao $solicitacao): ?AfastamentoCoberturaPlantao
+    {
+        $aprovada = $this->coberturaAprovada($solicitacao);
+
+        if ($aprovada instanceof AfastamentoCoberturaPlantao) {
+            return $aprovada;
+        }
+
+        $sugerida = $solicitacao->coberturasPlantao()
+            ->where('status', 'sugerida')
+            ->latest()
+            ->first();
+
+        if (! $sugerida instanceof AfastamentoCoberturaPlantao) {
+            $sugerida = $this->sugerirCobertura($solicitacao);
+        }
+
+        if (! $sugerida instanceof AfastamentoCoberturaPlantao) {
+            return null;
+        }
+
+        return $this->definirCobertura(
+            $solicitacao,
+            (int) $sugerida->servidor_cobertura_id,
+            'aprovada',
+            $sugerida->observacao ?: 'Cobertura sugerida automaticamente e aprovada junto ao afastamento.',
+        );
+    }
+
+    public function definirCobertura(AfastamentoSolicitacao $solicitacao, User|int $servidor, string $status = 'sugerida', ?string $observacao = null): AfastamentoCoberturaPlantao
+    {
+        $solicitacao->loadMissing('user');
+        $coberturaUser = $servidor instanceof User ? $servidor : User::query()->findOrFail($servidor);
+        $funcaoOrigem = $coberturaUser->funcao_operacional;
+        $funcaoDestino = $solicitacao->user?->funcao_operacional;
+
+        if (! $funcaoOrigem instanceof FuncaoOperacional || ! $funcaoDestino instanceof FuncaoOperacional) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'servidor_cobertura_id' => 'Não foi possível determinar a função operacional dos servidores envolvidos.',
+            ]);
+        }
+
+        if (! in_array($funcaoOrigem, $funcaoDestino->podeSerCobertaPor(), true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'servidor_cobertura_id' => "A função {$funcaoOrigem->label()} não pode cobrir {$funcaoDestino->label()}.",
+            ]);
+        }
+
+        if ($this->servidorEstaAfastado($coberturaUser, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)
+            || $this->servidorEstaEmCobertura($coberturaUser, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'servidor_cobertura_id' => 'O servidor selecionado não está disponível para cobertura neste período.',
+            ]);
+        }
+
+        if ($funcaoOrigem !== $funcaoDestino && ! $this->funcaoFicaComMinimoApos($funcaoOrigem, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'servidor_cobertura_id' => "A cobertura deixaria {$funcaoOrigem->label()} abaixo do mínimo operacional.",
+            ]);
+        }
+
+        $solicitacao->coberturasPlantao()
+            ->whereIn('status', ['sugerida', 'aprovada'])
+            ->where('servidor_cobertura_id', '!=', $coberturaUser->id)
+            ->update(['status' => 'cancelada']);
+
+        return AfastamentoCoberturaPlantao::query()->updateOrCreate(
+            [
+                'afastamento_solicitacao_id' => $solicitacao->id,
+                'servidor_cobertura_id' => $coberturaUser->id,
+            ],
+            [
+                'servidor_plantao_afastado_id' => $solicitacao->user_id,
+                'funcao_origem' => $funcaoOrigem,
+                'funcao_destino' => $funcaoDestino,
+                'data_inicio' => $solicitacao->data_inicio,
+                'data_fim' => $solicitacao->data_fim,
+                'status' => $status,
+                'aprovado_por' => $status === 'aprovada' ? Auth::id() : null,
+                'aprovado_em' => $status === 'aprovada' ? now() : null,
+                'observacao' => $observacao,
+            ],
+        );
+    }
+
+    private function totalCoberturasDoServidor(User $user, ?int $ignorarSolicitacaoId = null): int
+    {
+        return AfastamentoCoberturaPlantao::query()
+            ->when($ignorarSolicitacaoId, fn (Builder $query) => $query->where('afastamento_solicitacao_id', '!=', $ignorarSolicitacaoId))
+            ->where('servidor_cobertura_id', $user->id)
+            ->whereIn('status', ['sugerida', 'aprovada'])
+            ->count();
+    }
+
+    private function ultimaCoberturaDoServidor(User $user, ?int $ignorarSolicitacaoId = null): ?string
+    {
+        return AfastamentoCoberturaPlantao::query()
+            ->when($ignorarSolicitacaoId, fn (Builder $query) => $query->where('afastamento_solicitacao_id', '!=', $ignorarSolicitacaoId))
+            ->where('servidor_cobertura_id', $user->id)
+            ->whereIn('status', ['sugerida', 'aprovada'])
+            ->max('data_fim');
     }
 }

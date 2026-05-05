@@ -54,10 +54,15 @@ class AfastamentosApprovalWidget extends TableWidget
                     ->schema([
                         Forms\Components\Textarea::make('justificativa')->label('Justificativa da chefia')->required(),
                     ])
-                    ->action(fn (array $data, AfastamentoSolicitacao $record) => $this->executar(
-                        fn () => app(AfastamentoService::class)->aprovar($record, $data['justificativa'], $this->isSuperAdmin()),
-                        'Afastamento aprovado',
-                    )),
+                    ->action(function (array $data, AfastamentoSolicitacao $record): void {
+                        $this->executar(
+                            fn () => app(AfastamentoService::class)->aprovar($record, $data['justificativa'], $this->isSuperAdmin()),
+                            'Afastamento aprovado',
+                        );
+
+                        $this->dispatch('plantaoUpdated');
+                        $this->dispatch('afastamentosUpdated');
+                    }),
                 Actions\Action::make('indeferir')
                     ->label('Indeferir')
                     ->icon('heroicon-o-x-circle')
@@ -88,6 +93,8 @@ class AfastamentosApprovalWidget extends TableWidget
                         'analisePrioridade' => app(AfastamentoPrioridadeService::class)->analisarConflitosPorPrioridade($record),
                         'sugestoes' => app(AfastamentoSuggestionService::class)->sugerir($record),
                         'coberturas' => app(AfastamentoOperacionalService::class)->servidoresDisponiveisParaCobertura($record),
+                        'coberturaSelecionadaId' => $this->coberturaSelecionadaId($record),
+                        'selecionarCoberturaAction' => 'selecionarCobertura',
                     ])),
             ])
             ->headerActions([
@@ -121,6 +128,20 @@ class AfastamentosApprovalWidget extends TableWidget
             ->emptyStateHeading('Nenhuma solicitação pendente');
     }
 
+    public function selecionarCobertura(int $solicitacaoId, int $servidorId): void
+    {
+        $solicitacao = AfastamentoSolicitacao::query()
+            ->with('user')
+            ->findOrFail($solicitacaoId);
+
+        $this->executar(
+            fn () => app(AfastamentoOperacionalService::class)->definirCobertura($solicitacao, $servidorId, 'sugerida', 'Selecionado na análise inteligente.'),
+            'Cobertura selecionada',
+        );
+
+        $this->dispatch('$refresh');
+    }
+
     private function executar(callable $callback, string $ok): void
     {
         try {
@@ -140,5 +161,13 @@ class AfastamentosApprovalWidget extends TableWidget
     private function isSuperAdmin(): bool
     {
         return (bool) auth()->user()?->hasRole('super_admin');
+    }
+
+    private function coberturaSelecionadaId(AfastamentoSolicitacao $record): ?int
+    {
+        return $record->coberturasPlantao()
+            ->whereIn('status', ['sugerida', 'aprovada'])
+            ->latest()
+            ->value('servidor_cobertura_id');
     }
 }

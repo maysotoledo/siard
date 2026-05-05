@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\PlantaoCqhServidor;
 use App\Models\PlantaoCqhExterno;
+use App\Models\PlantaoCqhServidor;
 use App\Models\PlantaoDelegadoEscala;
 use App\Models\PlantaoEquipe;
 use App\Models\PlantaoEquipeServidor;
@@ -101,6 +101,31 @@ it('gera cqh com servidores internos e externos derf e exibe derf no pdf', funct
     $dados = app(PlantaoPdfService::class)->dadosMensais(5, 2026);
 
     expect(collect($dados['linhas'])->pluck('cqh')->contains(fn ($name) => str_contains($name, '(DERF)')))->toBeTrue();
+});
+
+it('nao inclui servidores inativos ou nao aptos na escala cqh geral', function (): void {
+    $equipe = equipeValida();
+    app(PlantaoEscalaService::class)->gerarEscalaMensal(5, 2026, $equipe->id);
+
+    $apto = plantaoUser('ipc', 'CQH APTO');
+    $inativo = plantaoUser('ipc', 'CQH INATIVO');
+    $naoApto = plantaoUser('ipc', 'CQH NAO APTO');
+
+    PlantaoCqhServidor::query()->create(['user_id' => $apto->id, 'ativo' => true, 'apto_cqh' => true]);
+    PlantaoCqhServidor::query()->create(['user_id' => $inativo->id, 'ativo' => false, 'apto_cqh' => true]);
+    PlantaoCqhServidor::query()->create(['user_id' => $naoApto->id, 'ativo' => true, 'apto_cqh' => false]);
+    PlantaoCqhExterno::query()->create(['nome' => 'EXTERNO INATIVO', 'ativo' => false, 'apto_cqh' => true]);
+    PlantaoCqhExterno::query()->create(['nome' => 'EXTERNO NAO APTO', 'ativo' => true, 'apto_cqh' => false]);
+
+    expect(app(PlantaoCqhService::class)->gerarEscalaCqhMensal(5, 2026))->toBe(31);
+
+    $cqhGerais = PlantaoEscala::query()
+        ->whereYear('data_plantao', 2026)
+        ->whereMonth('data_plantao', 5)
+        ->get(['cqh_geral_type', 'cqh_geral_id']);
+
+    expect($cqhGerais->pluck('cqh_geral_type')->unique()->all())->toBe([User::class])
+        ->and($cqhGerais->pluck('cqh_geral_id')->unique()->all())->toBe([$apto->id]);
 });
 
 it('bloqueia pdf quando escala cqh nao foi gerada', function (): void {
@@ -257,7 +282,11 @@ it('fullcalendar exibe dpc e contato da tabela delta', function (): void {
     $evento = collect(app(PlantaoCalendarService::class)->eventos())
         ->firstWhere('start', '2026-05-01');
 
-    expect($evento['extendedProps']['dpc'])->toBe('DR. ROGÉRIO IRLANDES')
+    expect($evento['extendedProps']['dpc'])->toBe([
+        'original' => 'DR. ROGÉRIO IRLANDES',
+        'atual' => 'DR. ROGÉRIO IRLANDES',
+        'permutado' => false,
+    ])
         ->and($evento['extendedProps']['dpcContato'])->toBe('(67) 9201-0207');
 });
 

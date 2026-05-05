@@ -2,13 +2,10 @@
 
 namespace App\Filament\Resources\AfastamentoSolicitacoes;
 
-use App\Enums\NivelImpacto;
+use App\Enums\FuncaoOperacional;
 use App\Enums\StatusAfastamento;
 use App\Enums\StatusPeriodoAquisitivo;
 use App\Enums\TipoAfastamento;
-use App\Enums\FuncaoOperacional;
-use App\Filament\Resources\AfastamentoSolicitacoes\Pages;
-use App\Models\AfastamentoCoberturaPlantao;
 use App\Models\AfastamentoPeriodoAquisitivo;
 use App\Models\AfastamentoSolicitacao;
 use App\Models\User;
@@ -113,7 +110,7 @@ class AfastamentoSolicitacaoResource extends Resource
                         ->orderBy('data_aquisicao')
                         ->get()
                         ->mapWithKeys(fn (AfastamentoPeriodoAquisitivo $periodo): array => [
-                            $periodo->id => $periodo->data_inicio?->format('d/m/Y') . ' - ' . $periodo->data_fim?->format('d/m/Y') . ' | saldo ' . $periodo->dias_disponiveis,
+                            $periodo->id => $periodo->data_inicio?->format('d/m/Y').' - '.$periodo->data_fim?->format('d/m/Y').' | saldo '.$periodo->dias_disponiveis,
                         ])
                         ->all();
                 })
@@ -225,9 +222,9 @@ class AfastamentoSolicitacaoResource extends Resource
                     ->icon('heroicon-o-arrow-path')
                     ->action(fn (AfastamentoSolicitacao $record) => self::executar(fn () => app(AfastamentoService::class)->recalcularImpacto($record), 'Impacto recalculado')),
                 Actions\Action::make('definir_cobertura')
-                    ->label('Definir cobertura de plantão')
+                    ->label('Alterar cobertura de plantão')
                     ->icon('heroicon-o-user-plus')
-                    ->visible(fn (AfastamentoSolicitacao $record): bool => self::isGestor() && in_array(
+                    ->visible(fn (AfastamentoSolicitacao $record): bool => self::canGerenciarCobertura() && in_array(
                         $record->user?->funcao_operacional,
                         [FuncaoOperacional::IPC_PLANTAO, FuncaoOperacional::EPC_PLANTAO],
                         true,
@@ -239,46 +236,32 @@ class AfastamentoSolicitacaoResource extends Resource
                             ->options(fn (AfastamentoSolicitacao $record): array => app(AfastamentoOperacionalService::class)->servidoresDisponiveisParaCobertura($record))
                             ->searchable()
                             ->preload()
-                            ->helperText('Lista somente servidores aptos (não afastados, não em cobertura).'),
+                            ->helperText('A análise operacional sugere um servidor de expediente disponível. Use este campo para trocar ou confirmar a cobertura.'),
                         Forms\Components\Textarea::make('observacao')->label('Observação'),
                     ])
+                    ->fillForm(fn (AfastamentoSolicitacao $record): array => [
+                        'servidor_cobertura_id' => $record->coberturasPlantao()
+                            ->whereIn('status', ['sugerida', 'aprovada'])
+                            ->latest()
+                            ->value('servidor_cobertura_id')
+                            ?: app(AfastamentoOperacionalService::class)->sugerirServidorCobertura($record)?->id,
+                    ])
                     ->action(fn (array $data, AfastamentoSolicitacao $record) => self::executar(function () use ($data, $record): void {
-                        $coberturaUser = User::query()->find((int) $data['servidor_cobertura_id']);
-                        $funcaoOrigem = $coberturaUser?->funcao_operacional;
-                        $funcaoDestino = $record->user?->funcao_operacional;
-
-                        if (! $funcaoOrigem instanceof FuncaoOperacional || ! $funcaoDestino instanceof FuncaoOperacional) {
-                            throw ValidationException::withMessages([
-                                'servidor_cobertura_id' => 'Não foi possível determinar a função operacional dos servidores envolvidos.',
-                            ]);
-                        }
-
-                        if (! in_array($funcaoOrigem, $funcaoDestino->podeSerCobertaPor(), true)) {
-                            throw ValidationException::withMessages([
-                                'servidor_cobertura_id' => "A função {$funcaoOrigem->label()} não pode cobrir {$funcaoDestino->label()}.",
-                            ]);
-                        }
-
-                        AfastamentoCoberturaPlantao::query()->updateOrCreate(
-                            [
-                                'afastamento_solicitacao_id' => $record->id,
-                                'servidor_cobertura_id' => $data['servidor_cobertura_id'],
-                            ],
-                            [
-                                'servidor_plantao_afastado_id' => $record->user_id,
-                                'funcao_origem' => $funcaoOrigem,
-                                'funcao_destino' => $funcaoDestino,
-                                'data_inicio' => $record->data_inicio,
-                                'data_fim' => $record->data_fim,
-                                'status' => 'sugerida',
-                                'observacao' => $data['observacao'] ?? null,
-                            ],
+                        app(AfastamentoOperacionalService::class)->definirCobertura(
+                            $record,
+                            (int) $data['servidor_cobertura_id'],
+                            'sugerida',
+                            $data['observacao'] ?? null,
                         );
+
+                        if ($record->refresh()->status === StatusAfastamento::APROVADO) {
+                            app(\App\Services\Plantao\PlantaoSubstituicaoService::class)->reconciliar($record);
+                        }
                     }, 'Cobertura sugerida')),
                 Actions\Action::make('aprovar_cobertura')
                     ->label('Aprovar cobertura')
                     ->icon('heroicon-o-check-circle')
-                    ->visible(fn (AfastamentoSolicitacao $record): bool => self::isGestor() && $record->coberturasPlantao()->where('status', 'sugerida')->exists())
+                    ->visible(fn (AfastamentoSolicitacao $record): bool => self::canGerenciarCobertura() && $record->coberturasPlantao()->where('status', 'sugerida')->exists())
                     ->action(fn (AfastamentoSolicitacao $record) => self::executar(function () use ($record): void {
                         $record->coberturasPlantao()
                             ->where('status', 'sugerida')
@@ -299,7 +282,7 @@ class AfastamentoSolicitacaoResource extends Resource
                 Actions\Action::make('cancelar_cobertura')
                     ->label('Cancelar cobertura')
                     ->color('gray')
-                    ->visible(fn (AfastamentoSolicitacao $record): bool => self::isGestor() && $record->coberturasPlantao()->whereIn('status', ['sugerida', 'aprovada'])->exists())
+                    ->visible(fn (AfastamentoSolicitacao $record): bool => self::canGerenciarCobertura() && $record->coberturasPlantao()->whereIn('status', ['sugerida', 'aprovada'])->exists())
                     ->action(fn (AfastamentoSolicitacao $record) => self::executar(function () use ($record): void {
                         $record->coberturasPlantao()
                             ->whereIn('status', ['sugerida', 'aprovada'])
@@ -319,6 +302,10 @@ class AfastamentoSolicitacaoResource extends Resource
                         'analisePrioridade' => app(AfastamentoPrioridadeService::class)->analisarConflitosPorPrioridade($record),
                         'sugestoes' => app(AfastamentoSuggestionService::class)->sugerir($record),
                         'coberturas' => app(AfastamentoOperacionalService::class)->servidoresDisponiveisParaCobertura($record),
+                        'coberturaSelecionadaId' => $record->coberturasPlantao()
+                            ->whereIn('status', ['sugerida', 'aprovada'])
+                            ->latest()
+                            ->value('servidor_cobertura_id'),
                     ])),
                 Actions\DeleteAction::make()
                     ->label('Excluir')
@@ -355,6 +342,7 @@ class AfastamentoSolicitacaoResource extends Resource
     {
         if (! $inicio || ! $fim) {
             $set('dias_solicitados', 0);
+
             return;
         }
 
@@ -399,7 +387,19 @@ class AfastamentoSolicitacaoResource extends Resource
     private static function isGestor(): bool
     {
         $user = auth()->user();
+
         return (bool) $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('chefia') || $user->hasRole('dpc'));
+    }
+
+    private static function canGerenciarCobertura(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) $user && (
+            $user->hasAnyRole(['admin', 'super_admin']) ||
+            $user->can('GerenciarCobertura:AfastamentoSolicitacao') ||
+            $user->can('Update:AfastamentoSolicitacao')
+        );
     }
 
     private static function podeExcluirProprioCanceladoOuIndeferido(AfastamentoSolicitacao $record): bool
@@ -407,5 +407,4 @@ class AfastamentoSolicitacaoResource extends Resource
         return (int) $record->user_id === (int) auth()->id()
             && in_array($record->status, [StatusAfastamento::CANCELADO, StatusAfastamento::INDEFERIDO], true);
     }
-
 }

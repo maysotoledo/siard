@@ -27,6 +27,7 @@ class AfastamentosStatsWidget extends StatsOverviewWidget implements HasActions
     {
         $today = now()->toDateString();
         $ativos = $this->ativosBase($today);
+        $aprovadosAteFimDoAno = $this->aprovadosAteFimDoAnoBase($today);
         $operacional = app(AfastamentoOperacionalService::class);
 
         $ipcExpedienteDisponiveis = $operacional->disponiveisDaFuncao(FuncaoOperacional::IPC_EXPEDIENTE, $today, $today);
@@ -39,7 +40,7 @@ class AfastamentosStatsWidget extends StatsOverviewWidget implements HasActions
         $minimoEpcPlantao = $operacional->minimoDisponivel(FuncaoOperacional::EPC_PLANTAO);
 
         return [
-            $this->statClicavel('Afastamentos ativos hoje', (clone $ativos)->count(), 'ativos_hoje'),
+            $this->statClicavel('Afastamentos aprovados', (clone $aprovadosAteFimDoAno)->count(), 'ativos_hoje'),
 
             $this->statClicavel(
                 'Férias ativas hoje',
@@ -166,9 +167,9 @@ class AfastamentosStatsWidget extends StatsOverviewWidget implements HasActions
 
         return match ($tipo) {
             'ativos_hoje' => [
-                'titulo' => 'Afastamentos ativos hoje',
-                'descricao' => "Servidores com afastamento aprovado vigente em {$hojeFormatado}.",
-                'linhas' => $this->linhasDeAfastamentos($this->ativosBase($today)),
+                'titulo' => 'Afastamentos aprovados',
+                'descricao' => 'Servidores com afastamento aprovado previsto até 31/12/'.now()->year.'.',
+                'linhas' => $this->linhasDeAfastamentos($this->aprovadosAteFimDoAnoBase($today)),
             ],
             'ferias_hoje' => [
                 'titulo' => 'Férias ativas hoje',
@@ -267,6 +268,15 @@ class AfastamentosStatsWidget extends StatsOverviewWidget implements HasActions
             ->where('status', StatusAfastamento::APROVADO->value)
             ->whereDate('data_inicio', '<=', $today)
             ->whereDate('data_fim', '>=', $today);
+    }
+
+    private function aprovadosAteFimDoAnoBase(string $today): \Illuminate\Database\Eloquent\Builder
+    {
+        return AfastamentoSolicitacao::query()
+            ->with('user')
+            ->where('status', StatusAfastamento::APROVADO->value)
+            ->whereDate('data_inicio', '>=', $today)
+            ->whereDate('data_inicio', '<=', now()->endOfYear()->toDateString());
     }
 
     /**

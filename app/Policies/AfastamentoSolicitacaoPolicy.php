@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\AfastamentoSolicitacao;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class AfastamentoSolicitacaoPolicy
 {
     use HandlesAuthorization;
-    
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:AfastamentoSolicitacao');
@@ -30,6 +30,11 @@ class AfastamentoSolicitacaoPolicy
     public function update(AuthUser $authUser, AfastamentoSolicitacao $afastamentoSolicitacao): bool
     {
         return $authUser->can('Update:AfastamentoSolicitacao');
+    }
+
+    public function gerenciarCobertura(AuthUser $authUser): bool
+    {
+        return $authUser->can('GerenciarCobertura:AfastamentoSolicitacao');
     }
 
     public function delete(AuthUser $authUser, AfastamentoSolicitacao $afastamentoSolicitacao): bool
@@ -66,5 +71,4 @@ class AfastamentoSolicitacaoPolicy
     {
         return $authUser->can('Reorder:AfastamentoSolicitacao');
     }
-
 }

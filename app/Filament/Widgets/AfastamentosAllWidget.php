@@ -118,6 +118,11 @@ class AfastamentosAllWidget extends TableWidget
                         'conflitos' => app(AfastamentoConflictService::class)->detectar($record),
                         'analisePrioridade' => app(AfastamentoPrioridadeService::class)->analisarConflitosPorPrioridade($record),
                         'sugestoes' => app(AfastamentoSuggestionService::class)->sugerir($record),
+                        'coberturas' => app(\App\Services\Afastamentos\AfastamentoOperacionalService::class)->servidoresDisponiveisParaCobertura($record),
+                        'coberturaSelecionadaId' => $record->coberturasPlantao()
+                            ->whereIn('status', ['sugerida', 'aprovada'])
+                            ->latest()
+                            ->value('servidor_cobertura_id'),
                     ])),
                 Actions\DeleteAction::make()
                     ->label('Excluir')

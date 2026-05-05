@@ -19,6 +19,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\On;
 use Saade\FilamentFullCalendar\Actions;
 use Saade\FilamentFullCalendar\Widgets\FullCalendarWidget;
 
@@ -41,7 +42,7 @@ class PlantaoCalendarWidget extends FullCalendarWidget
 
     public function eventContent(): string
     {
-        return <<<JS
+        return <<<'JS'
             function(arg) {
                 const props = arg.event.extendedProps || {};
                 const wrapper = document.createElement('div');
@@ -118,6 +119,14 @@ class PlantaoCalendarWidget extends FullCalendarWidget
     public static function getHeading(): string
     {
         return 'Escala de Plantão';
+    }
+
+    #[On('plantaoUpdated')]
+    public function onPlantaoUpdated(): void
+    {
+        $this->refreshRecords();
+        $this->dispatch('filament-fullcalendar--refresh');
+        $this->dispatch('$refresh');
     }
 
     public function fetchEvents(array $fetchInfo): array

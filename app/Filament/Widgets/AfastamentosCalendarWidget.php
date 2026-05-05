@@ -51,7 +51,7 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
 
     public function dateClick(): string
     {
-        return <<<JS
+        return <<<'JS'
             function(info) {
                 info.view.calendar.el.__livewire.mountAction('create', {
                     start: info.dateStr,
@@ -63,7 +63,7 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
 
     public function select(): string
     {
-        return <<<JS
+        return <<<'JS'
             function(info) {
                 info.view.calendar.el.__livewire.mountAction('create', {
                     start: info.startStr,
@@ -75,7 +75,7 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
 
     public function eventClick(): string
     {
-        return <<<JS
+        return <<<'JS'
             function(info) {
                 info.jsEvent.preventDefault();
                 return false;
@@ -168,8 +168,8 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
                         return 'Selecione o período do afastamento.';
                     }
 
-                    return 'Período: ' . Carbon::parse($inicio)->format('d/m/Y') .
-                        ' até ' . Carbon::parse($fim)->format('d/m/Y') .
+                    return 'Período: '.Carbon::parse($inicio)->format('d/m/Y').
+                        ' até '.Carbon::parse($fim)->format('d/m/Y').
                         " ({$dias} dia(s)).";
                 }),
 
@@ -188,21 +188,7 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
                     $startStr = $arguments['start'] ?? null;
                     $endStr = $arguments['end'] ?? null;
 
-                    $inicio = $startStr ? Carbon::parse($startStr)->toDateString() : null;
-                    $fim = $inicio;
-
-                    if ($startStr && $endStr) {
-                        $start = Carbon::parse($startStr)->startOfDay();
-                        $end = Carbon::parse($endStr)->startOfDay();
-
-                        $fim = $end->gt($start)
-                            ? $end->copy()->subDay()->toDateString()
-                            : $start->toDateString();
-                    }
-
-                    $dias = ($inicio && $fim)
-                        ? Carbon::parse($inicio)->diffInDays(Carbon::parse($fim)) + 1
-                        : 0;
+                    $periodo = self::periodoSelecionadoNoCalendario($startStr, $endStr);
 
                     $userId = auth()->id();
 
@@ -210,9 +196,9 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
                         'user_id' => $userId,
                         'user_id_select' => $userId,
                         'tipo_afastamento' => TipoAfastamento::FERIAS->value,
-                        'data_inicio' => $inicio,
-                        'data_fim' => $fim,
-                        'dias_solicitados' => $dias,
+                        'data_inicio' => $periodo['inicio'],
+                        'data_fim' => $periodo['fim'],
+                        'dias_solicitados' => $periodo['dias'],
                         'status' => StatusAfastamento::SOLICITADO->value,
                     ]);
                 })
@@ -266,7 +252,7 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
                 $color = $this->corPorAfastamento($solicitacao);
                 $tipo = $solicitacao->tipo_afastamento?->label() ?? 'Afastamento';
                 $status = $solicitacao->status?->label() ?? '';
-                $title = trim(($solicitacao->user?->name ?? 'Servidor') . ' - ' . $tipo . ' - ' . $status);
+                $title = trim(($solicitacao->user?->name ?? 'Servidor').' - '.$tipo.' - '.$status);
 
                 return [
                     'id' => (string) $solicitacao->id,
@@ -285,12 +271,36 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
     {
         if (! $inicio || ! $fim) {
             $set('dias_solicitados', 0);
+
             return;
         }
 
         $start = Carbon::parse($inicio)->startOfDay();
         $end = Carbon::parse($fim)->startOfDay();
         $set('dias_solicitados', $end->lt($start) ? 0 : $start->diffInDays($end) + 1);
+    }
+
+    public static function periodoSelecionadoNoCalendario(?string $startStr, ?string $endStr): array
+    {
+        $inicio = $startStr ? Carbon::parse($startStr)->toDateString() : null;
+        $fim = $endStr ? Carbon::parse($endStr)->toDateString() : $inicio;
+
+        if (! $inicio || ! $fim) {
+            return ['inicio' => $inicio, 'fim' => $fim, 'dias' => 0];
+        }
+
+        $start = Carbon::parse($inicio)->startOfDay();
+        $end = Carbon::parse($fim)->startOfDay();
+
+        if ($end->lt($start)) {
+            return ['inicio' => $inicio, 'fim' => $inicio, 'dias' => 1];
+        }
+
+        return [
+            'inicio' => $inicio,
+            'fim' => $fim,
+            'dias' => (int) $start->diffInDays($end) + 1,
+        ];
     }
 
     private function periodosOptions(int $userId, string $tipo): array
@@ -312,9 +322,9 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
             ->orderBy('data_aquisicao')
             ->get()
             ->mapWithKeys(fn (AfastamentoPeriodoAquisitivo $periodo): array => [
-                $periodo->id => $periodo->data_inicio?->format('d/m/Y') .
-                    ' - ' . $periodo->data_fim?->format('d/m/Y') .
-                    ' | saldo ' . $periodo->dias_disponiveis,
+                $periodo->id => $periodo->data_inicio?->format('d/m/Y').
+                    ' - '.$periodo->data_fim?->format('d/m/Y').
+                    ' | saldo '.$periodo->dias_disponiveis,
             ])
             ->all();
     }

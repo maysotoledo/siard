@@ -1,22 +1,28 @@
 <?php
 
+use App\Enums\FuncaoOperacional;
 use App\Enums\StatusAfastamento;
 use App\Enums\StatusPeriodoAquisitivo;
 use App\Enums\TipoAfastamento;
-use App\Enums\FuncaoOperacional;
 use App\Models\AfastamentoCoberturaPlantao;
 use App\Models\AfastamentoPeriodoAquisitivo;
 use App\Models\AfastamentoPeriodoBloqueado;
 use App\Models\AfastamentoRegra;
 use App\Models\AfastamentoRegraOperacional;
 use App\Models\AfastamentoSolicitacao;
+use App\Models\PlantaoEquipe;
+use App\Models\PlantaoEquipeServidor;
+use App\Models\PlantaoEscala;
+use App\Models\PlantaoPermuta;
 use App\Models\User;
 use App\Services\Afastamentos\AfastamentoConflictService;
+use App\Services\Afastamentos\AfastamentoOperacionalService;
 use App\Services\Afastamentos\AfastamentoPeriodoAquisitivoService;
 use App\Services\Afastamentos\AfastamentoPrioridadeService;
 use App\Services\Afastamentos\AfastamentoSaldoService;
 use App\Services\Afastamentos\AfastamentoService;
 use App\Services\Afastamentos\AfastamentoSuggestionService;
+use App\Services\Plantao\PlantaoCalendarService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -556,7 +562,140 @@ it('permite criar solicitacao de ipc plantao quando ha cobertura possivel', func
         'status' => StatusAfastamento::RASCUNHO->value,
     ]);
 
-    expect($solicitacao)->toBeInstanceOf(AfastamentoSolicitacao::class);
+    expect($solicitacao)->toBeInstanceOf(AfastamentoSolicitacao::class)
+        ->and($solicitacao->coberturasPlantao()->where('status', 'sugerida')->exists())->toBeTrue();
+});
+
+it('sugere automaticamente servidor de expediente para cobrir servidor do plantao', function (): void {
+    $plantao = servidorComRole('epc_plantao');
+    $coberturaExpediente = servidorComRole('epc');
+    $coberturaPlantao = servidorComRole('epc_plantao');
+    servidorComRole('epc');
+    $coberturaExpediente->forceFill(['data_ingresso_unidade' => '2015-01-01', 'data_ingresso_carreira' => '2015-01-01'])->save();
+    $coberturaPlantao->forceFill(['data_ingresso_unidade' => '2010-01-01', 'data_ingresso_carreira' => '2010-01-01'])->save();
+    $periodo = periodo($plantao, TipoAfastamento::FERIAS, 30);
+
+    $solicitacao = app(AfastamentoService::class)->salvar([
+        'user_id' => $plantao->id,
+        'periodo_aquisitivo_id' => $periodo->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => '2026-08-01',
+        'data_fim' => '2026-08-10',
+        'status' => StatusAfastamento::RASCUNHO->value,
+    ]);
+
+    $cobertura = $solicitacao->coberturasPlantao()->where('status', 'sugerida')->first();
+
+    expect($cobertura)->not->toBeNull()
+        ->and($cobertura->servidor_cobertura_id)->toBe($coberturaExpediente->id)
+        ->and($cobertura->servidor_cobertura_id)->not->toBe($coberturaPlantao->id)
+        ->and($cobertura->funcao_origem)->toBe(FuncaoOperacional::EPC_EXPEDIENTE)
+        ->and($cobertura->funcao_destino)->toBe(FuncaoOperacional::EPC_PLANTAO);
+});
+
+it('monta fila de cobertura priorizando quem cobriu menos vezes', function (): void {
+    $plantao = servidorComRole('ipc_plantao');
+    $jaCobriu = servidorComRole('ipc');
+    $nuncaCobriu = servidorComRole('ipc');
+    servidorComRole('ipc');
+    servidorComRole('ipc');
+    $jaCobriu->forceFill(['data_ingresso_unidade' => '2010-01-01', 'data_ingresso_carreira' => '2010-01-01'])->save();
+    $nuncaCobriu->forceFill(['data_ingresso_unidade' => '2020-01-01', 'data_ingresso_carreira' => '2020-01-01'])->save();
+
+    $solicitacaoAnterior = AfastamentoSolicitacao::query()->create([
+        'user_id' => servidorComRole('ipc_plantao')->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => '2026-07-01',
+        'data_fim' => '2026-07-10',
+        'dias_solicitados' => 10,
+        'status' => StatusAfastamento::APROVADO->value,
+    ]);
+
+    AfastamentoCoberturaPlantao::query()->create([
+        'afastamento_solicitacao_id' => $solicitacaoAnterior->id,
+        'servidor_plantao_afastado_id' => $solicitacaoAnterior->user_id,
+        'servidor_cobertura_id' => $jaCobriu->id,
+        'funcao_origem' => FuncaoOperacional::IPC_EXPEDIENTE->value,
+        'funcao_destino' => FuncaoOperacional::IPC_PLANTAO->value,
+        'data_inicio' => '2026-07-01',
+        'data_fim' => '2026-07-10',
+        'status' => 'aprovada',
+    ]);
+
+    $periodo = periodo($plantao, TipoAfastamento::FERIAS, 30);
+    $solicitacao = app(AfastamentoService::class)->salvar([
+        'user_id' => $plantao->id,
+        'periodo_aquisitivo_id' => $periodo->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => '2026-08-01',
+        'data_fim' => '2026-08-10',
+        'status' => StatusAfastamento::RASCUNHO->value,
+    ]);
+
+    $fila = app(AfastamentoOperacionalService::class)->filaCobertura($solicitacao);
+    $cobertura = $solicitacao->coberturasPlantao()->where('status', 'sugerida')->first();
+
+    expect($fila->first()['user']->id)->toBe($nuncaCobriu->id)
+        ->and($cobertura->servidor_cobertura_id)->toBe($nuncaCobriu->id)
+        ->and($cobertura->servidor_cobertura_id)->not->toBe($jaCobriu->id);
+});
+
+it('permite trocar a cobertura sugerida cancelando a anterior', function (): void {
+    $plantao = servidorComRole('ipc_plantao');
+    $sugerida = servidorComRole('ipc');
+    $manual = servidorComRole('ipc');
+    servidorComRole('ipc');
+    servidorComRole('ipc');
+    $sugerida->forceFill(['data_ingresso_unidade' => '2015-01-01', 'data_ingresso_carreira' => '2015-01-01'])->save();
+    $manual->forceFill(['data_ingresso_unidade' => '2020-01-01', 'data_ingresso_carreira' => '2020-01-01'])->save();
+    $periodo = periodo($plantao, TipoAfastamento::FERIAS, 30);
+
+    $solicitacao = app(AfastamentoService::class)->salvar([
+        'user_id' => $plantao->id,
+        'periodo_aquisitivo_id' => $periodo->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => '2026-08-01',
+        'data_fim' => '2026-08-10',
+        'status' => StatusAfastamento::RASCUNHO->value,
+    ]);
+
+    expect($solicitacao->coberturasPlantao()->where('servidor_cobertura_id', $sugerida->id)->where('status', 'sugerida')->exists())->toBeTrue();
+
+    app(AfastamentoOperacionalService::class)->definirCobertura($solicitacao, $manual, 'sugerida', 'Escolha manual.');
+
+    expect($solicitacao->coberturasPlantao()->where('servidor_cobertura_id', $sugerida->id)->value('status'))->toBe('cancelada')
+        ->and($solicitacao->coberturasPlantao()->where('servidor_cobertura_id', $manual->id)->value('status'))->toBe('sugerida');
+});
+
+it('aprova cobertura sugerida e substitui plantonista no calendario de plantao', function (): void {
+    $plantao = servidorComRole('ipc_plantao');
+    $cobertura = servidorComRole('ipc');
+    servidorComRole('ipc');
+    servidorComRole('ipc');
+    $cobertura->forceFill(['data_ingresso_unidade' => '2015-01-01', 'data_ingresso_carreira' => '2015-01-01'])->save();
+
+    $equipe = PlantaoEquipe::query()->create(['nome' => 'Equipe Teste']);
+    PlantaoEquipeServidor::query()->create(['equipe_id' => $equipe->id, 'user_id' => $plantao->id, 'funcao_plantao' => 'ipc_plantao']);
+    $escala = PlantaoEscala::query()->create(['equipe_id' => $equipe->id, 'data_plantao' => '2026-08-02']);
+    $periodo = periodo($plantao, TipoAfastamento::FERIAS, 30);
+
+    $solicitacao = app(AfastamentoService::class)->salvar([
+        'user_id' => $plantao->id,
+        'periodo_aquisitivo_id' => $periodo->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => '2026-08-01',
+        'data_fim' => '2026-08-10',
+        'status' => StatusAfastamento::EM_ANALISE->value,
+    ]);
+
+    app(AfastamentoService::class)->aprovar($solicitacao, 'Cobertura aprovada', false);
+
+    $membros = app(PlantaoCalendarService::class)->membrosFinais($escala->refresh());
+
+    expect($solicitacao->coberturasPlantao()->where('servidor_cobertura_id', $cobertura->id)->value('status'))->toBe('aprovada')
+        ->and(PlantaoPermuta::query()->where('escala_id', $escala->id)->where('servidor_original_id', $plantao->id)->exists())->toBeTrue()
+        ->and(collect($membros['ipc'])->pluck('id')->all())->toContain($cobertura->id)
+        ->and(collect($membros['ipc'])->pluck('id')->all())->not->toContain($plantao->id);
 });
 
 it('ipc plantao nao pode sair se cobertura deixar expediente com menos de dois', function (): void {

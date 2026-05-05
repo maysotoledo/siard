@@ -20,6 +20,15 @@
     .afa-table .afa-row-current         { font-weight: 600; }
     .afa-muted                          { color: #6b7280; }
     .afa-grid                           { margin-top: .5rem; display: grid; gap: .5rem; }
+    .afa-choice                         { width: 100%; text-align: left; cursor: pointer; background: transparent;
+                                          transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
+    .afa-choice:hover                   { border-color: #60a5fa; background: #eff6ff; }
+    .afa-choice-selected                { border-color: #2563eb; background: #dbeafe; box-shadow: 0 0 0 2px rgba(37, 99, 235, .18); }
+    .afa-bubble-mark                    { display: inline-flex; align-items: center; justify-content: center;
+                                          width: 1.25rem; height: 1.25rem; border-radius: 9999px;
+                                          margin-right: .4rem; font-size: .75rem; font-weight: 700;
+                                          color: #fff; background: #2563eb; vertical-align: middle; }
+    .afa-choice-meta                    { margin-top: .35rem; font-size: .75rem; color: #6b7280; }
     @media (min-width: 768px) { .afa-grid { grid-template-columns: repeat(3, 1fr); } }
 
     /* Dark */
@@ -33,7 +42,15 @@
     .dark .afa-table th                 { color: #9ca3af; border-bottom-color: #374151; }
     .dark .afa-table td                 { color: #e5e7eb; border-bottom-color: #374151; }
     .dark .afa-muted                    { color: #9ca3af; }
+    .dark .afa-choice:hover             { border-color: #60a5fa; background: rgba(37, 99, 235, .18); }
+    .dark .afa-choice-selected          { border-color: #60a5fa; background: rgba(37, 99, 235, .24); }
+    .dark .afa-choice-meta              { color: #9ca3af; }
 </style>
+
+@php
+    $coberturaSelecionadaId = isset($coberturaSelecionadaId) ? (int) $coberturaSelecionadaId : null;
+    $selecionarCoberturaAction = $selecionarCoberturaAction ?? null;
+@endphp
 
 <div class="afa-wrap">
 
@@ -124,7 +141,28 @@
         <div class="afa-section-title">Sugestões alternativas e cobertura</div>
         <div class="afa-grid">
             @forelse($sugestoes as $sugestao)
-                <div class="afa-card">{{ $sugestao['label'] ?? '-' }}</div>
+                @php
+                    $servidorCoberturaId = isset($sugestao['servidor_cobertura_id']) ? (int) $sugestao['servidor_cobertura_id'] : null;
+                    $selecionada = $servidorCoberturaId && $servidorCoberturaId === $coberturaSelecionadaId;
+                    $clicavel = $selecionarCoberturaAction && $servidorCoberturaId;
+                @endphp
+
+                @if($clicavel)
+                    <button
+                        type="button"
+                        class="afa-card afa-choice {{ $selecionada ? 'afa-choice-selected' : '' }}"
+                        wire:click="{{ $selecionarCoberturaAction }}({{ (int) $record->id }}, {{ $servidorCoberturaId }})"
+                        wire:loading.attr="disabled"
+                    >
+                        @if($selecionada)
+                            <span class="afa-bubble-mark">✓</span>
+                        @endif
+                        {{ $sugestao['label'] ?? '-' }}
+                        <div class="afa-choice-meta">{{ $selecionada ? 'Selecionada pela IA' : 'Clique para selecionar esta cobertura' }}</div>
+                    </button>
+                @else
+                    <div class="afa-card">{{ $sugestao['label'] ?? '-' }}</div>
+                @endif
             @empty
                 <div class="afa-empty">Nenhuma sugestão automática disponível.</div>
             @endforelse
@@ -136,8 +174,34 @@
         <div>
             <div class="afa-section-title">Servidores IPC expediente disponíveis para cobertura</div>
             <div class="afa-grid">
-                @foreach($coberturas as $nome)
-                    <div class="afa-card">{{ $nome }}</div>
+                @foreach($coberturas as $id => $nome)
+                    @php
+                        $servidorCoberturaId = (int) $id;
+                        $selecionada = $servidorCoberturaId === $coberturaSelecionadaId;
+                        $clicavel = $selecionarCoberturaAction && $servidorCoberturaId;
+                    @endphp
+
+                    @if($clicavel)
+                        <button
+                            type="button"
+                            class="afa-card afa-choice {{ $selecionada ? 'afa-choice-selected' : '' }}"
+                            wire:click="{{ $selecionarCoberturaAction }}({{ (int) $record->id }}, {{ $servidorCoberturaId }})"
+                            wire:loading.attr="disabled"
+                        >
+                            @if($selecionada)
+                                <span class="afa-bubble-mark">✓</span>
+                            @endif
+                            {{ $nome }}
+                            <div class="afa-choice-meta">{{ $selecionada ? 'Selecionada pela IA' : 'Clique para selecionar' }}</div>
+                        </button>
+                    @else
+                        <div class="afa-card {{ $selecionada ? 'afa-choice-selected' : '' }}">
+                            @if($selecionada)
+                                <span class="afa-bubble-mark">✓</span>
+                            @endif
+                            {{ $nome }}
+                        </div>
+                    @endif
                 @endforeach
             </div>
         </div>

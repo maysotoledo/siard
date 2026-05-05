@@ -2,8 +2,8 @@
 
 namespace App\Services\Afastamentos;
 
-use App\Enums\NivelImpacto;
 use App\Enums\FuncaoOperacional;
+use App\Enums\NivelImpacto;
 use App\Enums\StatusAfastamento;
 use App\Models\AfastamentoHistorico;
 use App\Models\AfastamentoInterrupcao;
@@ -39,6 +39,7 @@ class AfastamentoService
                 ? tap($solicitacao)->update($data)
                 : AfastamentoSolicitacao::query()->create($data);
 
+            app(AfastamentoOperacionalService::class)->sugerirCobertura($solicitacao->refresh()->loadMissing('user'));
             $this->recalcularImpacto($solicitacao);
             $this->historico($solicitacao, $solicitacao->wasRecentlyCreated ? 'criacao' : 'edicao', null, $solicitacao->status, 'Solicitação registrada/atualizada.');
 
@@ -59,7 +60,14 @@ class AfastamentoService
             }
 
             $this->recalcularImpacto($solicitacao);
-            $this->validarOperacionalAntesDaAprovacao($solicitacao->refresh()->loadMissing('user', 'coberturasPlantao'), $forcar);
+
+            $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+            app(AfastamentoOperacionalService::class)->aprovarCoberturaSugerida($solicitacao);
+            $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+            $this->recalcularImpacto($solicitacao);
+            $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+
+            $this->validarOperacionalAntesDaAprovacao($solicitacao, $forcar);
 
             if (! $forcar && $solicitacao->nivel_impacto === NivelImpacto::CRITICO) {
                 throw ValidationException::withMessages(['data_inicio' => 'Afastamento com impacto crítico exige super_admin e justificativa.']);
@@ -296,7 +304,7 @@ class AfastamentoService
 
         if ($conflitoCritico) {
             throw ValidationException::withMessages([
-                'data_inicio' => ($conflitoCritico['mensagem'] ?? 'Regra operacional impede a solicitação.') . ' ' . ($conflitoCritico['sugestao'] ?? ''),
+                'data_inicio' => ($conflitoCritico['mensagem'] ?? 'Regra operacional impede a solicitação.').' '.($conflitoCritico['sugestao'] ?? ''),
             ]);
         }
     }
