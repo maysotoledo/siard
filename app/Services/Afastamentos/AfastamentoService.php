@@ -50,8 +50,22 @@ class AfastamentoService
                 ? tap($solicitacao)->update($data)
                 : AfastamentoSolicitacao::query()->create($data);
 
-            app(AfastamentoOperacionalService::class)->sugerirCobertura($solicitacao->refresh()->loadMissing('user'));
+            $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+            $operacional = app(AfastamentoOperacionalService::class);
+
+            $operacional->sugerirCobertura($solicitacao);
+            if ($isAtestado && $solicitacao->status === StatusAfastamento::APROVADO) {
+                $operacional->aprovarCoberturaSugerida($solicitacao);
+                $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+            }
+
             $this->recalcularImpacto($solicitacao);
+            $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+
+            if ($isAtestado && $solicitacao->status === StatusAfastamento::APROVADO) {
+                $this->validarOperacionalAntesDaAprovacao($solicitacao, false);
+                app(PlantaoSubstituicaoService::class)->reconciliar($solicitacao);
+            }
             $this->historico($solicitacao, $solicitacao->wasRecentlyCreated ? 'criacao' : 'edicao', null, $solicitacao->status, 'Solicitação registrada/atualizada.');
 
             return $solicitacao->refresh();

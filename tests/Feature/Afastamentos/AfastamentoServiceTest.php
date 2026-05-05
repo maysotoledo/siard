@@ -566,6 +566,44 @@ it('permite criar solicitacao de ipc plantao quando ha cobertura possivel', func
         ->and($solicitacao->coberturasPlantao()->where('status', 'sugerida')->exists())->toBeTrue();
 });
 
+it('bloqueia atestado de ipc plantao quando nao houver cobertura possivel', function (): void {
+    $plantao = servidorComRole('ipc_plantao');
+
+    app(AfastamentoService::class)->salvar([
+        'user_id' => $plantao->id,
+        'tipo_afastamento' => TipoAfastamento::ATESTADO->value,
+        'data_inicio' => '2026-08-01',
+        'data_fim' => '2026-08-03',
+    ]);
+})->throws(ValidationException::class, 'IPC plantão sem cobertura disponível.');
+
+it('aprova automaticamente cobertura de atestado e substitui plantonista no calendario', function (): void {
+    $plantao = servidorComRole('ipc_plantao');
+    $cobertura = servidorComRole('ipc');
+    servidorComRole('ipc');
+    servidorComRole('ipc');
+    $cobertura->forceFill(['data_ingresso_unidade' => '2015-01-01', 'data_ingresso_carreira' => '2015-01-01'])->save();
+
+    $equipe = PlantaoEquipe::query()->create(['nome' => 'Equipe Atestado']);
+    PlantaoEquipeServidor::query()->create(['equipe_id' => $equipe->id, 'user_id' => $plantao->id, 'funcao_plantao' => 'ipc_plantao']);
+    $escala = PlantaoEscala::query()->create(['equipe_id' => $equipe->id, 'data_plantao' => '2026-08-02']);
+
+    $solicitacao = app(AfastamentoService::class)->salvar([
+        'user_id' => $plantao->id,
+        'tipo_afastamento' => TipoAfastamento::ATESTADO->value,
+        'data_inicio' => '2026-08-01',
+        'data_fim' => '2026-08-10',
+    ]);
+
+    $membros = app(PlantaoCalendarService::class)->membrosFinais($escala->refresh());
+
+    expect($solicitacao->refresh()->status)->toBe(StatusAfastamento::APROVADO)
+        ->and($solicitacao->coberturasPlantao()->where('servidor_cobertura_id', $cobertura->id)->value('status'))->toBe('aprovada')
+        ->and(PlantaoPermuta::query()->where('escala_id', $escala->id)->where('servidor_original_id', $plantao->id)->exists())->toBeTrue()
+        ->and(collect($membros['ipc'])->pluck('id')->all())->toContain($cobertura->id)
+        ->and(collect($membros['ipc'])->pluck('id')->all())->not->toContain($plantao->id);
+});
+
 it('sugere automaticamente servidor de expediente para cobrir servidor do plantao', function (): void {
     $plantao = servidorComRole('epc_plantao');
     $coberturaExpediente = servidorComRole('epc');

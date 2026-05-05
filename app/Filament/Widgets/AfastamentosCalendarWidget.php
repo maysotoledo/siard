@@ -216,7 +216,9 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
                             $data['user_id'] = auth()->id();
                         }
 
-                        $data['status'] = StatusAfastamento::SOLICITADO->value;
+                        $data['status'] = TipoAfastamento::tryFrom((string) ($data['tipo_afastamento'] ?? '')) === TipoAfastamento::ATESTADO
+                            ? StatusAfastamento::APROVADO->value
+                            : StatusAfastamento::SOLICITADO->value;
 
                         app(AfastamentoService::class)->salvar($data);
 
@@ -226,6 +228,7 @@ class AfastamentosCalendarWidget extends FullCalendarWidget
                             ->send();
 
                         $this->refreshRecords();
+                        $this->dispatch('plantaoUpdated');
                         $this->dispatch('$refresh');
                         $this->dispatch('afastamentosUpdated');
                     } catch (ValidationException $exception) {

@@ -16,12 +16,19 @@ use Filament\Actions\Contracts\HasActions;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Collection;
+use Livewire\Attributes\On;
 
 class AfastamentosStatsWidget extends StatsOverviewWidget implements HasActions
 {
     use InteractsWithActions;
 
     protected string $view = 'filament.widgets.afastamentos-stats-widget';
+
+    #[On('afastamentosUpdated')]
+    #[On('plantaoUpdated')]
+    public function refreshWidget(): void
+    {
+    }
 
     protected function getStats(): array
     {
