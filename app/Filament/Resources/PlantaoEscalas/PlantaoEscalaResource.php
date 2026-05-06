@@ -42,7 +42,7 @@ class PlantaoEscalaResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Forms\Components\DatePicker::make('data_plantao')->required()->native(false),
+            Forms\Components\DatePicker::make('data_plantao')->required()->native(false)->unique('plantao_escalas', 'data_plantao', ignoreRecord: true),
             Forms\Components\Select::make('equipe_id')->relationship('equipe', 'nome')->searchable()->preload()->required(),
             Forms\Components\TimePicker::make('horario_inicio')->default('07:00')->seconds(false),
             Forms\Components\TimePicker::make('horario_fim')->default('07:00')->seconds(false),

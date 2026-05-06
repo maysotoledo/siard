@@ -74,6 +74,9 @@ class AfastamentosApprovalWidget extends TableWidget
                         fn () => app(AfastamentoService::class)->indeferir($record, $data['justificativa']),
                         'Afastamento indeferido',
                     )),
+                Actions\DeleteAction::make()
+                    ->label('Excluir')
+                    ->requiresConfirmation(),
                 Actions\Action::make('recalcular')
                     ->label('Recalcular')
                     ->icon('heroicon-o-arrow-path')

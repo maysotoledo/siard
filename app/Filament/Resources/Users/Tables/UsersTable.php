@@ -20,6 +20,10 @@ class UsersTable
                 TextColumn::make('email')
                     ->label('Email address')
                     ->searchable(),
+                TextColumn::make('telefone')
+                    ->label('Telefone')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('data_ingresso')
                     ->label('Data de ingresso na carreira')
                     ->date('d/m/Y')

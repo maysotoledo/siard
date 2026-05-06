@@ -28,6 +28,8 @@ class AfastamentoService
                 throw ValidationException::withMessages(['data_fim' => 'A data final deve ser igual ou posterior à inicial.']);
             }
 
+            $this->validarSobreposicaoPeriodo($data, $solicitacao);
+
             // Atestado é retroativo por natureza — qualquer usuário pode registrar datas passadas.
             $isAtestado = $tipoEnum === TipoAfastamento::ATESTADO;
 
@@ -343,6 +345,42 @@ class AfastamentoService
             'status_anterior' => $old instanceof StatusAfastamento ? $old->value : $old,
             'status_novo' => $new instanceof StatusAfastamento ? $new->value : $new,
             'descricao' => $descricao,
+        ]);
+    }
+
+    private function validarSobreposicaoPeriodo(array $data, ?AfastamentoSolicitacao $solicitacao): void
+    {
+        $userId = (int) ($data['user_id'] ?? 0);
+        $dataInicio = $data['data_inicio'] ?? null;
+        $dataFim = $data['data_fim'] ?? null;
+
+        if (! $userId || ! $dataInicio || ! $dataFim) {
+            return;
+        }
+
+        $conflito = AfastamentoSolicitacao::query()
+            ->where('user_id', $userId)
+            ->whereKeyNot($solicitacao?->id ?? 0)
+            ->whereDate('data_inicio', '<=', $dataFim)
+            ->whereDate('data_fim', '>=', $dataInicio)
+            ->whereIn('status', [
+                StatusAfastamento::RASCUNHO->value,
+                StatusAfastamento::SOLICITADO->value,
+                StatusAfastamento::EM_ANALISE->value,
+                StatusAfastamento::APROVADO->value,
+            ])
+            ->first();
+
+        if (! $conflito) {
+            return;
+        }
+
+        $inicio = Carbon::parse($conflito->data_inicio)->format('d/m/Y');
+        $fim = Carbon::parse($conflito->data_fim)->format('d/m/Y');
+        $tipo = $conflito->tipo_afastamento?->label() ?? 'Afastamento';
+
+        throw ValidationException::withMessages([
+            'data_inicio' => "O servidor já possui {$tipo} de {$inicio} a {$fim} que conflita com este período.",
         ]);
     }
 

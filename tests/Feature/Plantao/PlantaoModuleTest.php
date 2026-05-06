@@ -162,6 +162,17 @@ it('permite permuta cqh entre servidor interno e externo', function (): void {
         ->and($escala->cqh_geral_id)->toBe($externo->id);
 });
 
+it('inclui cqh pessoa virtual ao serializar escala para preencher modal', function (): void {
+    $equipe = equipeValida();
+    app(PlantaoEscalaService::class)->gerarEscalaMensal(5, 2026, $equipe->id);
+    $externo = PlantaoCqhExterno::query()->create(['nome' => 'MARCELO DERF', 'unidade_operacional' => 'DERF_CONFRESA', 'ordem' => 1]);
+    $escala = PlantaoEscala::query()->first();
+
+    app(PlantaoCqhService::class)->setCqhPessoaForDay($escala, 'externo:'.$externo->id);
+
+    expect($escala->refresh()->attributesToArray()['cqh_pessoa'])->toBe('externo:'.$externo->id);
+});
+
 it('permuta plantonistas entre dias diferentes atualizando origem e destino', function (): void {
     $equipeOrigem = equipeValida();
     $equipeDestino = equipeValida();

@@ -24,6 +24,10 @@ class UserForm
                     ->validationMessages([
                         'unique' => 'Este e-mail já foi cadastrado para outro usuário.',
                     ]),
+                TextInput::make('telefone')
+                    ->label('Telefone')
+                    ->tel()
+                    ->maxLength(20),
                 DatePicker::make('data_ingresso')
                     ->label('Data de ingresso na carreira')
                     ->native(false)

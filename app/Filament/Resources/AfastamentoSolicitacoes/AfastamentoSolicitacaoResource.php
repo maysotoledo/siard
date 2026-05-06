@@ -259,17 +259,23 @@ class AfastamentoSolicitacaoResource extends Resource
                             ?: app(AfastamentoOperacionalService::class)->sugerirServidorCobertura($record)?->id,
                     ])
                     ->action(fn (array $data, AfastamentoSolicitacao $record) => self::executar(function () use ($data, $record): void {
+                        // Afastamento já aprovado → cobertura entra direto como aprovada
+                        // para que o reconciliar() propague imediatamente ao calendário.
+                        $statusCobertura = $record->status === StatusAfastamento::APROVADO
+                            ? 'aprovada'
+                            : 'sugerida';
+
                         app(AfastamentoOperacionalService::class)->definirCobertura(
                             $record,
                             (int) $data['servidor_cobertura_id'],
-                            'sugerida',
+                            $statusCobertura,
                             $data['observacao'] ?? null,
                         );
 
                         if ($record->refresh()->status === StatusAfastamento::APROVADO) {
                             app(\App\Services\Plantao\PlantaoSubstituicaoService::class)->reconciliar($record);
                         }
-                    }, 'Cobertura sugerida')),
+                    }, 'Cobertura definida')),
                 Actions\Action::make('aprovar_cobertura')
                     ->label('Aprovar cobertura')
                     ->icon('heroicon-o-check-circle')

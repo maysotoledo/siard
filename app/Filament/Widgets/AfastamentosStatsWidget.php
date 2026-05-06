@@ -176,7 +176,7 @@ class AfastamentosStatsWidget extends StatsOverviewWidget implements HasActions
             'ativos_hoje' => [
                 'titulo' => 'Afastamentos aprovados',
                 'descricao' => 'Servidores com afastamento aprovado previsto até 31/12/'.now()->year.'.',
-                'linhas' => $this->linhasDeAfastamentos($this->aprovadosAteFimDoAnoBase($today)),
+                'linhas' => $this->linhasDeAfastamentosComCobertura($this->aprovadosAteFimDoAnoBase($today)),
             ],
             'ferias_hoje' => [
                 'titulo' => 'Férias ativas hoje',
@@ -305,6 +305,46 @@ class AfastamentosStatsWidget extends StatsOverviewWidget implements HasActions
                 'badge' => $s->status?->label(),
                 'badgeColor' => $s->status?->color() ?? 'gray',
             ])
+            ->values();
+    }
+
+    /**
+     * Igual a linhasDeAfastamentos, mas inclui o servidor de cobertura no meta
+     * quando o afastamento for de um servidor do plantão e houver cobertura registrada.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function linhasDeAfastamentosComCobertura(\Illuminate\Database\Eloquent\Builder $query): Collection
+    {
+        return $query
+            ->with(['coberturasPlantao' => fn ($q) => $q->whereIn('status', ['aprovada', 'sugerida'])->with('servidorCobertura')])
+            ->orderBy('data_inicio')
+            ->get()
+            ->map(function (AfastamentoSolicitacao $s): array {
+                $meta = sprintf(
+                    '%s • %s a %s',
+                    $s->tipo_afastamento?->label() ?? '-',
+                    optional($s->data_inicio)->format('d/m/Y') ?? '-',
+                    optional($s->data_fim)->format('d/m/Y') ?? '-',
+                );
+
+                $cobertura = $s->coberturasPlantao
+                    ->sortByDesc(fn ($c) => $c->status === 'aprovada' ? 1 : 0)
+                    ->first();
+
+                if ($cobertura?->servidorCobertura) {
+                    $statusCobertura = $cobertura->status === 'aprovada' ? 'aprovada' : 'sugerida';
+                    $meta .= ' • Cobertura (' . $statusCobertura . '): ' . $cobertura->servidorCobertura->name;
+                }
+
+                return [
+                    'nome' => $s->user?->name ?? '-',
+                    'sub' => $s->user?->email,
+                    'meta' => $meta,
+                    'badge' => $s->status?->label(),
+                    'badgeColor' => $s->status?->color() ?? 'gray',
+                ];
+            })
             ->values();
     }
 

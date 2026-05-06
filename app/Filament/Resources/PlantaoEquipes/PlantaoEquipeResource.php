@@ -10,6 +10,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -48,7 +49,21 @@ class PlantaoEquipeResource extends Resource
                         ->relationship('user', 'name')
                         ->searchable()
                         ->preload()
-                        ->required(),
+                        ->required()
+                        ->rules(fn (Get $get): array => [
+                            function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                $itens = $get('../../servidores');
+                                if (! is_array($itens)) {
+                                    return;
+                                }
+                                $ocorrencias = collect($itens)
+                                    ->filter(fn (array $item): bool => (string) ($item['user_id'] ?? '') === (string) $value)
+                                    ->count();
+                                if ($ocorrencias > 1) {
+                                    $fail('Este servidor já foi adicionado à equipe.');
+                                }
+                            },
+                        ]),
                     Forms\Components\Toggle::make('ativo')->default(true),
                 ])
                 ->columns(3)

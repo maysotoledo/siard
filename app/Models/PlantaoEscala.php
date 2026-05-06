@@ -14,6 +14,10 @@ class PlantaoEscala extends Model
 {
     protected $table = 'plantao_escalas';
 
+    protected $appends = [
+        'cqh_pessoa',
+    ];
+
     protected $fillable = [
         'equipe_id',
         'data_plantao',
