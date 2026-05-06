@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\AfastamentoSolicitacoes\Pages;
 
+use App\Enums\TipoAfastamento;
 use App\Filament\Resources\AfastamentoSolicitacoes\AfastamentoSolicitacaoResource;
 use App\Filament\Widgets\AfastamentosCalendarWidget;
 use App\Models\AfastamentoSolicitacao;
 use App\Services\Afastamentos\AfastamentoService;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ManageRecords;
 use Illuminate\Database\Eloquent\Model;
 use Livewire\Attributes\On;
@@ -13,6 +15,18 @@ use Livewire\Attributes\On;
 class ManageAfastamentoSolicitacoes extends ManageRecords
 {
     protected static string $resource = AfastamentoSolicitacaoResource::class;
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            CreateAction::make()
+                ->label('Solicitar afastamento')
+                ->fillForm(fn (): array => [
+                    'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+                    'user_id' => auth()->id(),
+                ]),
+        ];
+    }
 
     protected function getHeaderWidgets(): array
     {

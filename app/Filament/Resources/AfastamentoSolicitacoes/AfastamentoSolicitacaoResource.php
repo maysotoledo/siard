@@ -83,22 +83,16 @@ class AfastamentoSolicitacaoResource extends Resource
             Forms\Components\Select::make('tipo_afastamento')
                 ->label('Tipo')
                 ->required()
-                ->placeholder('')
+                ->placeholder(null)
                 ->selectablePlaceholder(false)
                 ->options(TipoAfastamento::options())
                 ->default(TipoAfastamento::FERIAS->value)
                 ->live()
-                ->afterStateHydrated(function (?string $state, Set $set): void {
-                    if (blank($state)) {
-                        $set('tipo_afastamento', TipoAfastamento::FERIAS->value);
-                    }
-                })
                 ->afterStateUpdated(fn (Set $set) => $set('periodo_aquisitivo_id', null)),
 
             Forms\Components\Select::make('periodo_aquisitivo_id')
                 ->label('Período aquisitivo')
                 ->hidden(fn (Get $get): bool => self::isAtestado((string) $get('tipo_afastamento')))
-                ->hiddenJs("\$get('tipo_afastamento') === 'atestado'")
                 ->options(function (Get $get): array {
                     $userId = (int) $get('user_id');
                     $tipo = (string) $get('tipo_afastamento');

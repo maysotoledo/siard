@@ -3,6 +3,57 @@
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
 
+/* ── Chat IA ─────────────────────────────────────────────── */
+@keyframes chat-ia-bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 1; }
+    40%           { transform: translateY(-6px); opacity: 0.6; }
+}
+
+.chat-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: currentColor;
+    animation: chat-ia-bounce 1.2s infinite ease-in-out;
+}
+.chat-dot:nth-child(1) { animation-delay: 0ms; }
+.chat-dot:nth-child(2) { animation-delay: 200ms; }
+.chat-dot:nth-child(3) { animation-delay: 400ms; }
+
+
+#chat-messages {
+    background-color: #f3f4f6; /* gray-100 */
+    border-color: #e5e7eb;     /* gray-200 */
+}
+.dark #chat-messages {
+    background-color: #030712; /* gray-950 */
+    border-color: #1f2937;     /* gray-800 */
+}
+
+/* Balão da IA */
+.chat-ia-balloon-ia {
+    background-color: #ccfbf1; /* teal-100 — destaque suave no light */
+    color: #111827;            /* gray-900 — texto preto no light */
+}
+.dark .chat-ia-balloon-ia {
+    background-color: #0f766e; /* teal-700 — destaque vibrante no dark */
+    color: #ffffff;
+}
+
+.chat-ia-textarea {
+    background-color: #ffffff;
+    color: #111827;            /* gray-900 */
+}
+.dark .chat-ia-textarea {
+    background-color: #111827; /* gray-900 */
+    color: #f3f4f6;            /* gray-100 */
+    border-color: #374151;     /* gray-700 */
+}
+.dark .chat-ia-textarea::placeholder {
+    color: #4b5563;            /* gray-600 */
+}
+
 .filament-fullcalendar .fc-more-popover {
     @apply bg-gray-50 dark:bg-gray-800;
 }
