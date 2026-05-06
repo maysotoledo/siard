@@ -4,6 +4,11 @@
     .afa-section-title                  { font-size: .875rem; font-weight: 600; color: #374151; }
     .afa-card                           { margin-top: .5rem; border: 1px solid #e5e7eb; border-radius: .5rem;
                                           padding: .75rem; font-size: .875rem; color: #1f2937; }
+    .afa-conflict-card                  { padding: .75rem; }
+    .afa-conflict-baixo                 { border-color: #86efac; background: #f0fdf4; }
+    .afa-conflict-moderado              { border-color: #fde68a; background: #fffbeb; }
+    .afa-conflict-alto                  { border-color: #fca5a5; background: #fef2f2; }
+    .afa-conflict-critico               { border-color: #f87171; background: #fee2e2; }
     .afa-card-line                      { margin-bottom: .1rem; }
     .afa-conflict-title                 { font-weight: 600; color: #1f2937; }
     .afa-conflict-sub                   { font-size: .875rem; color: #4b5563; }
@@ -34,6 +39,10 @@
     /* Dark */
     .dark .afa-section-title            { color: #d1d5db; }
     .dark .afa-card                     { border-color: #374151; color: #e5e7eb; }
+    .dark .afa-conflict-baixo           { border-color: #166534; background: rgba(22, 101, 52, .24); }
+    .dark .afa-conflict-moderado        { border-color: #ca8a04; background: rgba(202, 138, 4, .22); }
+    .dark .afa-conflict-alto            { border-color: #dc2626; background: rgba(220, 38, 38, .22); }
+    .dark .afa-conflict-critico         { border-color: #ef4444; background: rgba(239, 68, 68, .28); }
     .dark .afa-conflict-title           { color: #f3f4f6; }
     .dark .afa-conflict-sub             { color: #9ca3af; }
     .dark .afa-empty                    { color: #9ca3af; }
@@ -72,9 +81,21 @@
         <div class="afa-section-title">Conflitos encontrados</div>
         <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.5rem;">
             @forelse($conflitos as $conflito)
+                @php
+                    $nivel = strtolower((string) ($conflito['nivel'] ?? ''));
+                    $classeNivel = match ($nivel) {
+                        'baixo' => 'afa-conflict-baixo',
+                        'moderado' => 'afa-conflict-moderado',
+                        'alto' => 'afa-conflict-alto',
+                        'critico' => 'afa-conflict-critico',
+                        default => '',
+                    };
+                @endphp
                 <div class="afa-card" style="padding:.75rem;">
-                    <div class="afa-conflict-title">{{ strtoupper($conflito['nivel'] ?? '-') }} — {{ $conflito['mensagem'] ?? '-' }}</div>
-                    <div class="afa-conflict-sub">{{ $conflito['sugestao'] ?? '-' }}</div>
+                    <div class="afa-card afa-conflict-card {{ $classeNivel }}">
+                        <div class="afa-conflict-title">{{ strtoupper($conflito['nivel'] ?? '-') }} — {{ $conflito['mensagem'] ?? '-' }}</div>
+                        <div class="afa-conflict-sub">{{ $conflito['sugestao'] ?? '-' }}</div>
+                    </div>
                 </div>
             @empty
                 <div class="afa-empty">Nenhum conflito crítico detectado.</div>

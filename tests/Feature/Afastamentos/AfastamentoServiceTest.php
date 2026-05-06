@@ -35,6 +35,7 @@ beforeEach(function (): void {
 
     Role::findOrCreate('super_admin');
     Role::findOrCreate('ipc');
+    Role::findOrCreate('ipc_chefe');
     Role::findOrCreate('ipc_plantao');
     Role::findOrCreate('epc');
     Role::findOrCreate('epc_plantao');
@@ -432,7 +433,7 @@ it('detecta conflito com efetivo minimo por cargo', function (): void {
     $userB->assignRole('ipc');
 
     AfastamentoRegraOperacional::query()->create([
-        'cargo' => 'ipc',
+        'funcao_operacional' => FuncaoOperacional::IPC_EXPEDIENTE->value,
         'minimo_por_dia' => 1,
         'maximo_afastados_simultaneos' => 1,
         'ativo' => true,
@@ -676,6 +677,36 @@ it('monta fila de cobertura priorizando quem cobriu menos vezes', function (): v
     expect($fila->first()['user']->id)->toBe($nuncaCobriu->id)
         ->and($cobertura->servidor_cobertura_id)->toBe($nuncaCobriu->id)
         ->and($cobertura->servidor_cobertura_id)->not->toBe($jaCobriu->id);
+});
+
+it('nao inclui ipc_chefe na fila de cobertura do plantao', function (): void {
+    $plantao = servidorComRole('ipc_plantao');
+    $ipcChefe = servidorComRole('ipc');
+    $ipcChefe->assignRole('ipc_chefe');
+    $disponivel = servidorComRole('ipc');
+    servidorComRole('ipc');
+    servidorComRole('ipc');
+
+    $ipcChefe->forceFill(['data_ingresso_unidade' => '2010-01-01', 'data_ingresso_carreira' => '2010-01-01'])->save();
+    $disponivel->forceFill(['data_ingresso_unidade' => '2020-01-01', 'data_ingresso_carreira' => '2020-01-01'])->save();
+
+    $periodo = periodo($plantao, TipoAfastamento::FERIAS, 30);
+    $solicitacao = app(AfastamentoService::class)->salvar([
+        'user_id' => $plantao->id,
+        'periodo_aquisitivo_id' => $periodo->id,
+        'tipo_afastamento' => TipoAfastamento::FERIAS->value,
+        'data_inicio' => '2026-08-01',
+        'data_fim' => '2026-08-10',
+        'status' => StatusAfastamento::RASCUNHO->value,
+    ]);
+
+    $filaIds = app(AfastamentoOperacionalService::class)->filaCobertura($solicitacao)
+        ->pluck('user.id')
+        ->all();
+
+    expect($filaIds)->toContain($disponivel->id)
+        ->and($filaIds)->not->toContain($ipcChefe->id)
+        ->and($solicitacao->coberturasPlantao()->where('servidor_cobertura_id', $ipcChefe->id)->exists())->toBeFalse();
 });
 
 it('permite trocar a cobertura sugerida cancelando a anterior', function (): void {

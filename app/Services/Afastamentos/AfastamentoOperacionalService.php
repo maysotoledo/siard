@@ -200,6 +200,7 @@ class AfastamentoOperacionalService
 
         return User::query()
             ->whereHas('roles', fn (Builder $query) => $query->whereIn('name', $roles))
+            ->whereDoesntHave('roles', fn (Builder $query) => $query->where('name', 'ipc_chefe'))
             ->whereKeyNot($solicitacao->user_id)
             ->orderBy('name')
             ->get()

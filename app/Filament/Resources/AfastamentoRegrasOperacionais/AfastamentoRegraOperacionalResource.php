@@ -36,18 +36,39 @@ class AfastamentoRegraOperacionalResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Forms\Components\TextInput::make('unidade_id')->label('Unidade ID')->numeric(),
-            Forms\Components\Select::make('funcao_operacional')->label('Função operacional')->options(FuncaoOperacional::options())->searchable(),
-            Forms\Components\Select::make('grupo_operacional')->label('Grupo operacional')->options(['expediente' => 'Expediente', 'plantao' => 'Plantão']),
-            Forms\Components\TextInput::make('minimo_disponivel')->label('Mínimo disponível')->numeric()->default(1),
-            Forms\Components\Toggle::make('prioridade_operacional')->label('Prioridade operacional')->default(false),
-            Forms\Components\TagsInput::make('permite_cobertura_por_funcao')->label('Permite cobertura por função')->suggestions(array_keys(FuncaoOperacional::options()))->columnSpanFull(),
-            Forms\Components\TextInput::make('cargo')->maxLength(255),
-            Forms\Components\TextInput::make('funcao')->label('Função')->maxLength(255),
-            Forms\Components\TextInput::make('setor')->maxLength(255),
-            Forms\Components\TextInput::make('minimo_por_dia')->label('Mínimo por dia')->numeric()->required()->default(1),
-            Forms\Components\TextInput::make('maximo_afastados_simultaneos')->label('Máx. simultâneos')->numeric()->required()->default(1),
-            Forms\Components\KeyValue::make('dias_criticos')->label('Dias críticos')->keyLabel('Data')->valueLabel('Motivo')->columnSpanFull(),
+            Forms\Components\Select::make('funcao_operacional')
+                ->label('Função operacional')
+                ->options(FuncaoOperacional::options())
+                ->searchable(),
+            Forms\Components\Select::make('grupo_operacional')
+                ->label('Grupo operacional')
+                ->options(['expediente' => 'Expediente', 'plantao' => 'Plantão']),
+            Forms\Components\TextInput::make('minimo_disponivel')
+                ->label('Mínimo disponível')
+                ->numeric()
+                ->default(1),
+            Forms\Components\Toggle::make('prioridade_operacional')
+                ->label('Prioridade operacional')
+                ->default(false),
+            Forms\Components\TagsInput::make('permite_cobertura_por_funcao')
+                ->label('Permite cobertura por função')
+                ->suggestions(array_keys(FuncaoOperacional::options()))
+                ->columnSpanFull(),
+            Forms\Components\TextInput::make('minimo_por_dia')
+                ->label('Mínimo por dia')
+                ->numeric()
+                ->required()
+                ->default(1),
+            Forms\Components\TextInput::make('maximo_afastados_simultaneos')
+                ->label('Máx. simultâneos')
+                ->numeric()
+                ->required()
+                ->default(1),
+            Forms\Components\KeyValue::make('dias_criticos')
+                ->label('Dias críticos')
+                ->keyLabel('Data')
+                ->valueLabel('Motivo')
+                ->columnSpanFull(),
             Forms\Components\Toggle::make('ativo')->default(true),
         ]);
     }
@@ -55,14 +76,13 @@ class AfastamentoRegraOperacionalResource extends Resource
     public static function table(Table $table): Table
     {
         return $table->columns([
-            Tables\Columns\TextColumn::make('unidade_id')->label('Unidade')->placeholder('-'),
-            Tables\Columns\TextColumn::make('funcao_operacional')->label('Função operacional')->formatStateUsing(fn ($state) => $state?->label() ?? '-')->badge(),
+            Tables\Columns\TextColumn::make('funcao_operacional')
+                ->label('Função operacional')
+                ->formatStateUsing(fn ($state) => $state?->label() ?? '-')
+                ->badge(),
             Tables\Columns\TextColumn::make('grupo_operacional')->label('Grupo')->badge(),
             Tables\Columns\TextColumn::make('minimo_disponivel')->label('Mín. disponível'),
             Tables\Columns\IconColumn::make('prioridade_operacional')->label('Prioridade')->boolean(),
-            Tables\Columns\TextColumn::make('cargo')->placeholder('-')->searchable(),
-            Tables\Columns\TextColumn::make('funcao')->label('Função')->placeholder('-')->searchable(),
-            Tables\Columns\TextColumn::make('setor')->placeholder('-')->searchable(),
             Tables\Columns\TextColumn::make('minimo_por_dia')->label('Mín.'),
             Tables\Columns\TextColumn::make('maximo_afastados_simultaneos')->label('Máx.'),
             Tables\Columns\IconColumn::make('ativo')->boolean(),

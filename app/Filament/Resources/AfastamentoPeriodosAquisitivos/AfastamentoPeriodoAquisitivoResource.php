@@ -39,7 +39,13 @@ class AfastamentoPeriodoAquisitivoResource extends Resource
     {
         return $schema->components([
             Forms\Components\Select::make('user_id')->label('Servidor')->required()->options(fn () => User::query()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
-            Forms\Components\Select::make('tipo_afastamento')->label('Tipo')->required()->options(TipoAfastamento::options()),
+            Forms\Components\Select::make('tipo_afastamento')
+                ->label('Tipo')
+                ->required()
+                ->placeholder('')
+                ->selectablePlaceholder(false)
+                ->options(TipoAfastamento::options())
+                ->default(TipoAfastamento::FERIAS->value),
             Forms\Components\DatePicker::make('data_inicio')->label('Início')->required()->native(false)->closeOnDateSelection(),
             Forms\Components\DatePicker::make('data_fim')->label('Fim')->required()->native(false)->closeOnDateSelection(),
             Forms\Components\DatePicker::make('data_aquisicao')->label('Aquisição')->required()->native(false)->closeOnDateSelection(),

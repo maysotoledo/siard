@@ -217,6 +217,15 @@ class AfastamentoService
 
     public function recalcularImpacto(AfastamentoSolicitacao $solicitacao): AfastamentoSolicitacao
     {
+        $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+        $operacional = app(AfastamentoOperacionalService::class);
+        $funcao = $solicitacao->user?->funcao_operacional;
+
+        if (in_array($funcao, [FuncaoOperacional::IPC_PLANTAO, FuncaoOperacional::EPC_PLANTAO], true)) {
+            $operacional->sugerirCobertura($solicitacao);
+            $solicitacao = $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
+        }
+
         $impacto = app(AfastamentoImpactScoreService::class)->calcular($solicitacao);
         $solicitacao->forceFill([
             'impacto_score' => $impacto['score'],
@@ -225,7 +234,7 @@ class AfastamentoService
 
         app(AfastamentoPrioridadeService::class)->atualizarSolicitacao($solicitacao);
 
-        return $solicitacao->refresh();
+        return $solicitacao->refresh()->loadMissing('user', 'coberturasPlantao');
     }
 
     private function mudarStatus(AfastamentoSolicitacao $solicitacao, StatusAfastamento $novo, string $acao, string $descricao): AfastamentoSolicitacao

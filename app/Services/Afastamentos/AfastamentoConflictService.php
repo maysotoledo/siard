@@ -29,7 +29,11 @@ class AfastamentoConflictService
             ->exists();
 
         if ($mesmoServidor) {
-            $conflitos[] = $this->conflito(NivelImpacto::CRITICO, 'Servidor já possui afastamento no período.', 'Escolha período sem sobreposição para o mesmo servidor.');
+            $conflitos[] = $this->conflito(
+                NivelImpacto::CRITICO,
+                'Servidor ja possui afastamento no periodo.',
+                'Escolha um periodo sem sobreposicao para o mesmo servidor.',
+            );
         }
 
         $bloqueado = AfastamentoPeriodoBloqueado::query()
@@ -44,7 +48,11 @@ class AfastamentoConflictService
             ->first();
 
         if ($bloqueado) {
-            $conflitos[] = $this->conflito(NivelImpacto::CRITICO, 'Período bloqueado: ' . $bloqueado->motivo, 'Ajuste a data para fora do período bloqueado.');
+            $conflitos[] = $this->conflito(
+                NivelImpacto::CRITICO,
+                'Periodo bloqueado: ' . $bloqueado->motivo,
+                'Ajuste a data para fora do periodo bloqueado.',
+            );
         }
 
         $conflitos = array_merge($conflitos, $this->conflitosOperacionais($solicitacao));
@@ -70,61 +78,78 @@ class AfastamentoConflictService
         $operacional = app(AfastamentoOperacionalService::class);
         $conflitos = [];
         $conflitoPrioridade = $this->conflitoPrioridade($solicitacao, $user, $funcao);
+
         if ($conflitoPrioridade) {
             $conflitos[] = $conflitoPrioridade;
         }
 
         if ($operacional->servidorEstaEmCobertura($user, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)) {
-            $conflitos[] = $this->conflito(NivelImpacto::CRITICO, 'Servidor está designado como cobertura de plantão no período.', 'Cancele ou substitua a cobertura antes de aprovar este afastamento.', 'operacional');
+            $conflitos[] = $this->conflito(
+                NivelImpacto::CRITICO,
+                'Servidor esta designado como cobertura de plantao no periodo.',
+                'Cancele ou substitua a cobertura antes de aprovar este afastamento.',
+                'operacional',
+            );
         }
 
-        if ($funcao === FuncaoOperacional::IPC_EXPEDIENTE) {
-            $disponiveisAposAfastamento = $operacional->disponiveisDaFuncao($funcao, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id) - 1;
+        if (! in_array($funcao, [FuncaoOperacional::IPC_PLANTAO, FuncaoOperacional::EPC_PLANTAO], true)) {
+            $disponiveisAntes = $operacional->disponiveisDaFuncao($funcao, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id);
+            $disponiveisAposAfastamento = $disponiveisAntes - 1;
             $minimo = $operacional->minimoDisponivel($funcao);
 
             if ($disponiveisAposAfastamento < $minimo) {
                 $conflitos[] = $this->conflito(
                     NivelImpacto::CRITICO,
-                    "Afastamento deixará IPC expediente com {$disponiveisAposAfastamento} disponível(is), abaixo do mínimo de {$minimo}.",
-                    'Escolha outro período ou recomponha o expediente antes da aprovação.',
+                    "Afastamento deixara {$funcao->label()} com {$disponiveisAposAfastamento} disponivel(is), abaixo do minimo de {$minimo}.",
+                    "Hoje existem {$disponiveisAntes} servidor(es) disponivel(is) em {$funcao->label()}. Com este afastamento, restariam {$disponiveisAposAfastamento}.",
                     'operacional',
                 );
             } elseif ($disponiveisAposAfastamento === $minimo) {
-                $conflitos[] = $this->conflito(NivelImpacto::MODERADO, 'IPC expediente ficará no mínimo operacional.', 'Aprovar somente se não houver cobertura de plantão concorrente.', 'operacional');
+                $conflitos[] = $this->conflito(
+                    NivelImpacto::MODERADO,
+                    "{$funcao->label()} ficara no limite minimo operacional.",
+                    "Hoje existem {$disponiveisAntes} servidor(es) disponivel(is) em {$funcao->label()}. Com este afastamento, restariam exatamente {$minimo}.",
+                    'operacional',
+                );
             }
         }
 
         if ($funcao === FuncaoOperacional::IPC_PLANTAO) {
-            if ($operacional->coberturaAprovada($solicitacao)) {
-                if (! $operacional->expedienteFicaComMinimoAposCobertura($solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id)) {
-                    $conflitos[] = $this->conflito(NivelImpacto::CRITICO, 'Cobertura de plantão deixará IPC expediente abaixo do mínimo.', 'Defina outra cobertura ou replaneje o período.', 'operacional');
-                } else {
-                    $conflitos[] = $this->conflito(NivelImpacto::MODERADO, 'Plantão coberto por IPC expediente.', 'Confirme a cobertura aprovada antes da decisão.', 'operacional');
-                }
-            } elseif ($operacional->servidoresDisponiveisParaCobertura($solicitacao) === []) {
-                $conflitos[] = $this->conflito(NivelImpacto::CRITICO, 'IPC plantão sem cobertura disponível.', 'Indique cobertura válida de IPC expediente ou replaneje o afastamento.', 'operacional');
-            } else {
-                $conflitos[] = $this->conflito(NivelImpacto::ALTO, 'IPC plantão exige cobertura aprovada.', 'Defina e aprove uma cobertura de IPC expediente antes da aprovação.', 'operacional');
-            }
+            $conflitos[] = $this->conflitoCoberturaPlantao(
+                $solicitacao,
+                $operacional,
+                FuncaoOperacional::IPC_PLANTAO,
+                FuncaoOperacional::IPC_EXPEDIENTE,
+            );
         }
 
-        $regraLegada = AfastamentoRegraOperacional::query()
+        if ($funcao === FuncaoOperacional::EPC_PLANTAO) {
+            $conflitos[] = $this->conflitoCoberturaPlantao(
+                $solicitacao,
+                $operacional,
+                FuncaoOperacional::EPC_PLANTAO,
+                FuncaoOperacional::EPC_EXPEDIENTE,
+            );
+        }
+
+        $regraOperacional = AfastamentoRegraOperacional::query()
             ->ativa()
-            ->where(function ($query) use ($funcao): void {
-                $query
-                    ->where('funcao_operacional', $funcao->value)
-                    ->orWhere('cargo', $funcao->role())
-                    ->orWhere('funcao', $funcao->role());
-            })
+            ->where('funcao_operacional', $funcao->value)
             ->orderByDesc('id')
             ->first();
 
         $simultaneos = $operacional->afastadosDaFuncao($funcao, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id);
-        if ($regraLegada && ! $regraLegada->funcao_operacional && $simultaneos >= (int) $regraLegada->maximo_afastados_simultaneos) {
-            $conflitos[] = $this->conflito(NivelImpacto::CRITICO, 'Excesso de afastados simultâneos para ' . $funcao->label() . '.', 'Escolha período com menor concentração ou ajuste a regra operacional com justificativa.', 'operacional');
+
+        if ($regraOperacional && $simultaneos >= (int) $regraOperacional->maximo_afastados_simultaneos) {
+            $conflitos[] = $this->conflito(
+                NivelImpacto::CRITICO,
+                'Excesso de afastados simultaneos para ' . $funcao->label() . '.',
+                'Escolha periodo com menor concentracao ou ajuste a regra operacional com justificativa.',
+                'operacional',
+            );
         }
 
-        return $conflitos;
+        return array_values(array_filter($conflitos));
     }
 
     private function conflitoPrioridade(AfastamentoSolicitacao $solicitacao, User $user, FuncaoOperacional $funcao): ?array
@@ -136,14 +161,90 @@ class AfastamentoConflictService
             return null;
         }
 
-        $preferido = $analise['preferido']['servidor'] ?? 'não definido';
+        $preferido = $analise['preferido']['servidor'] ?? 'nao definido';
         $total = count($ranking);
 
         return $this->conflito(
             NivelImpacto::MODERADO,
-            "Há {$total} servidores/solicitações conflitantes na mesma função operacional. Prioridade recomendada: {$preferido}.",
-            'Verifique a fila de prioridade: ingresso na carreira, ingresso na unidade e ordem da solicitação. A decisão continua subordinada ao interesse do serviço, efetivo mínimo e cobertura operacional.',
+            "Ha {$total} servidores/solicitacoes conflitantes na mesma funcao operacional. Prioridade recomendada: {$preferido}.",
+            'Verifique a fila de prioridade: ingresso na carreira, ingresso na unidade e ordem da solicitacao. A decisao continua subordinada ao interesse do servico, efetivo minimo e cobertura operacional.',
             'prioridade',
+        );
+    }
+
+    private function conflitoCoberturaPlantao(
+        AfastamentoSolicitacao $solicitacao,
+        AfastamentoOperacionalService $operacional,
+        FuncaoOperacional $funcaoPlantao,
+        FuncaoOperacional $funcaoExpediente,
+    ): array {
+        $disponiveisCobertura = $operacional->disponiveisDaFuncao($funcaoExpediente, $solicitacao->data_inicio, $solicitacao->data_fim, $solicitacao->id);
+        $minimoCobertura = $operacional->minimoDisponivel($funcaoExpediente);
+        $restariam = max(0, $disponiveisCobertura - 1);
+        $haCandidatos = $operacional->servidoresDisponiveisParaCobertura($solicitacao) !== [];
+        $coberturaAprovada = $operacional->coberturaAprovada($solicitacao);
+        $ficaraAbaixoDoMinimo = $restariam < $minimoCobertura;
+        $ficaraNoMinimo = $restariam === $minimoCobertura;
+
+        if ($coberturaAprovada && $ficaraAbaixoDoMinimo) {
+            return $this->conflito(
+                NivelImpacto::CRITICO,
+                "{$funcaoPlantao->label()} coberto, mas {$funcaoExpediente->label()} ficara abaixo do minimo.",
+                "{$funcaoExpediente->label()} tem {$disponiveisCobertura} servidor(es) disponivel(is), com minimo operacional de {$minimoCobertura}. Com 1 deslocamento aprovado para cobertura, restariam {$restariam}.",
+                'operacional',
+            );
+        }
+
+        if ($coberturaAprovada && $ficaraNoMinimo) {
+            return $this->conflito(
+                NivelImpacto::MODERADO,
+                "{$funcaoPlantao->label()} ja possui cobertura aprovada e deixara {$funcaoExpediente->label()} no limite minimo.",
+                "{$funcaoExpediente->label()} tem {$disponiveisCobertura} servidor(es) disponivel(is), com minimo operacional de {$minimoCobertura}. Com a cobertura aprovada, restariam exatamente {$restariam}.",
+                'operacional',
+            );
+        }
+
+        if ($coberturaAprovada) {
+            return $this->conflito(
+                NivelImpacto::BAIXO,
+                "{$funcaoPlantao->label()} ja possui cobertura aprovada.",
+                "{$funcaoExpediente->label()} tem {$disponiveisCobertura} servidor(es) disponivel(is), com minimo operacional de {$minimoCobertura}. Com a cobertura aprovada, restariam {$restariam}.",
+                'operacional',
+            );
+        }
+
+        if (! $haCandidatos) {
+            return $this->conflito(
+                NivelImpacto::CRITICO,
+                "{$funcaoPlantao->label()} esta sem cobertura disponivel.",
+                "{$funcaoExpediente->label()} tem {$disponiveisCobertura} servidor(es) disponivel(is), com minimo operacional de {$minimoCobertura}. Nenhum servidor pode ser deslocado para cobrir o plantao.",
+                'operacional',
+            );
+        }
+
+        if ($ficaraAbaixoDoMinimo) {
+            return $this->conflito(
+                NivelImpacto::ALTO,
+                "{$funcaoPlantao->label()} depende de cobertura, mas {$funcaoExpediente->label()} ficaria abaixo do minimo.",
+                "{$funcaoExpediente->label()} tem {$disponiveisCobertura} servidor(es) disponivel(is), com minimo operacional de {$minimoCobertura}. Se 1 servidor for deslocado para cobertura, restariam {$restariam}.",
+                'operacional',
+            );
+        }
+
+        if ($ficaraNoMinimo) {
+            return $this->conflito(
+                NivelImpacto::MODERADO,
+                "{$funcaoPlantao->label()} depende de cobertura com {$funcaoExpediente->label()} no limite minimo.",
+                "{$funcaoExpediente->label()} tem {$disponiveisCobertura} servidor(es) disponivel(is), com minimo operacional de {$minimoCobertura}. Se 1 servidor for deslocado para cobertura, restariam exatamente {$restariam}.",
+                'operacional',
+            );
+        }
+
+        return $this->conflito(
+            NivelImpacto::BAIXO,
+            "{$funcaoPlantao->label()} depende apenas da aprovacao da cobertura.",
+            "{$funcaoExpediente->label()} tem {$disponiveisCobertura} servidor(es) disponivel(is), com minimo operacional de {$minimoCobertura}. Se 1 servidor for deslocado para cobertura, restariam {$restariam}.",
+            'operacional',
         );
     }
 
