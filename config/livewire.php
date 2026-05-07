@@ -2,11 +2,11 @@
 
 return [
     'temporary_file_upload' => [
-        'disk' => null,
+        'disk' => 'public',
         'rules' => [
             'required',
             'file',
-            'mimes:pdf,txt,log,csv,json,html,htm,zip',
+            'mimes:pdf,txt,log,csv,json,html,htm,zip,jpg,jpeg,png,webp,gif',
             'max:153600',
         ],
         'directory' => null,
