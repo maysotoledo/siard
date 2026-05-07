@@ -1,0 +1,163 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - /home/mayso/Documentos/agenda_epc:/var/www
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      - db
+      - redis
+      - ollama
+    networks:
+      - laravel
+
+  # ── Queue worker ─────────────────────────────────────────────────────────
+  # Processa jobs assíncronos (Chat IA, análise telemática, etc.)
+  # Roda continuamente — NÃO usa --stop-when-empty para não perder jobs.
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ["php", "artisan", "queue:work", "--tries=1", "--timeout=180", "--sleep=3", "--memory=256"]
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - /home/mayso/Documentos/agenda_epc:/var/www
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      - db
+      - redis
+      - ollama
+    networks:
+      - laravel
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - /home/mayso/Documentos/agenda_epc:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      - app
+    networks:
+      - laravel
+
+  db:
+    image: mysql:8.1
+    platform: linux/x86_64
+    restart: unless-stopped
+    environment:
+      TZ: America/Sao_Paulo
+      MYSQL_DATABASE: ${DB_DATABASE:-agenda_epc}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-#Inseto85.}
+      MYSQL_USER: ${DB_USERNAME:-inseto}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-mayso}
+    ports:
+      - "3300:3306"
+    volumes:
+      - /home/mayso/Documentos/docker/.docker/mysql/dbdata:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - laravel
+
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - laravel
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      TZ: America/Sao_Paulo
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      - db
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - laravel
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agenda_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - /home/mayso/Documentos/docker/.docker/ollama:/root/.ollama
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - laravel
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: agenda_open_webui
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    environment:
+      TZ: America/Sao_Paulo
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_NAME: SACAT
+    volumes:
+      - /home/mayso/Documentos/docker/.docker/open-webui:/app/backend/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      - ollama
+    networks:
+      - laravel
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - /home/mayso/Documentos/agenda_epc:/var/www
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      - db
+      - redis
+    networks:
+      - laravel
+
+networks:
+  laravel:
+    driver: bridge

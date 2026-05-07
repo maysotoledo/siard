@@ -19,6 +19,14 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/gerar-periodos-aquisitivos.log'));
+
+        // Mantém o queue worker vivo — reinicia a cada minuto se não estiver rodando.
+        // Processa jobs do Chat IA e demais tarefas assíncronas.
+        $schedule->command('queue:work --tries=1 --timeout=180 --sleep=2 --stop-when-empty')
+            ->everyMinute()
+            ->withoutOverlapping(5)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/queue-worker.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         //

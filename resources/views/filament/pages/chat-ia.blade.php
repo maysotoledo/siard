@@ -19,6 +19,7 @@
 
     <div
         class="flex flex-col gap-4"
+        @if ($this->aguardandoResposta) wire:poll.2000ms="verificarResposta" @endif
         x-data="{
             observer: null,
             observerTarget: null,
@@ -121,8 +122,11 @@
                 @endforeach
             @endif
 
-            {{-- Indicador "Pensando..." — aparece enquanto o Livewire processa o envio --}}
-            <div wire:loading wire:target="enviar" class="flex justify-start">
+            {{-- Indicador "Pensando..." — durante o envio (HTTP) OU enquanto aguarda o job (polling) --}}
+            <div
+                wire:loading wire:target="enviar"
+                class="flex justify-start"
+            >
                 <div class="max-w-[80%]">
                     <div class="mb-1 flex items-center gap-1.5">
                         <x-filament::icon icon="heroicon-o-cpu-chip" class="h-4 w-4 text-gray-400 dark:text-gray-500" />
@@ -140,6 +144,28 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Indicador "Aguardando IA..." — aparece entre o retorno do HTTP e a resposta do job --}}
+            @if ($this->aguardandoResposta)
+                <div class="flex justify-start">
+                    <div class="max-w-[80%]">
+                        <div class="mb-1 flex items-center gap-1.5">
+                            <x-filament::icon icon="heroicon-o-cpu-chip" class="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                            <span class="text-xs font-semibold text-gray-600 dark:text-gray-400">IA</span>
+                        </div>
+                        <div class="chat-ia-balloon-ia rounded-2xl rounded-bl-sm px-5 py-3 shadow-sm">
+                            <span class="flex items-center gap-3 text-sm">
+                                <span class="flex gap-1.5">
+                                    <span class="chat-dot"></span>
+                                    <span class="chat-dot"></span>
+                                    <span class="chat-dot"></span>
+                                </span>
+                                <span style="opacity:0.75">Aguardando IA...</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <div x-ref="messagesBottom" class="h-px"></div>
         </div>

@@ -2,9 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Jobs\ProcessChatIaJob;
 use App\Models\AiChat;
 use App\Models\AiChatMessage;
-use App\Services\Ollama\OllamaChatService;
 use BackedEnum;
 use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 use Filament\Actions\Action;
@@ -31,6 +31,9 @@ class ChatIa extends Page
 
     public array $historico = [];
 
+    /** Ativado enquanto o job ainda não respondeu — controla o wire:poll. */
+    public bool $aguardandoResposta = false;
+
     public static function getNavigationGroup(): string|UnitEnum|null
     {
         return 'Inteligência Artificial';
@@ -50,6 +53,24 @@ class ChatIa extends Page
 
         if ($chat) {
             $this->chatAtualId = $chat->id;
+            $this->carregarHistorico();
+
+            // Retoma polling se havia resposta pendente (ex.: após F5)
+            $this->aguardandoResposta = $this->temPendente();
+        }
+    }
+
+    /**
+     * Chamado a cada 2 s pelo wire:poll enquanto $aguardandoResposta = true.
+     */
+    public function verificarResposta(): void
+    {
+        if (! $this->aguardandoResposta) {
+            return;
+        }
+
+        if (! $this->temPendente()) {
+            $this->aguardandoResposta = false;
             $this->carregarHistorico();
         }
     }
@@ -74,26 +95,28 @@ class ChatIa extends Page
             'content'    => $textoUsuario,
         ]);
 
-        // 3. Chama o Ollama (wire:loading mostra o indicador enquanto isso)
-        $resposta = app(OllamaChatService::class)->enviar($chat, $textoUsuario);
-
-        // 4. Salva resposta da IA
-        AiChatMessage::create([
+        // 3. Placeholder da resposta (status pending)
+        $placeholder = AiChatMessage::create([
             'ai_chat_id' => $chat->id,
             'role'       => 'assistant',
-            'content'    => $resposta,
+            'content'    => '',
+            'metadata'   => ['status' => 'pending'],
         ]);
 
-        // 5. Atualiza last_message_at e recarrega tela
-        $chat->update(['last_message_at' => now()]);
+        // 4. Dispara job — retorna imediatamente, sem risco de 504
+        ProcessChatIaJob::dispatchAfterResponse($chat->id, $placeholder->id, $textoUsuario);
+
+        // 5. Ativa polling e atualiza tela
+        $this->aguardandoResposta = true;
         $this->carregarHistorico();
     }
 
     public function novaConversa(): void
     {
-        $this->chatAtualId = null;
-        $this->historico   = [];
-        $this->mensagem    = '';
+        $this->chatAtualId       = null;
+        $this->historico         = [];
+        $this->mensagem          = '';
+        $this->aguardandoResposta = false;
     }
 
     protected function getHeaderActions(): array
@@ -105,6 +128,21 @@ class ChatIa extends Page
                 ->color('gray')
                 ->action('novaConversa'),
         ];
+    }
+
+    // ─── helpers ──────────────────────────────────────────────────────────────
+
+    private function temPendente(): bool
+    {
+        if (! $this->chatAtualId) {
+            return false;
+        }
+
+        return AiChatMessage::query()
+            ->where('ai_chat_id', $this->chatAtualId)
+            ->where('role', 'assistant')
+            ->where('metadata->status', 'pending')
+            ->exists();
     }
 
     private function obterOuCriarChat(string $primeiraMensagem): AiChat
@@ -143,6 +181,8 @@ class ChatIa extends Page
             ->map(fn (AiChatMessage $msg): array => [
                 'role'       => $msg->role,
                 'content'    => $msg->content,
+                'pending'    => ($msg->metadata['status'] ?? '') === 'pending',
+                'erro'       => (bool) ($msg->metadata['erro'] ?? false),
                 'created_at' => $msg->created_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i'),
             ])
             ->toArray();

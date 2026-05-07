@@ -48,7 +48,7 @@ class ProcessChatIaJob implements ShouldQueue
         }
 
         try {
-            $resposta = $service->enviar($chat, $this->pergunta);
+            $resposta = $service->enviar($chat);
 
             $placeholder->forceFill([
                 'content' => $resposta,

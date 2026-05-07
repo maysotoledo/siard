@@ -4,6 +4,7 @@ namespace App\Services\Ollama;
 
 use App\Models\AiChat;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class OllamaChatService
@@ -22,25 +23,33 @@ class OllamaChatService
      * Envia uma mensagem para o Ollama com o histórico completo da conversa.
      * Retorna o conteúdo da resposta ou uma mensagem de erro clara.
      */
-    public function enviar(AiChat $chat, string $novasMensagem): string
+    public function enviar(AiChat $chat): string
     {
         $this->prepararExecucaoLonga();
 
-        $messages = $this->montarHistorico($chat, $novasMensagem);
+        $messages = $this->montarHistorico($chat);
 
         try {
-            $response = Http::timeout(150)
+            $response = Http::connectTimeout(10)
+                ->timeout(180)
                 ->post($this->baseUrl . '/api/chat', [
                     'model' => $this->model,
                     'stream' => false,
                     'messages' => $messages,
                     'options' => [
-                        'temperature' => 0.7,
+                        'temperature' => 0.3,
                         'top_p' => 0.9,
+                        'num_predict' => 400,
                     ],
                 ]);
 
             if ($response->failed()) {
+                Log::warning('Chat IA: Ollama retornou erro HTTP.', [
+                    'status' => $response->status(),
+                    'model' => $this->model,
+                    'base_url' => $this->baseUrl,
+                    'body' => mb_substr((string) $response->body(), 0, 1000),
+                ]);
                 return sprintf(
                     '⚠️ Ollama retornou HTTP %d. Verifique se o modelo "%s" está disponível em: %s',
                     $response->status(),
@@ -53,6 +62,12 @@ class OllamaChatService
 
             return $content !== '' ? $content : 'A IA não retornou conteúdo.';
         } catch (Throwable $e) {
+            Log::error('Chat IA: falha ao comunicar com o Ollama.', [
+                'model' => $this->model,
+                'base_url' => $this->baseUrl,
+                'error' => $e->getMessage(),
+            ]);
+
             $msg = $e->getMessage();
 
             // Detecta erro de conexão recusada e dá orientação clara
@@ -75,7 +90,7 @@ class OllamaChatService
      * Monta o array de mensagens no formato esperado pelo /api/chat,
      * incluindo o histórico salvo no banco (exceto mensagens do tipo system já resolvidas).
      */
-    private function montarHistorico(AiChat $chat, string $novaMensagem): array
+    private function montarHistorico(AiChat $chat): array
     {
         $messages = [
             [
@@ -102,7 +117,16 @@ SYSTEM,
         ];
 
         // Carrega histórico do banco — exclui system e placeholders pendentes (content vazio)
-        foreach ($chat->messages()->where('role', '!=', 'system')->where('content', '!=', '')->get() as $msg) {
+        foreach (
+            $chat->messages()
+                ->where('role', '!=', 'system')
+                ->where('content', '!=', '')
+                ->latest('created_at')
+                ->limit(20)
+                ->get()
+                ->reverse()
+                ->values() as $msg
+        ) {
             $messages[] = [
                 'role' => $msg->role,
                 'content' => $msg->content,
@@ -110,20 +134,15 @@ SYSTEM,
         }
 
         // Adiciona a nova mensagem do usuário
-        $messages[] = [
-            'role' => 'user',
-            'content' => $novaMensagem,
-        ];
-
         return $messages;
     }
 
     private function prepararExecucaoLonga(): void
     {
         if (function_exists('set_time_limit')) {
-            @set_time_limit(150);
+            @set_time_limit(180);
         }
 
-        @ini_set('max_execution_time', '150');
+        @ini_set('max_execution_time', '180');
     }
 }
