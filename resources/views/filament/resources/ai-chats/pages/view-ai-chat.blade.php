@@ -1,4 +1,22 @@
 <x-filament-panels::page>
+    @php
+        $formatarRespostaIa = static function (?string $content): string {
+            $parts = preg_split('/(\*\*.+?\*\*)/s', (string) $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+            $html = collect($parts)
+                ->map(function (string $part): string {
+                    if (str_starts_with($part, '**') && str_ends_with($part, '**') && mb_strlen($part) >= 4) {
+                        return '<strong>' . e(mb_substr($part, 2, -2)) . '</strong>';
+                    }
+
+                    return e($part);
+                })
+                ->implode('');
+
+            return nl2br($html);
+        };
+    @endphp
+
     {{-- Informações do chat --}}
     <x-filament::section heading="Informações">
         <dl class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
@@ -47,7 +65,7 @@
                                     <span class="text-xs font-medium text-gray-500">IA</span>
                                 </div>
                                 <div class="rounded-2xl rounded-bl-sm bg-white px-4 py-2 text-sm text-gray-800 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700">
-                                    {!! nl2br(e($msg['content'])) !!}
+                                    {!! $formatarRespostaIa($msg['content']) !!}
                                 </div>
                                 <p class="mt-1 text-left text-xs text-gray-400">{{ $msg['created_at'] }}</p>
                             </div>

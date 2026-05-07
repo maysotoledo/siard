@@ -1,20 +1,79 @@
 <x-filament-panels::page>
+    @php
+        $formatarRespostaIa = static function (?string $content): string {
+            $parts = preg_split('/(\*\*.+?\*\*)/s', (string) $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+            $html = collect($parts)
+                ->map(function (string $part): string {
+                    if (str_starts_with($part, '**') && str_ends_with($part, '**') && mb_strlen($part) >= 4) {
+                        return '<strong>' . e(mb_substr($part, 2, -2)) . '</strong>';
+                    }
+
+                    return e($part);
+                })
+                ->implode('');
+
+            return nl2br($html);
+        };
+    @endphp
+
     <div
         class="flex flex-col gap-4"
         x-data="{
+            observer: null,
+            observerTarget: null,
+            setupAutoScroll() {
+                this.scheduleScroll();
+                this.observeMessages();
+            },
+            observeMessages() {
+                this.$nextTick(() => {
+                    const el = this.$refs.messages;
+
+                    if (! el || this.observerTarget === el) {
+                        return;
+                    }
+
+                    this.observer?.disconnect();
+                    this.observerTarget = el;
+                    this.observer = new MutationObserver(() => this.scheduleScroll());
+                    this.observer.observe(el, {
+                        attributes: true,
+                        childList: true,
+                        subtree: true,
+                    });
+                });
+            },
             scrollToBottom() {
                 this.$nextTick(() => {
-                    const el = document.getElementById('chat-messages');
-                    if (el) el.scrollTop = el.scrollHeight;
+                    const el = this.$refs.messages;
+                    const bottom = this.$refs.messagesBottom;
+
+                    if (el) {
+                        el.scrollTop = el.scrollHeight;
+                    }
+
+                    if (bottom) {
+                        bottom.scrollIntoView({ block: 'end' });
+                    }
                 });
+            },
+            scheduleScroll() {
+                this.observeMessages();
+                this.scrollToBottom();
+                requestAnimationFrame(() => this.scrollToBottom());
+                setTimeout(() => this.scrollToBottom(), 50);
+                setTimeout(() => this.scrollToBottom(), 150);
+                setTimeout(() => this.scrollToBottom(), 500);
             }
         }"
-        x-init="scrollToBottom()"
-        x-on:livewire:update.window="scrollToBottom()"
+        x-init="setupAutoScroll()"
+        x-on:livewire:update.window="scheduleScroll()"
     >
         {{-- Área de mensagens --}}
         <div
             id="chat-messages"
+            x-ref="messages"
             class="flex flex-col gap-3 overflow-y-auto rounded-xl border p-4"
             style="min-height: 420px; max-height: 62vh;"
         >
@@ -51,7 +110,7 @@
                                     <span class="text-xs font-semibold text-gray-600 dark:text-gray-400">IA</span>
                                 </div>
                                 <div class="chat-ia-balloon-ia rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm shadow-sm">
-                                    {!! nl2br(e($msg['content'])) !!}
+                                    {!! $formatarRespostaIa($msg['content']) !!}
                                 </div>
                                 <p class="mt-1 text-left text-xs text-gray-500">
                                     {{ $msg['created_at'] }}
@@ -81,10 +140,12 @@
                     </div>
                 </div>
             </div>
+
+            <div x-ref="messagesBottom" class="h-px"></div>
         </div>
 
         {{-- Área de entrada --}}
-        <form wire:submit="enviar" class="flex flex-col gap-2">
+        <form wire:submit="enviar" x-on:submit="scheduleScroll()" class="flex flex-col gap-2">
             <div class="flex items-end gap-3">
                 <div class="flex-1">
                     <textarea
@@ -92,7 +153,7 @@
                         rows="3"
                         placeholder="Digite sua mensagem..."
                         class="chat-ia-textarea w-full resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm shadow-sm placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                        x-on:keydown.enter.prevent="if (!$event.shiftKey) { $wire.enviar() }"
+                        x-on:keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); scheduleScroll(); $wire.enviar().then(() => scheduleScroll()) }"
                         wire:loading.attr="disabled"
                         wire:target="enviar"
                     ></textarea>
