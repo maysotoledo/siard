@@ -129,4 +129,16 @@ class PixelTrack extends Model
 
         return 'https://' . $domain . $normalizedPath;
     }
+
+    public function trackingUrlWithQuery(array $query): string
+    {
+        $baseUrl = $this->trackingUrl();
+        $queryString = http_build_query(array_filter($query, static fn (mixed $value): bool => $value !== null));
+
+        if ($queryString === '') {
+            return $baseUrl;
+        }
+
+        return $baseUrl . (str_contains($baseUrl, '?') ? '&' : '?') . $queryString;
+    }
 }

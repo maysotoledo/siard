@@ -283,6 +283,10 @@ class PixelTrackController extends Controller
 
     private function deveRegistrarCaptura(Request $request): bool
     {
+        if ($this->modoPreviewManual($request)) {
+            return false;
+        }
+
         if ($request->user()) {
             return false;
         }
@@ -297,6 +301,10 @@ class PixelTrackController extends Controller
     private function deveRedirecionarParaNoticia(Request $request, ?PixelTrack $pixel): bool
     {
         if (! $pixel || $pixel->preview_tipo !== 'noticia' || ! $pixel->noticia_url) {
+            return false;
+        }
+
+        if ($this->modoPreviewManual($request)) {
             return false;
         }
 
@@ -333,6 +341,11 @@ class PixelTrackController extends Controller
         }
 
         return false;
+    }
+
+    private function modoPreviewManual(Request $request): bool
+    {
+        return $request->boolean('preview');
     }
 
     private function resolverImagemOpenGraph(?PixelTrack $pixel): array

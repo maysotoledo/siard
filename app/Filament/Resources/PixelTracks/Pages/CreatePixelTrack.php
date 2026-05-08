@@ -71,14 +71,16 @@ class CreatePixelTrack extends CreateRecord
         /** @var PixelTrack $pixel */
         $pixel  = $this->record;
         $url    = $pixel->trackingUrl();
-        $imgTag = "<img src=\"{$url}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">";
+        $previewUrl = $pixel->trackingUrlWithQuery(['preview' => 1]);
+        $gifUrl = $pixel->trackingAssetUrl(route('pixel.gif', $pixel->token, false));
+        $imgTag = htmlspecialchars("<img src=\"{$gifUrl}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">", ENT_QUOTES, 'UTF-8');
         $destino = $pixel->preview_tipo === 'noticia' && $pixel->noticia_url
             ? "\n\nDestino da notícia: {$pixel->noticia_url}"
             : '';
 
         Notification::make()
             ->title('Pixel criado com sucesso!')
-            ->body("URL: {$url}{$destino}\n\nTag HTML: {$imgTag}")
+            ->body("URL real: {$url}\nURL de teste sem captura: {$previewUrl}{$destino}\n\nTag HTML segura: {$imgTag}")
             ->success()
             ->persistent()
             ->send();
