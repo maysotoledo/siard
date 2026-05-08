@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,24 @@ use Illuminate\Support\Facades\Storage;
 
 class PixelTrack extends Model
 {
+    use Auditable;
+
+    /**
+     * Somente criação e exclusão são auditadas.
+     * Atualizações são omitidas pois o modelo se atualiza automaticamente
+     * a cada acesso do alvo (IP, geolocalização, clicked_at, etc.).
+     */
+    public static function bootAuditable(): void
+    {
+        static::created(function (PixelTrack $model): void {
+            self::write('created', $model, null, self::sanitizeAuditValues($model->getAttributes()));
+        });
+
+        static::deleted(function (PixelTrack $model): void {
+            self::write('deleted', $model, self::sanitizeAuditValues($model->getOriginal()), null);
+        });
+    }
+
     protected $fillable = [
         'token',
         'label',

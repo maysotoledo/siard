@@ -2,15 +2,15 @@
 
 namespace App\Filament\Resources\PixelTracks\Pages;
 
-use App\Filament\Resources\PixelTracks\PixelTrackResource;
+use App\Filament\Resources\PixelTracks\TodosPixelTracksResource;
 use App\Models\PixelTrack;
 use App\Models\PixelTrackAccess;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\ViewRecord;
 
-class ViewPixelTrack extends ViewRecord
+class ViewTodosPixelTrack extends ViewRecord
 {
-    protected static string $resource = PixelTrackResource::class;
+    protected static string $resource = TodosPixelTracksResource::class;
 
     protected string $view = 'filament.resources.pixel-tracks.pages.view-pixel-track';
 
@@ -18,7 +18,8 @@ class ViewPixelTrack extends ViewRecord
     {
         return [
             DeleteAction::make()
-                ->label('Excluir'),
+                ->label('Excluir')
+                ->visible(fn () => TodosPixelTracksResource::canDelete($this->record)),
         ];
     }
 
@@ -33,14 +34,14 @@ class ViewPixelTrack extends ViewRecord
             ->map(fn (PixelTrackAccess $acesso): array => [
                 'accessed_at' => $acesso->accessed_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s') ?? '-',
                 'endpoint' => match ($acesso->endpoint) {
-                    'gif' => 'GIF',
+                    'gif'       => 'GIF',
                     'historico' => 'Histórico anterior',
-                    default => 'Página',
+                    default     => 'Página',
                 },
-                'ip' => $acesso->ip ?: '-',
-                'porta' => $acesso->porta ?: '-',
-                'ip_local' => $acesso->ip_local ?: '-',
-                'gmt' => $acesso->gmt ?: '-',
+                'ip'         => $acesso->ip ?: '-',
+                'porta'      => $acesso->porta ?: '-',
+                'ip_local'   => $acesso->ip_local ?: '-',
+                'gmt'        => $acesso->gmt ?: '-',
                 'localizacao' => implode(', ', array_filter([
                     $acesso->cidade,
                     $acesso->regiao,
@@ -53,13 +54,13 @@ class ViewPixelTrack extends ViewRecord
                     ? "https://www.google.com/maps?q={$acesso->gps_latitude},{$acesso->gps_longitude}"
                     : null,
                 'gps_accuracy' => $acesso->gps_accuracy !== null
-                    ? number_format($acesso->gps_accuracy, 2, ',', '.').' m'
+                    ? number_format($acesso->gps_accuracy, 2, ',', '.') . ' m'
                     : '-',
-                'isp' => $acesso->isp ?: '-',
-                'idioma' => $acesso->idioma ?: '-',
+                'isp'        => $acesso->isp ?: '-',
+                'idioma'     => $acesso->idioma ?: '-',
                 'plataforma' => $acesso->plataforma ?: '-',
-                'resolucao' => $acesso->resolucao ?: '-',
-                'referer' => $acesso->referer ?: '-',
+                'resolucao'  => $acesso->resolucao ?: '-',
+                'referer'    => $acesso->referer ?: '-',
                 'user_agent' => $acesso->user_agent ?: '-',
             ])
             ->toArray();

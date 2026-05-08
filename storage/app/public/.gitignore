@@ -11,3 +11,10 @@
 !uploads/records-html-instagram/.gitkeep
 !telematica/
 !telematica/**
+!pixel-og/
+!pixel-og/templates/
+!pixel-og/templates/**
+!pixel-og/noticias/
+!pixel-og/noticias/.gitkeep
+!livewire-tmp/
+!livewire-tmp/.gitkeep

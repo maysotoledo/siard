@@ -37,7 +37,7 @@
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">IP Público</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Porta</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">IP Local</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">GMT/Fuso</th>
+                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">GMT</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Localização IP</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">GPS autorizado</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Precisão GPS</th>
@@ -57,9 +57,21 @@
                                 <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-900 dark:text-gray-100">{{ $acesso['ip'] }}</td>
                                 <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{{ $acesso['porta'] }}</td>
                                 <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{{ $acesso['ip_local'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['gmt'] }}</td>
+                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ explode(' ', $acesso['gmt'])[0] }}</td>
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['localizacao'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{{ $acesso['gps'] }}</td>
+                                <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">
+                                    @if ($acesso['gps_url'])
+                                        <a href="{{ $acesso['gps_url'] }}" target="_blank" rel="noopener noreferrer"
+                                           style="display:inline-flex;align-items:center;gap:4px;text-decoration:underline;color:var(--color-primary-600);">
+                                            {{ $acesso['gps'] }}
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="flex-shrink:0;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                            </svg>
+                                        </a>
+                                    @else
+                                        {{ $acesso['gps'] }}
+                                    @endif
+                                </td>
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['gps_accuracy'] }}</td>
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['isp'] }}</td>
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['idioma'] }}</td>

@@ -7,6 +7,7 @@ use App\Models\PixelTrack;
 use App\Services\Pixel\NewsPreviewMetadataService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class CreatePixelTrack extends CreateRecord
@@ -19,6 +20,21 @@ class CreatePixelTrack extends CreateRecord
     {
         $data['token']      = Str::random(40);
         $data['created_by'] = auth()->id();
+
+        if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
+            $data['og_titulo']   = 'Comprovante PIX Bradesco';
+            $data['og_descricao'] = 'Confirme sua chave pix clicando aqui.';
+            $data['mensagem']    = 'Este documento não está mais disponível.';
+
+            // Copia a imagem template para um path exclusivo deste pixel
+            $template = 'pixel-og/templates/pix-bradesco.jpg';
+            $dest     = 'pixel-og/' . $data['token'] . '-bradesco.jpg';
+
+            if (Storage::disk('public')->exists($template)) {
+                Storage::disk('public')->copy($template, $dest);
+                $data['og_imagem_upload'] = $dest;
+            }
+        }
 
         if (($data['preview_tipo'] ?? null) === 'noticia' && filled($data['noticia_url'] ?? null)) {
             $metadata = app(NewsPreviewMetadataService::class)->fetch((string) $data['noticia_url']);

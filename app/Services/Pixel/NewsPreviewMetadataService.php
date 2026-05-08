@@ -41,9 +41,15 @@ class NewsPreviewMetadataService
 
         $metadata = $this->parse($html, $url);
 
+        $host = parse_url($url, PHP_URL_HOST);
+        $descBase = $metadata['description'] ?? null;
+        $descricao = $descBase && $host
+            ? rtrim($descBase, '. ') . '. ' . $host
+            : ($descBase ?? $host);
+
         return array_filter([
             'og_titulo' => $metadata['title'] ?? null,
-            'og_descricao' => $metadata['description'] ?? null,
+            'og_descricao' => $descricao,
             'og_imagem' => $metadata['image'] ?? null,
         ], fn ($value) => filled($value));
     }
@@ -126,8 +132,8 @@ class NewsPreviewMetadataService
         }
 
         return [
-            'title' => $this->limit($metadata['title'], 100),
-            'description' => $this->limit($metadata['description'], 200),
+            'title' => $this->limit($metadata['title'], 255),
+            'description' => $this->limit($metadata['description'], 160),
             'image' => $metadata['image'],
         ];
     }

