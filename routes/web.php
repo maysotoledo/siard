@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\AnaliseInvestigationPdfController;
 use App\Http\Controllers\Billing\MercadoPagoPixelWebhookController;
-use App\Http\Controllers\PixelTrackController;
+use App\Http\Controllers\IpGrabberController;
 use App\Http\Controllers\PlantaoPdfController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -15,19 +15,23 @@ Route::get('/', function () {
 });
 
 // Pixel de rastreamento — rotas públicas (sem autenticação)
-Route::get('/pixel/{token}', [PixelTrackController::class, 'pagina'])
+Route::get('/pixel/{token}', [IpGrabberController::class, 'pagina'])
     ->name('pixel.track')
     ->middleware('throttle:60,1');
 
-Route::get('/pixel/{token}/gif', [PixelTrackController::class, 'gif'])
+Route::get('/tracker/{token}', [IpGrabberController::class, 'gif'])
+    ->name('pixel.email-tracker')
+    ->middleware('throttle:60,1');
+
+Route::get('/pixel/{token}/gif', [IpGrabberController::class, 'gif'])
     ->name('pixel.gif')
     ->middleware('throttle:60,1');
 
-Route::get('/pixel/{token}/og-image', [PixelTrackController::class, 'ogImage'])
+Route::get('/pixel/{token}/og-image', [IpGrabberController::class, 'ogImage'])
     ->name('pixel.og-image')
     ->middleware('throttle:120,1');
 
-Route::post('/pixel/{token}/device', [PixelTrackController::class, 'atualizarDispositivo'])
+Route::post('/pixel/{token}/device', [IpGrabberController::class, 'atualizarDispositivo'])
     ->name('pixel.device')
     ->middleware('throttle:10,1')
     ->withoutMiddleware(ValidateCsrfToken::class);

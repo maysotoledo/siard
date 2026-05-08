@@ -26,8 +26,8 @@ class ListPixelAdmins extends ListRecords
                 ])
                 ->schema([
                     Toggle::make('payment_enabled')
-                        ->label('Habilitar pagamento no Pixel Tracker')
-                        ->helperText('Se desabilitado, o sistema não cobra mensalidade e todo usuário com permissão do Shield terá acesso. O super_admin sempre tem acesso livre.'),
+                        ->label('Habilitar pagamento único dos rastreadores')
+                        ->helperText('Se habilitado, uma única mensalidade libera IP Grabber e Tracker de E-mail. Se desabilitado, o sistema não cobra mensalidade e todo usuário com permissão do Shield terá acesso. O super_admin sempre tem acesso livre.'),
                 ])
                 ->action(function (array $data): void {
                     $setting = PixelModuleSetting::current();
@@ -37,8 +37,8 @@ class ListPixelAdmins extends ListRecords
                     Notification::make()
                         ->title('Configuração atualizada')
                         ->body($setting->payment_enabled
-                            ? 'A cobrança do Pixel Tracker foi habilitada.'
-                            : 'A cobrança do Pixel Tracker foi desabilitada.')
+                            ? 'A cobrança única dos rastreadores foi habilitada.'
+                            : 'A cobrança dos rastreadores foi desabilitada.')
                         ->success()
                         ->send();
                 }),

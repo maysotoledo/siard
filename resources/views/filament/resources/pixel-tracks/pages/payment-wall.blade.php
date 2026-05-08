@@ -2,6 +2,7 @@
     $isApproved = $paymentRequest?->status === 'approved';
     $isPending = $paymentRequest?->isPending() ?? false;
     $hasPaymentRequest = $paymentRequest !== null;
+    $featureName = $featureName ?? 'IP Grabber';
     $qrCodeBase64 = $paymentRequest?->qr_code_base64;
     $qrCodeSrc = blank($qrCodeBase64)
         ? null
@@ -12,15 +13,15 @@
     <div class="rounded-2xl border border-warning-200 bg-warning-50 p-6 dark:border-warning-500/30 dark:bg-warning-500/10">
         <div class="space-y-2">
             <h2 class="text-xl font-semibold text-gray-950 dark:text-white">
-                Pixel Tracker com liberacao mensal
+                {{ $featureName }} com liberacao mensal
             </h2>
 
             <p class="text-sm text-gray-700 dark:text-gray-300">
-                Esta funcionalidade tem custos recorrentes com tunel, dominios e infraestrutura de rastreamento. Por isso, o uso do Pixel Tracker depende de uma mensalidade ativa.
+                Esta funcionalidade tem custos recorrentes com tunel, dominios e infraestrutura de rastreamento. Por isso, o uso do {{ $featureName }} depende de uma mensalidade ativa.
             </p>
 
             <p class="text-sm text-gray-700 dark:text-gray-300">
-                Assim que o Pix for confirmado pelo Mercado Pago, o sistema libera seu acesso automaticamente.
+                A cobrança é única. Assim que o Pix for confirmado pelo Mercado Pago, o sistema libera automaticamente o acesso ao IP Grabber e ao Tracker de E-mail.
             </p>
         </div>
     </div>

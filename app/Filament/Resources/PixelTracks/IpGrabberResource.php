@@ -2,31 +2,26 @@
 
 namespace App\Filament\Resources\PixelTracks;
 
-use App\Filament\Resources\PixelTracks\Pages\CreatePixelTrack;
-use App\Filament\Resources\PixelTracks\Pages\ListPixelTracks;
-use App\Filament\Resources\PixelTracks\Pages\ViewPixelTrack;
-use App\Models\PixelTrack;
+use App\Filament\Resources\PixelTracks\Pages\CreateIpGrabber;
+use App\Filament\Resources\PixelTracks\Pages\ListIpGrabbers;
+use App\Filament\Resources\PixelTracks\Pages\ViewIpGrabber;
+use App\Models\IpGrabber;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * Resource do usuário — exibe e gerencia apenas os próprios pixels.
- */
-class PixelTrackResource extends Resource
+class IpGrabberResource extends Resource
 {
-    protected static ?string $model = PixelTrack::class;
+    protected static ?string $model = IpGrabber::class;
 
-    protected static ?string $slug = 'pixel-tracks';
-
-    // ─── Navegação ─────────────────────────────────────────────────────────────
+    protected static ?string $slug = 'ip-grabbers';
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
@@ -40,7 +35,7 @@ class PixelTrackResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        return 'Pixel Tracker';
+        return 'IP Grabber';
     }
 
     public static function getNavigationSort(): ?int
@@ -48,17 +43,13 @@ class PixelTrackResource extends Resource
         return 60;
     }
 
-    /** Badge mostra quantos pixels próprios ainda estão aguardando captura. */
     public static function getNavigationBadge(): ?string
     {
         if (! (auth()->user()?->hasActivePixelSubscription() ?? false)) {
             return null;
         }
 
-        $count = PixelTrack::query()
-            ->where('created_by', auth()->id())
-            ->whereNull('clicked_at')
-            ->count();
+        $count = static::getEloquentQuery()->whereNull('clicked_at')->count();
 
         return $count > 0 ? (string) $count : null;
     }
@@ -68,37 +59,31 @@ class PixelTrackResource extends Resource
         return 'warning';
     }
 
-    // ─── Labels ────────────────────────────────────────────────────────────────
-
     public static function getModelLabel(): string
     {
-        return 'Pixel de Rastreamento';
+        return 'IP Grabber';
     }
 
     public static function getPluralModelLabel(): string
     {
-        return 'Pixels de Rastreamento';
+        return 'IP Grabber';
     }
-
-    // ─── Páginas ───────────────────────────────────────────────────────────────
 
     public static function getPages(): array
     {
         return [
-            'index'  => ListPixelTracks::route('/'),
-            'create' => CreatePixelTrack::route('/create'),
-            'view'   => ViewPixelTrack::route('/{record}'),
+            'index' => ListIpGrabbers::route('/'),
+            'create' => CreateIpGrabber::route('/create'),
+            'view' => ViewIpGrabber::route('/{record}'),
         ];
     }
 
-    // ─── Controle de acesso ────────────────────────────────────────────────────
-
-    /** Cada usuário vê e gerencia apenas os pixels que ele mesmo criou. */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
             ->with('criador')
             ->where('created_by', auth()->id())
+            ->where('tracking_channel', 'link')
             ->latest();
     }
 
@@ -107,17 +92,15 @@ class PixelTrackResource extends Resource
         return false;
     }
 
-    // ─── Formulário de criação ─────────────────────────────────────────────────
-
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
             \Filament\Schemas\Components\Section::make('Identificação')
-                ->description('Descreva o alvo ou contexto de uso deste pixel.')
+                ->description('Descreva o alvo ou contexto de uso deste IP Grabber.')
                 ->components([
                     Forms\Components\TextInput::make('label')
                         ->label('Rótulo / Identificação')
-                        ->placeholder('Ex: Suspeito João — e-mail enviado em 07/05/2026')
+                        ->placeholder('Ex: Suspeito João - e-mail enviado em 07/05/2026')
                         ->required()
                         ->maxLength(255)
                         ->columnSpanFull(),
@@ -125,9 +108,9 @@ class PixelTrackResource extends Resource
                     Forms\Components\Select::make('preview_tipo')
                         ->label('Tipo de link')
                         ->options([
-                            'mensagem'      => 'Mensagem do sistema',
-                            'noticia'       => 'Notícia externa',
-                            'pix_bradesco'  => 'PIX Bradesco (comprovante)',
+                            'mensagem' => 'Mensagem do sistema',
+                            'noticia' => 'Notícia externa',
+                            'pix_bradesco' => 'PIX Bradesco (comprovante)',
                         ])
                         ->default('mensagem')
                         ->selectablePlaceholder(false)
@@ -136,7 +119,7 @@ class PixelTrackResource extends Resource
                         ->columnSpanFull(),
 
                     Forms\Components\Select::make('tracking_domain')
-                        ->label('Dominio do link')
+                        ->label('Domínio do link')
                         ->options([
                             'comprovante-pix.site' => 'comprovante-pix.site',
                             'agenciadanoticia.online' => 'agenciadanoticia.online',
@@ -145,14 +128,14 @@ class PixelTrackResource extends Resource
                         ->selectablePlaceholder(false)
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
-                        ->helperText('Escolha qual dominio sera usado no link gerado para a mensagem do sistema.')
+                        ->helperText('Escolha qual domínio será usado no link gerado para a mensagem do sistema.')
                         ->columnSpanFull(),
 
                     Forms\Components\Select::make('mensagem')
                         ->label('Mensagem exibida ao clicar')
                         ->options([
                             'Este documento não está mais disponível.' => 'Este documento não está mais disponível.',
-                            'Acesso expirado.'                         => 'Acesso expirado.',
+                            'Acesso expirado.' => 'Acesso expirado.',
                         ])
                         ->default('Este documento não está mais disponível.')
                         ->selectablePlaceholder(false)
@@ -184,7 +167,7 @@ class PixelTrackResource extends Resource
                 ->components([
                     Forms\Components\TextInput::make('og_titulo')
                         ->label('Título do preview')
-                        ->placeholder('Ex: Documento Policial — Delegacia de Confresa')
+                        ->placeholder('Ex: Documento Policial - Delegacia de Confresa')
                         ->maxLength(255)
                         ->columnSpanFull(),
 
@@ -210,13 +193,11 @@ class PixelTrackResource extends Resource
                         ->label('Ou informe a URL da imagem do preview')
                         ->placeholder('https://seudominio.com/imagens/preview.jpg')
                         ->url()
-                        ->helperText('Alternativa ao upload. Tamanho ideal: 1200×630px.')
+                        ->helperText('Alternativa ao upload. Tamanho ideal: 1200x630px.')
                         ->columnSpanFull(),
                 ]),
         ]);
     }
-
-    // ─── Tabela do usuário ─────────────────────────────────────────────────────
 
     public static function table(Table $table): Table
     {
@@ -229,66 +210,34 @@ class PixelTrackResource extends Resource
                     ->sortable()
                     ->wrap()
                     ->weight('bold'),
-
                 Tables\Columns\TextColumn::make('pixel_url')
-                    ->label('URL do Pixel')
-                    ->state(fn (PixelTrack $r) => $r->trackingUrl())
+                    ->label('URL do link')
+                    ->state(fn (IpGrabber $record) => $record->trackingUrl())
                     ->copyable()
                     ->copyMessage('URL copiada!')
-                    ->copyableState(fn (PixelTrack $r) => $r->trackingUrl())
+                    ->copyableState(fn (IpGrabber $record) => $record->trackingUrl())
                     ->wrap(),
-
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->state(fn (PixelTrack $r) => $r->clicked_at ? 'Capturado' : 'Aguardando')
-                    ->color(fn (PixelTrack $r) => $r->clicked_at ? 'success' : 'warning'),
-
+                    ->state(fn (IpGrabber $record) => $record->clicked_at ? 'Capturado' : 'Aguardando')
+                    ->color(fn (IpGrabber $record) => $record->clicked_at ? 'success' : 'warning'),
                 Tables\Columns\TextColumn::make('total_acessos')
                     ->label('Acessos')
                     ->alignCenter()
                     ->sortable(),
-
-                Tables\Columns\TextColumn::make('ip')
-                    ->label('IP Público')
-                    ->copyable()
-                    ->searchable()
-                    ->placeholder('—'),
-
-                Tables\Columns\TextColumn::make('porta')
-                    ->label('Porta')
-                    ->alignCenter()
-                    ->placeholder('—'),
-
+                Tables\Columns\TextColumn::make('ip')->label('IP Público')->copyable()->searchable()->placeholder('—'),
+                Tables\Columns\TextColumn::make('porta')->label('Porta')->alignCenter()->placeholder('—'),
                 Tables\Columns\TextColumn::make('gmt')
                     ->label('GMT')
-                    ->formatStateUsing(fn (?string $state): string => $state
-                        ? trim(explode(' ', $state)[0])
-                        : '—')
+                    ->formatStateUsing(fn (?string $state): string => $state ? trim(explode(' ', $state)[0]) : '—')
                     ->placeholder('—'),
-
-                Tables\Columns\TextColumn::make('plataforma')
-                    ->label('Plataforma')
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                Tables\Columns\TextColumn::make('idioma')
-                    ->label('Idioma')
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                Tables\Columns\TextColumn::make('resolucao')
-                    ->label('Resolução')
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-
                 Tables\Columns\TextColumn::make('clicked_at')
                     ->label('Hora do Acesso')
                     ->dateTime('d/m/Y H:i:s')
                     ->timezone('America/Sao_Paulo')
                     ->placeholder('—')
                     ->sortable(),
-
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Criado em')
                     ->dateTime('d/m/Y H:i')
@@ -299,83 +248,41 @@ class PixelTrackResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
-                    ->options([
-                        'capturado'  => 'Capturado',
-                        'aguardando' => 'Aguardando',
-                    ])
-                    ->query(fn (Builder $q, array $data) => match ($data['value'] ?? null) {
-                        'capturado'  => $q->whereNotNull('clicked_at'),
-                        'aguardando' => $q->whereNull('clicked_at'),
-                        default      => $q,
+                    ->options(['capturado' => 'Capturado', 'aguardando' => 'Aguardando'])
+                    ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
+                        'capturado' => $query->whereNotNull('clicked_at'),
+                        'aguardando' => $query->whereNull('clicked_at'),
+                        default => $query,
                     }),
-
                 Tables\Filters\Filter::make('ip')
                     ->label('IP')
-                    ->form([
-                        Forms\Components\TextInput::make('ip')
-                            ->placeholder('ex: 200.100.50.10'),
-                    ])
-                    ->query(fn (Builder $q, array $data) => ($v = trim((string) ($data['ip'] ?? ''))) === ''
-                        ? $q : $q->where('ip', 'like', "%{$v}%")),
-
+                    ->form([Forms\Components\TextInput::make('ip')->placeholder('ex: 200.100.50.10')])
+                    ->query(fn (Builder $query, array $data) => ($value = trim((string) ($data['ip'] ?? ''))) === '' ? $query : $query->where('ip', 'like', "%{$value}%")),
                 Tables\Filters\Filter::make('label')
                     ->label('Identificação')
-                    ->form([
-                        Forms\Components\TextInput::make('label')
-                            ->placeholder('Buscar por rótulo...'),
-                    ])
-                    ->query(fn (Builder $q, array $data) => ($v = trim((string) ($data['label'] ?? ''))) === ''
-                        ? $q : $q->where('label', 'like', "%{$v}%")),
+                    ->form([Forms\Components\TextInput::make('label')->placeholder('Buscar por rótulo...')])
+                    ->query(fn (Builder $query, array $data) => ($value = trim((string) ($data['label'] ?? ''))) === '' ? $query : $query->where('label', 'like', "%{$value}%")),
             ])
             ->recordActions([
-                Actions\ViewAction::make()
-                    ->label('Histórico')
-                    ->icon('heroicon-o-clock'),
-
+                Actions\ViewAction::make()->label('Histórico')->icon('heroicon-o-clock'),
                 Actions\Action::make('copiar_url')
                     ->label('Copiar URL')
                     ->icon('heroicon-o-clipboard-document')
                     ->color('gray')
-                    ->action(function (PixelTrack $record): void {
-                        $url = $record->trackingUrl();
-
-                        Notification::make()
-                            ->title('URL do pixel copiada')
-                            ->body($url)
-                            ->success()
-                            ->persistent()
-                            ->send();
+                    ->action(function (IpGrabber $record): void {
+                        Notification::make()->title('URL copiada')->body($record->trackingUrl())->success()->persistent()->send();
                     }),
-
-                // Actions\Action::make('copiar_img_tag')
-                //     ->label('Tag <img>')
-                //     ->icon('heroicon-o-code-bracket')
-                //     ->color('gray')
-                //     ->action(function (PixelTrack $record): void {
-                //         $url    = route('pixel.gif', $record->token);
-                //         $imgTag = "<img src=\"{$url}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">";
-
-                //         Notification::make()
-                //             ->title('Tag HTML do Pixel (e-mail)')
-                //             ->body($imgTag)
-                //             ->info()
-                //             ->persistent()
-                //             ->send();
-                //     }),
-
                 Actions\Action::make('ver_mapa_gps')
                     ->label('GPS')
                     ->icon('heroicon-o-map-pin')
                     ->color('info')
-                    ->visible(fn (PixelTrack $r) => $r->gps_latitude !== null)
-                    ->url(fn (PixelTrack $r) => "https://www.google.com/maps?q={$r->gps_latitude},{$r->gps_longitude}")
+                    ->visible(fn (IpGrabber $record) => $record->gps_latitude !== null)
+                    ->url(fn (IpGrabber $record) => "https://www.google.com/maps?q={$record->gps_latitude},{$record->gps_longitude}")
                     ->openUrlInNewTab(),
-
-                Actions\DeleteAction::make()
-                    ->label('Excluir'),
+                Actions\DeleteAction::make()->label('Excluir'),
             ])
-            ->emptyStateHeading('Nenhum pixel criado')
-            ->emptyStateDescription('Crie um pixel de rastreamento para gerar um link invisível.')
+            ->emptyStateHeading('Nenhum link criado')
+            ->emptyStateDescription('Crie um IP Grabber para gerar um link invisível.')
             ->emptyStateIcon('heroicon-o-eye-slash');
     }
 }

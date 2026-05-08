@@ -34,7 +34,7 @@ class PixelAdminResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        return 'Painel Admin Pixel';
+        return 'Painel Admin Recebimentos';
     }
 
     public static function getNavigationSort(): ?int
@@ -44,12 +44,12 @@ class PixelAdminResource extends Resource
 
     public static function getModelLabel(): string
     {
-        return 'Acesso Mensal Pixel';
+        return 'Acesso Mensal aos Rastreadores';
     }
 
     public static function getPluralModelLabel(): string
     {
-        return 'Painel Admin Pixel';
+        return 'Painel Admin Recebimentos';
     }
 
     public static function canViewAny(): bool
@@ -84,7 +84,7 @@ class PixelAdminResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            \Filament\Schemas\Components\Section::make('Mensalidade PIX')
+            \Filament\Schemas\Components\Section::make('Mensalidade dos Rastreadores')
                 ->components([
                     Forms\Components\Select::make('user_id')
                         ->label('Usuário')
@@ -108,9 +108,9 @@ class PixelAdminResource extends Resource
                         ->required(),
 
                     Forms\Components\Toggle::make('access_enabled')
-                        ->label('Liberar acesso ao Pixel Tracker')
+                        ->label('Liberar acesso aos rastreadores')
                         ->default(true)
-                        ->helperText('O acesso efetivo exige liberação ativa e data de expiração futura.'),
+                        ->helperText('Uma única assinatura ativa libera IP Grabber e Tracker de E-mail.'),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Observações')
@@ -205,7 +205,7 @@ class PixelAdminResource extends Resource
                 Actions\CreateAction::make(),
             ])
             ->emptyStateHeading('Nenhuma mensalidade cadastrada')
-            ->emptyStateDescription('Cadastre aqui os usuários liberados para usar o Pixel Tracker.')
+            ->emptyStateDescription('Cadastre aqui os usuários liberados para usar IP Grabber e Tracker de E-mail.')
             ->emptyStateIcon('heroicon-o-credit-card');
     }
 

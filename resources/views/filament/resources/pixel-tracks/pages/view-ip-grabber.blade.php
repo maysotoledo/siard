@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <x-filament::section heading="Resumo do pixel">
+    <x-filament::section heading="Resumo do IP Grabber">
         <dl class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-4">
             <div>
                 <dt class="font-medium text-gray-500 dark:text-gray-400">Identificação</dt>
@@ -61,8 +61,7 @@
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['localizacao'] }}</td>
                                 <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">
                                     @if ($acesso['gps_url'])
-                                        <a href="{{ $acesso['gps_url'] }}" target="_blank" rel="noopener noreferrer"
-                                           style="display:inline-flex;align-items:center;gap:4px;text-decoration:underline;color:var(--color-primary-600);">
+                                        <a href="{{ $acesso['gps_url'] }}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:4px;text-decoration:underline;color:var(--color-primary-600);">
                                             {{ $acesso['gps'] }}
                                             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="flex-shrink:0;">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
