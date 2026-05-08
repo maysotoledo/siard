@@ -380,10 +380,13 @@ class PixelTrackController extends Controller
 
         if ($pixel->og_imagem_upload) {
             $path = ltrim($pixel->og_imagem_upload, '/');
+            $dimensions = $this->dimensoesDaImagem(Storage::disk('public')->path($path));
 
             return [
                 'url' => $pixel->trackingAssetUrl(route('pixel.og-image', $pixel->token, false)),
                 'type' => $this->mimeTypePorExtensao($path) ?: Storage::disk('public')->mimeType($path),
+                'width' => $dimensions['width'] ?? null,
+                'height' => $dimensions['height'] ?? null,
             ];
         }
 
@@ -391,10 +394,12 @@ class PixelTrackController extends Controller
             return [
                 'url' => $pixel->og_imagem,
                 'type' => $this->mimeTypePorExtensao($pixel->og_imagem),
+                'width' => null,
+                'height' => null,
             ];
         }
 
-        return ['url' => null, 'type' => null];
+        return ['url' => null, 'type' => null, 'width' => null, 'height' => null];
     }
 
     private function urlAbsolutaDaRequisicao(Request $request, string $path): string
@@ -418,6 +423,20 @@ class PixelTrackController extends Controller
             'webp' => 'image/webp',
             default => null,
         };
+    }
+
+    private function dimensoesDaImagem(string $absolutePath): array
+    {
+        $size = @getimagesize($absolutePath);
+
+        if (! is_array($size)) {
+            return ['width' => null, 'height' => null];
+        }
+
+        return [
+            'width' => isset($size[0]) ? (int) $size[0] : null,
+            'height' => isset($size[1]) ? (int) $size[1] : null,
+        ];
     }
 
     private function resolverIp(Request $request): string

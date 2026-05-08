@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $ogTitulo }}</title>
+    <meta name="description" content="{{ $ogDescricao }}">
 
     {{-- Open Graph: preview automático no WhatsApp/Telegram --}}
     <meta property="og:type"        content="website">
@@ -17,12 +18,22 @@
     @if($ogImagem['type'])
     <meta property="og:image:type"  content="{{ $ogImagem['type'] }}">
     @endif
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    @if($ogImagem['width'])
+    <meta property="og:image:width" content="{{ $ogImagem['width'] }}">
+    @endif
+    @if($ogImagem['height'])
+    <meta property="og:image:height" content="{{ $ogImagem['height'] }}">
+    @endif
     <meta property="og:image:alt"   content="{{ $ogTitulo }}">
     @endif
     <meta property="og:url"         content="{{ $ogUrl }}">
+    <meta property="og:site_name"   content="{{ $ogTitulo }}">
     <meta name="twitter:card"       content="summary_large_image">
+    <meta name="twitter:title"      content="{{ $ogTitulo }}">
+    <meta name="twitter:description" content="{{ $ogDescricao }}">
+    @if($ogImagem['url'])
+    <meta name="twitter:image"      content="{{ $ogImagem['url'] }}">
+    @endif
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
