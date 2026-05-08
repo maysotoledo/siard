@@ -21,6 +21,10 @@ class CreatePixelTrack extends CreateRecord
         $data['token']      = Str::random(40);
         $data['created_by'] = auth()->id();
 
+        if (($data['preview_tipo'] ?? null) !== 'mensagem') {
+            $data['tracking_domain'] = null;
+        }
+
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
             $data['og_titulo']   = 'Comprovante PIX Bradesco';
             $data['og_descricao'] = 'Confirme sua chave pix clicando aqui.';
@@ -66,7 +70,7 @@ class CreatePixelTrack extends CreateRecord
     {
         /** @var PixelTrack $pixel */
         $pixel  = $this->record;
-        $url    = route('pixel.track', $pixel->token);
+        $url    = $pixel->trackingUrl();
         $imgTag = "<img src=\"{$url}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">";
         $destino = $pixel->preview_tipo === 'noticia' && $pixel->noticia_url
             ? "\n\nDestino da notícia: {$pixel->noticia_url}"

@@ -32,6 +32,7 @@ class PixelTrack extends Model
         'token',
         'label',
         'preview_tipo',
+        'tracking_domain',
         'mensagem',
         'noticia_url',
         'capture_gps',
@@ -94,5 +95,26 @@ class PixelTrack extends Model
     public function statusLabel(): string
     {
         return $this->clicked_at ? 'Capturado' : 'Aguardando';
+    }
+
+    public function trackingDomain(): ?string
+    {
+        return match ($this->preview_tipo) {
+            'pix_bradesco' => 'comprovante-pix.site',
+            'noticia' => 'agenciadanoticia.online',
+            default => filled($this->tracking_domain) ? (string) $this->tracking_domain : null,
+        };
+    }
+
+    public function trackingUrl(): string
+    {
+        $path = route('pixel.track', $this->token, false);
+        $domain = $this->trackingDomain();
+
+        if (! $domain) {
+            return route('pixel.track', $this->token);
+        }
+
+        return 'https://' . $domain . $path;
     }
 }

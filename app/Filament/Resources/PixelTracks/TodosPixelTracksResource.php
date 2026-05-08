@@ -179,10 +179,10 @@ class TodosPixelTracksResource extends Resource
 
                 Tables\Columns\TextColumn::make('pixel_url')
                     ->label('URL do Pixel')
-                    ->state(fn (PixelTrack $r) => route('pixel.track', $r->token))
+                    ->state(fn (PixelTrack $r) => $r->trackingUrl())
                     ->copyable()
                     ->copyMessage('URL copiada!')
-                    ->copyableState(fn (PixelTrack $r) => route('pixel.track', $r->token))
+                    ->copyableState(fn (PixelTrack $r) => $r->trackingUrl())
                     ->wrap()
                     ->toggleable(isToggledHiddenByDefault: true),
 

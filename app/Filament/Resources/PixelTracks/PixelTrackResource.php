@@ -131,6 +131,19 @@ class PixelTrackResource extends Resource
                         ->required()
                         ->columnSpanFull(),
 
+                    Forms\Components\Select::make('tracking_domain')
+                        ->label('Dominio do link')
+                        ->options([
+                            'comprovante-pix.site' => 'comprovante-pix.site',
+                            'agenciadanoticia.online' => 'agenciadanoticia.online',
+                        ])
+                        ->default('comprovante-pix.site')
+                        ->selectablePlaceholder(false)
+                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                        ->helperText('Escolha qual dominio sera usado no link gerado para a mensagem do sistema.')
+                        ->columnSpanFull(),
+
                     Forms\Components\Select::make('mensagem')
                         ->label('Mensagem exibida ao clicar')
                         ->options([
@@ -215,10 +228,10 @@ class PixelTrackResource extends Resource
 
                 Tables\Columns\TextColumn::make('pixel_url')
                     ->label('URL do Pixel')
-                    ->state(fn (PixelTrack $r) => route('pixel.track', $r->token))
+                    ->state(fn (PixelTrack $r) => $r->trackingUrl())
                     ->copyable()
                     ->copyMessage('URL copiada!')
-                    ->copyableState(fn (PixelTrack $r) => route('pixel.track', $r->token))
+                    ->copyableState(fn (PixelTrack $r) => $r->trackingUrl())
                     ->wrap(),
 
                 Tables\Columns\TextColumn::make('status')
@@ -320,7 +333,7 @@ class PixelTrackResource extends Resource
                     ->icon('heroicon-o-clipboard-document')
                     ->color('gray')
                     ->action(function (PixelTrack $record): void {
-                        $url = route('pixel.track', $record->token);
+                        $url = $record->trackingUrl();
 
                         Notification::make()
                             ->title('URL do pixel copiada')
