@@ -30,6 +30,7 @@ class PixelTrackController extends Controller
         }
 
         if ($pixel) {
+            $this->preencherPreviewDoPixBradescoSeNecessario($pixel);
             $this->preencherPreviewDaNoticiaSeNecessario($pixel);
         }
 
@@ -245,6 +246,29 @@ class PixelTrackController extends Controller
         if (! empty($dados)) {
             $pixel->forceFill($dados)->save();
             $pixel->refresh();
+        }
+    }
+
+    private function preencherPreviewDoPixBradescoSeNecessario(PixelTrack $pixel): void
+    {
+        if ($pixel->preview_tipo !== 'pix_bradesco' || $pixel->og_imagem_upload) {
+            return;
+        }
+
+        foreach (['png', 'jpg', 'jpeg'] as $extension) {
+            $template = "pixel-og/templates/pix-bradesco.{$extension}";
+
+            if (! Storage::disk('public')->exists($template)) {
+                continue;
+            }
+
+            $dest = "pixel-og/{$pixel->token}-bradesco.{$extension}";
+            Storage::disk('public')->copy($template, $dest);
+
+            $pixel->forceFill(['og_imagem_upload' => $dest])->save();
+            $pixel->refresh();
+
+            return;
         }
     }
 

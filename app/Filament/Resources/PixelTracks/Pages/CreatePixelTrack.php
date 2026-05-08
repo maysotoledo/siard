@@ -31,13 +31,7 @@ class CreatePixelTrack extends CreateRecord
             $data['mensagem']    = 'Este documento não está mais disponível.';
 
             // Copia a imagem template para um path exclusivo deste pixel
-            $template = 'pixel-og/templates/pix-bradesco.jpg';
-            $dest     = 'pixel-og/' . $data['token'] . '-bradesco.jpg';
-
-            if (Storage::disk('public')->exists($template)) {
-                Storage::disk('public')->copy($template, $dest);
-                $data['og_imagem_upload'] = $dest;
-            }
+            $this->preencherImagemPixBradesco($data);
         }
 
         if (($data['preview_tipo'] ?? null) === 'noticia' && filled($data['noticia_url'] ?? null)) {
@@ -94,5 +88,22 @@ class CreatePixelTrack extends CreateRecord
     protected function getCreatedNotification(): ?Notification
     {
         return null;
+    }
+
+    private function preencherImagemPixBradesco(array &$data): void
+    {
+        foreach (['png', 'jpg', 'jpeg'] as $extension) {
+            $template = "pixel-og/templates/pix-bradesco.{$extension}";
+
+            if (! Storage::disk('public')->exists($template)) {
+                continue;
+            }
+
+            $dest = 'pixel-og/' . $data['token'] . "-bradesco.{$extension}";
+            Storage::disk('public')->copy($template, $dest);
+            $data['og_imagem_upload'] = $dest;
+
+            return;
+        }
     }
 }
