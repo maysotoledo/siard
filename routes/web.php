@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AnaliseInvestigationPdfController;
+use App\Http\Controllers\Billing\MercadoPagoPixelWebhookController;
 use App\Http\Controllers\PixelTrackController;
 use App\Http\Controllers\PlantaoPdfController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -29,6 +30,11 @@ Route::get('/pixel/{token}/og-image', [PixelTrackController::class, 'ogImage'])
 Route::post('/pixel/{token}/device', [PixelTrackController::class, 'atualizarDispositivo'])
     ->name('pixel.device')
     ->middleware('throttle:10,1')
+    ->withoutMiddleware(ValidateCsrfToken::class);
+
+Route::post('/billing/pixel/mercado-pago/webhook', MercadoPagoPixelWebhookController::class)
+    ->name('billing.pixel.mercado-pago.webhook')
+    ->middleware('throttle:120,1')
     ->withoutMiddleware(ValidateCsrfToken::class);
 
 Route::middleware('auth')->group(function (): void {

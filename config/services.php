@@ -47,4 +47,11 @@ return [
     'model' => env('OLLAMA_MODEL', 'llama3.2:3b'),
     ],
 
+    'mercado_pago' => [
+        'access_token' => env('MERCADO_PAGO_ACCESS_TOKEN'),
+        'webhook_secret' => env('MERCADO_PAGO_WEBHOOK_SECRET'),
+        'pixel_tracker_amount' => (float) env('PIX_TRACKER_MONTHLY_AMOUNT', 29.90),
+        'public_url' => env('MERCADO_PAGO_PUBLIC_URL', 'https://comprovante-pix.site'),
+    ],
+
 ];

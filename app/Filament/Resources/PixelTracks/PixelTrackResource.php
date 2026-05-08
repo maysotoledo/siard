@@ -51,6 +51,10 @@ class PixelTrackResource extends Resource
     /** Badge mostra quantos pixels próprios ainda estão aguardando captura. */
     public static function getNavigationBadge(): ?string
     {
+        if (! (auth()->user()?->hasActivePixelSubscription() ?? false)) {
+            return null;
+        }
+
         $count = PixelTrack::query()
             ->where('created_by', auth()->id())
             ->whereNull('clicked_at')

@@ -68,9 +68,19 @@ class User extends Authenticatable
         return $this->hasMany(AnaliseRun::class);
     }
 
+    public function pixelPaymentRequests(): HasMany
+    {
+        return $this->hasMany(PixelPaymentRequest::class);
+    }
+
     public function plantaoCqh(): HasOne
     {
         return $this->hasOne(PlantaoCqhServidor::class);
+    }
+
+    public function pixelSubscription(): HasOne
+    {
+        return $this->hasOne(PixelSubscription::class);
     }
 
     public function isDerf(): bool
@@ -87,5 +97,10 @@ class User extends Authenticatable
         }
 
         return null;
+    }
+
+    public function hasActivePixelSubscription(): bool
+    {
+        return $this->pixelSubscription?->isActive() ?? false;
     }
 }
