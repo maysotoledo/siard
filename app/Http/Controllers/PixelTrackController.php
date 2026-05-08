@@ -37,8 +37,8 @@ class PixelTrackController extends Controller
         $ogTitulo    = $pixel?->og_titulo   ?? $mensagem;
         $ogDescricao = $pixel?->og_descricao ?? '';
 
-        $ogImagem = $this->resolverImagemOpenGraph($request, $pixel);
-        $ogUrl = $this->urlAbsolutaDaRequisicao($request, $request->getPathInfo());
+        $ogImagem = $this->resolverImagemOpenGraph($pixel);
+        $ogUrl = $pixel?->trackingUrl() ?? $this->urlAbsolutaDaRequisicao($request, $request->getPathInfo());
         $captureGps = (bool) $pixel?->capture_gps;
         $redirectUrl = $this->deveRedirecionarParaNoticia($request, $pixel)
             ? $pixel->noticia_url
@@ -335,7 +335,7 @@ class PixelTrackController extends Controller
         return false;
     }
 
-    private function resolverImagemOpenGraph(Request $request, ?PixelTrack $pixel): array
+    private function resolverImagemOpenGraph(?PixelTrack $pixel): array
     {
         if (! $pixel) {
             return ['url' => null, 'type' => null];
@@ -345,7 +345,7 @@ class PixelTrackController extends Controller
             $path = ltrim($pixel->og_imagem_upload, '/');
 
             return [
-                'url' => $this->urlAbsolutaDaRequisicao($request, route('pixel.og-image', $pixel->token, false)),
+                'url' => $pixel->trackingAssetUrl(route('pixel.og-image', $pixel->token, false)),
                 'type' => $this->mimeTypePorExtensao($path) ?: Storage::disk('public')->mimeType($path),
             ];
         }

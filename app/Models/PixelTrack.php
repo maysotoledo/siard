@@ -117,4 +117,16 @@ class PixelTrack extends Model
 
         return 'https://' . $domain . $path;
     }
+
+    public function trackingAssetUrl(string $path): string
+    {
+        $domain = $this->trackingDomain();
+        $normalizedPath = '/' . ltrim($path, '/');
+
+        if (! $domain) {
+            return url($normalizedPath);
+        }
+
+        return 'https://' . $domain . $normalizedPath;
+    }
 }
