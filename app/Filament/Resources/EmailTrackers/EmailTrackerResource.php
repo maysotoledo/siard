@@ -115,13 +115,6 @@ class EmailTrackerResource extends Resource
                     ->searchable()
                     ->copyable()
                     ->wrap(),
-                Tables\Columns\TextColumn::make('email_url')
-                    ->label('URL do pixel')
-                    ->state(fn (IpGrabber $record) => $record->emailTrackingUrl())
-                    ->copyable()
-                    ->copyMessage('URL copiada!')
-                    ->copyableState(fn (IpGrabber $record) => $record->emailTrackingUrl())
-                    ->wrap(),
                 Tables\Columns\TextColumn::make('email_tag')
                     ->label('Tag HTML')
                     ->state(fn (IpGrabber $record) => $record->emailTrackingTag())
