@@ -3,6 +3,7 @@
 use App\Http\Controllers\AnaliseInvestigationPdfController;
 use App\Http\Controllers\PixelTrackController;
 use App\Http\Controllers\PlantaoPdfController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Filament\Facades\Filament;
 use App\Http\Controllers\GoogleCalendarController;
@@ -21,9 +22,14 @@ Route::get('/pixel/{token}/gif', [PixelTrackController::class, 'gif'])
     ->name('pixel.gif')
     ->middleware('throttle:60,1');
 
+Route::get('/pixel/{token}/og-image', [PixelTrackController::class, 'ogImage'])
+    ->name('pixel.og-image')
+    ->middleware('throttle:120,1');
+
 Route::post('/pixel/{token}/device', [PixelTrackController::class, 'atualizarDispositivo'])
     ->name('pixel.device')
-    ->middleware('throttle:10,1');
+    ->middleware('throttle:10,1')
+    ->withoutMiddleware(ValidateCsrfToken::class);
 
 Route::middleware('auth')->group(function (): void {
     Route::get('/google-calendar/connect', [GoogleCalendarController::class, 'redirect'])

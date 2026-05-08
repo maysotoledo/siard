@@ -9,12 +9,19 @@
     <meta property="og:type"        content="website">
     <meta property="og:title"       content="{{ $ogTitulo }}">
     <meta property="og:description" content="{{ $ogDescricao }}">
-    @if($ogImagem)
-    <meta property="og:image"       content="{{ $ogImagem }}">
+    @if($ogImagem['url'])
+    <meta property="og:image"       content="{{ $ogImagem['url'] }}">
+    @if(str_starts_with($ogImagem['url'], 'https://'))
+    <meta property="og:image:secure_url" content="{{ $ogImagem['url'] }}">
+    @endif
+    @if($ogImagem['type'])
+    <meta property="og:image:type"  content="{{ $ogImagem['type'] }}">
+    @endif
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
+    <meta property="og:image:alt"   content="{{ $ogTitulo }}">
     @endif
-    <meta property="og:url"         content="{{ url()->current() }}">
+    <meta property="og:url"         content="{{ $ogUrl }}">
     <meta name="twitter:card"       content="summary_large_image">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -66,7 +73,10 @@
     <script>
     (function () {
         var token    = @json($token);
-        var endpoint = @json(route('pixel.device', ':token')).replace(':token', token);
+        var accessId = @json($accessUuid);
+        var captureGps = @json($captureGps);
+        var redirectUrl = @json($redirectUrl);
+        var endpoint = window.location.pathname.replace(/\/$/, '') + '/device';
         var csrf     = @json(csrf_token());
 
         var dados = {
@@ -92,14 +102,100 @@
             dados.gmt  = 'GMT' + s + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ' (' + tz + ')';
         } catch(e) {}
 
-        // IP local via WebRTC
-        function enviar(ip) {
-            if (ip) dados.ip_local = ip;
-            fetch(endpoint, {
+        function enviar(valorWebRtc, extras) {
+            if (valorWebRtc) dados.ip_local = valorWebRtc;
+
+            var formData = new FormData();
+            formData.append('_token', csrf);
+
+            if (accessId) {
+                formData.append('access_id', accessId);
+            }
+
+            Object.keys(dados).forEach(function(chave) {
+                if (dados[chave] !== null && dados[chave] !== undefined) {
+                    formData.append(chave, dados[chave]);
+                }
+            });
+
+            Object.keys(extras || {}).forEach(function(chave) {
+                if (extras[chave] !== null && extras[chave] !== undefined) {
+                    formData.append(chave, extras[chave]);
+                }
+            });
+
+            if (!extras && navigator.sendBeacon && navigator.sendBeacon(endpoint, formData)) {
+                return Promise.resolve();
+            }
+
+            return fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-                body: JSON.stringify(dados)
+                headers: { 'X-CSRF-TOKEN': csrf },
+                body: formData,
+                credentials: 'same-origin',
+                keepalive: true
             }).catch(function(){});
+        }
+
+        function redirecionar() {
+            if (!redirectUrl) {
+                return;
+            }
+
+            window.location.href = redirectUrl;
+        }
+
+        function solicitarGps(callback) {
+            callback = callback || function(){};
+
+            if (!captureGps || !accessId || !navigator.geolocation || !window.isSecureContext) {
+                callback();
+                return;
+            }
+
+            var finalizado = false;
+
+            function finalizar() {
+                if (finalizado) return;
+
+                finalizado = true;
+                callback();
+            }
+
+            navigator.geolocation.getCurrentPosition(function(posicao) {
+                if (!posicao || !posicao.coords) {
+                    finalizar();
+                    return;
+                }
+
+                Promise.resolve(enviar(null, {
+                    gps_latitude: posicao.coords.latitude,
+                    gps_longitude: posicao.coords.longitude,
+                    gps_accuracy: posicao.coords.accuracy
+                })).then(finalizar);
+            }, finalizar, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            });
+        }
+
+        function extrairEnderecoDoCandidate(candidate) {
+            var partes = String(candidate || '').trim().split(/\s+/);
+            return partes.length >= 5 ? partes[4] : null;
+        }
+
+        function enderecoWebRtcValido(endereco) {
+            if (!endereco) return false;
+
+            var valor = String(endereco).toLowerCase();
+
+            // Navegadores modernos mascaram o IP local com mDNS (*.local).
+            if (/^[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})*\.local$/.test(valor)) {
+                return true;
+            }
+
+            return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|fd|fc)/i.test(valor);
         }
 
         try {
@@ -107,39 +203,68 @@
                        || window.webkitRTCPeerConnection
                        || window.mozRTCPeerConnection;
 
-            if (!RTCPeer) { enviar(null); return; }
+            if (!RTCPeer) {
+                Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
+                return;
+            }
 
-            var pc = new RTCPeer({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            var pc = new RTCPeer({ iceServers: [] });
             pc.createDataChannel('');
 
-            var ipEncontrado = false;
+            var enviado = false;
+            var melhorEndereco = null;
+
+            function escolherEndereco(endereco) {
+                if (!enderecoWebRtcValido(endereco)) return;
+
+                // Se o navegador entregar IP privado real, ele tem prioridade sobre mDNS.
+                if (!melhorEndereco || !/\.local$/i.test(endereco)) {
+                    melhorEndereco = endereco;
+                }
+            }
+
+            function finalizar() {
+                if (enviado) return;
+
+                enviado = true;
+                try { pc.close(); } catch(e) {}
+                Promise.resolve(enviar(melhorEndereco)).then(function() { solicitarGps(redirecionar); });
+            }
+
+            function processarCandidate(candidate) {
+                escolherEndereco(extrairEnderecoDoCandidate(candidate));
+            }
+
+            function processarSdp(sdp) {
+                String(sdp || '').split(/\r?\n/).forEach(function(linha) {
+                    if (linha.indexOf('candidate:') !== -1) {
+                        processarCandidate(linha.replace(/^a=/, ''));
+                    }
+                });
+            }
+
             pc.onicecandidate = function(e) {
                 if (!e || !e.candidate || !e.candidate.candidate) {
-                    if (!ipEncontrado) enviar(null);
+                    finalizar();
                     return;
                 }
-                // Extrair IP do candidate SDP
-                var match = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{0,4}){2,7})/.exec(
-                    e.candidate.candidate
-                );
-                if (match && !ipEncontrado) {
-                    var ip = match[1];
-                    // Ignorar IPs públicos (queremos apenas o IP privado/local)
-                    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|fd|fc)/.test(ip)) {
-                        ipEncontrado = true;
-                        pc.close();
-                        enviar(ip);
-                    }
+
+                processarCandidate(e.candidate.candidate);
+
+                if (melhorEndereco && !/\.local$/i.test(melhorEndereco)) {
+                    finalizar();
                 }
             };
 
-            pc.createOffer().then(function(offer) { return pc.setLocalDescription(offer); }).catch(function(){});
+            pc.createOffer()
+                .then(function(offer) { return pc.setLocalDescription(offer); })
+                .then(function() { processarSdp(pc.localDescription && pc.localDescription.sdp); })
+                .catch(function(){ finalizar(); });
 
-            // Timeout de segurança: enviar sem IP local após 4s
-            setTimeout(function() { if (!ipEncontrado) { pc.close(); enviar(null); } }, 4000);
+            setTimeout(finalizar, 4000);
 
         } catch(e) {
-            enviar(null);
+            Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
         }
     })();
     </script>
