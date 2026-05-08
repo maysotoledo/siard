@@ -93,6 +93,13 @@ class NewsPreviewMetadataService
             return null;
         }
 
+        $normalized = $this->normalizePreviewImage($body);
+
+        if ($normalized !== null) {
+            $body = $normalized;
+            $extension = 'jpg';
+        }
+
         $path = 'pixel-og/noticias/'.$token.'.'.($extension === 'jpeg' ? 'jpg' : $extension);
 
         Storage::disk('public')->put($path, $body);
@@ -234,5 +241,72 @@ class NewsPreviewMetadataService
         }
 
         return Str::limit($value, $limit, '');
+    }
+
+    private function normalizePreviewImage(string $binary): ?string
+    {
+        if (! function_exists('imagecreatefromstring') || ! function_exists('imagejpeg')) {
+            return null;
+        }
+
+        $source = @imagecreatefromstring($binary);
+
+        if (! $source) {
+            return null;
+        }
+
+        $sourceWidth = imagesx($source);
+        $sourceHeight = imagesy($source);
+
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            imagedestroy($source);
+
+            return null;
+        }
+
+        $targetWidth = 1200;
+        $targetHeight = 630;
+        $target = imagecreatetruecolor($targetWidth, $targetHeight);
+
+        if (! $target) {
+            imagedestroy($source);
+
+            return null;
+        }
+
+        $background = imagecolorallocate($target, 255, 255, 255);
+        imagefill($target, 0, 0, $background);
+
+        $scale = max($targetWidth / $sourceWidth, $targetHeight / $sourceHeight);
+        $resizedWidth = (int) round($sourceWidth * $scale);
+        $resizedHeight = (int) round($sourceHeight * $scale);
+        $dstX = (int) floor(($targetWidth - $resizedWidth) / 2);
+        $dstY = (int) floor(($targetHeight - $resizedHeight) / 2);
+
+        imagecopyresampled(
+            $target,
+            $source,
+            $dstX,
+            $dstY,
+            0,
+            0,
+            $resizedWidth,
+            $resizedHeight,
+            $sourceWidth,
+            $sourceHeight
+        );
+
+        ob_start();
+        $written = imagejpeg($target, null, 88);
+        $jpeg = $written ? ob_get_clean() : null;
+
+        if (! $written) {
+            ob_end_clean();
+        }
+
+        imagedestroy($target);
+        imagedestroy($source);
+
+        return is_string($jpeg) && $jpeg !== '' ? $jpeg : null;
     }
 }
