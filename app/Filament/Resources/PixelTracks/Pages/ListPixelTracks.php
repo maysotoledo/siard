@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PixelTracks\Pages;
 
 use App\Filament\Resources\PixelTracks\PixelTrackResource;
+use App\Models\PixelModuleSetting;
 use App\Models\PixelPaymentRequest;
 use App\Services\Billing\MercadoPagoPixelBillingService;
 use Filament\Actions\CreateAction;
@@ -20,6 +21,8 @@ class ListPixelTracks extends ListRecords
     public ?string $billingError = null;
 
     public ?int $paymentRequestId = null;
+
+    public bool $shouldOpenQrModal = false;
 
     public function mount(): void
     {
@@ -50,6 +53,7 @@ class ListPixelTracks extends ListRecords
                     'billingError' => $this->billingError,
                     'paymentRequest' => $this->getPaymentRequest(),
                     'monthlyAmount' => Number::currency($this->billingService()->monthlyAmount(), 'BRL', 'pt_BR'),
+                    'shouldOpenQrModal' => $this->shouldOpenQrModal,
                     'subscription' => auth()->user()?->pixelSubscription,
                 ]),
         ]);
@@ -61,6 +65,7 @@ class ListPixelTracks extends ListRecords
 
         if (! $this->shouldShowPaywall()) {
             $this->paymentRequestId = null;
+            $this->shouldOpenQrModal = false;
 
             return;
         }
@@ -68,9 +73,11 @@ class ListPixelTracks extends ListRecords
         try {
             $paymentRequest = $this->billingService()->latestPendingPayment(auth()->user());
             $this->paymentRequestId = $paymentRequest?->getKey();
+            $this->shouldOpenQrModal = false;
         } catch (RuntimeException $exception) {
             $this->paymentRequestId = null;
             $this->billingError = $exception->getMessage();
+            $this->shouldOpenQrModal = false;
         }
     }
 
@@ -80,7 +87,15 @@ class ListPixelTracks extends ListRecords
 
         try {
             $paymentRequest = $this->billingService()->createPayment(auth()->user());
+
+            if ($paymentRequest->mercado_pago_payment_id) {
+                $paymentRequest = $this->billingService()->hydratePaymentDetails($paymentRequest);
+            }
+
             $this->paymentRequestId = $paymentRequest->getKey();
+            $this->shouldOpenQrModal = (bool) $paymentRequest->qr_code_base64;
+
+            $this->dispatchQrModalIfReady($paymentRequest);
 
             Notification::make()
                 ->title('Cobranca Pix gerada')
@@ -90,6 +105,7 @@ class ListPixelTracks extends ListRecords
         } catch (RuntimeException $exception) {
             $this->paymentRequestId = null;
             $this->billingError = $exception->getMessage();
+            $this->shouldOpenQrModal = false;
         }
     }
 
@@ -126,6 +142,43 @@ class ListPixelTracks extends ListRecords
         }
 
         $this->paymentRequestId = $updatedPayment?->getKey() ?? $paymentRequest->getKey();
+        $this->shouldOpenQrModal = (bool) ($updatedPayment?->qr_code_base64);
+
+        if ($updatedPayment) {
+            $this->dispatchQrModalIfReady($updatedPayment);
+        }
+    }
+
+    public function openQrModal(): void
+    {
+        $this->shouldOpenQrModal = true;
+        $paymentRequest = $this->getPaymentRequest();
+        if ($paymentRequest) {
+            $this->dispatchQrModalIfReady($paymentRequest);
+        }
+    }
+
+    private function dispatchQrModalIfReady(PixelPaymentRequest $paymentRequest): void
+    {
+        $qrCodeBase64 = $paymentRequest->qr_code_base64;
+
+        if (! filled($qrCodeBase64)) {
+            return;
+        }
+
+        $qrCodeSrc = str_starts_with($qrCodeBase64, 'data:image')
+            ? $qrCodeBase64
+            : 'data:image/png;base64,' . $qrCodeBase64;
+
+        $this->dispatch('pixel-open-qr-modal',
+            qrCodeSrc: $qrCodeSrc,
+            pixCopyPaste: $paymentRequest->pix_copy_paste ?? '',
+        );
+    }
+
+    public function closeQrModal(): void
+    {
+        $this->shouldOpenQrModal = false;
     }
 
     public function regeneratePayment(): void
@@ -135,7 +188,21 @@ class ListPixelTracks extends ListRecords
 
     protected function shouldShowPaywall(): bool
     {
-        return ! (auth()->user()?->hasActivePixelSubscription() ?? false);
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('super_admin')) {
+            return false;
+        }
+
+        if (! PixelModuleSetting::isPaymentEnabled()) {
+            return false;
+        }
+
+        return ! $user->hasActivePixelSubscription();
     }
 
     protected function getPaymentRequest(): ?PixelPaymentRequest

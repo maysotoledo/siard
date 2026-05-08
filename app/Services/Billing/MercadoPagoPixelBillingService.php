@@ -5,8 +5,12 @@ namespace App\Services\Billing;
 use App\Models\PixelPaymentRequest;
 use App\Models\PixelSubscription;
 use App\Models\User;
+use chillerlan\QRCode\Output\QROutputInterface;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -73,6 +77,17 @@ class MercadoPagoPixelBillingService
         }
 
         $payload = $response->json();
+        $pixCode = $this->pixCode($payload);
+        $qrCodeBase64 = $this->qrCodeBase64($payload) ?: $this->generateQrCodeBase64($pixCode);
+
+        Log::info('Mercado Pago Pixel: cobranca criada', [
+            'payment_id' => $payload['id'] ?? null,
+            'status' => $payload['status'] ?? null,
+            'status_detail' => $payload['status_detail'] ?? null,
+            'has_qr_code' => filled($pixCode),
+            'has_qr_code_base64' => filled($qrCodeBase64),
+            'ticket_url' => data_get($payload, 'point_of_interaction.transaction_data.ticket_url'),
+        ]);
 
         return PixelPaymentRequest::create([
             'user_id' => $user->getKey(),
@@ -82,8 +97,8 @@ class MercadoPagoPixelBillingService
             'amount' => (float) ($payload['transaction_amount'] ?? $this->monthlyAmount()),
             'status' => $this->normalizeStatus($payload),
             'status_detail' => $this->statusDetail($payload),
-            'pix_copy_paste' => $this->pixCode($payload),
-            'qr_code_base64' => $this->qrCodeBase64($payload),
+            'pix_copy_paste' => $pixCode,
+            'qr_code_base64' => $qrCodeBase64,
             'ticket_url' => $this->ticketUrl($payload),
             'expires_at' => $this->parseDate($payload['date_of_expiration'] ?? null),
             'approved_at' => $this->parseDate($payload['date_approved'] ?? null),
@@ -112,11 +127,16 @@ class MercadoPagoPixelBillingService
             return null;
         }
 
+        $pixCode = $this->pixCode($payload) ?: $payment->pix_copy_paste;
+        $qrCodeBase64 = $this->qrCodeBase64($payload)
+            ?: $payment->qr_code_base64
+            ?: $this->generateQrCodeBase64($pixCode);
+
         $payment->forceFill([
             'status' => $this->normalizeStatus($payload),
             'status_detail' => $this->statusDetail($payload),
-            'pix_copy_paste' => $this->pixCode($payload) ?: $payment->pix_copy_paste,
-            'qr_code_base64' => $this->qrCodeBase64($payload) ?: $payment->qr_code_base64,
+            'pix_copy_paste' => $pixCode,
+            'qr_code_base64' => $qrCodeBase64,
             'ticket_url' => $this->ticketUrl($payload) ?: $payment->ticket_url,
             'expires_at' => $this->parseDate($payload['date_of_expiration'] ?? null) ?? $payment->expires_at,
             'approved_at' => $this->parseDate($payload['date_approved'] ?? null),
@@ -128,6 +148,33 @@ class MercadoPagoPixelBillingService
         }
 
         return $payment;
+    }
+
+    public function hydratePaymentDetails(PixelPaymentRequest $payment, int $attempts = 8, int $delayMs = 500): PixelPaymentRequest
+    {
+        if (! $payment->mercado_pago_payment_id) {
+            return $payment;
+        }
+
+        $currentPayment = $payment;
+
+        for ($attempt = 0; $attempt < $attempts; $attempt++) {
+            $syncedPayment = $this->syncPaymentByMercadoPagoId($payment->mercado_pago_payment_id);
+
+            if ($syncedPayment) {
+                $currentPayment = $syncedPayment;
+            }
+
+            if ($currentPayment->qr_code_base64 || $currentPayment->pix_copy_paste) {
+                break;
+            }
+
+            if ($attempt < ($attempts - 1)) {
+                usleep($delayMs * 1000);
+            }
+        }
+
+        return $currentPayment;
     }
 
     public function activateSubscription(PixelPaymentRequest $payment): PixelSubscription
@@ -281,5 +328,19 @@ class MercadoPagoPixelBillingService
         $milliseconds = str_pad((string) intdiv((int) $expiresAt->format('u'), 1000), 3, '0', STR_PAD_LEFT);
 
         return $expiresAt->format('Y-m-d\TH:i:s') . '.' . $milliseconds . $expiresAt->format('P');
+    }
+
+    private function generateQrCodeBase64(?string $content): ?string
+    {
+        if (! is_string($content) || trim($content) === '') {
+            return null;
+        }
+
+        return (new QRCode(new QROptions([
+            'outputType' => QROutputInterface::GDIMAGE_PNG,
+            'outputBase64' => true,
+            'scale' => 8,
+            'imageTransparent' => false,
+        ])))->render($content);
     }
 }
