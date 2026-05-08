@@ -1,6 +1,7 @@
 @php
     $isApproved = $paymentRequest?->status === 'approved';
     $isPending = $paymentRequest?->isPending() ?? false;
+    $hasPaymentRequest = $paymentRequest !== null;
     $qrCodeBase64 = $paymentRequest?->qr_code_base64;
     $qrCodeSrc = blank($qrCodeBase64)
         ? null
@@ -9,7 +10,7 @@
 
 <div
     class="space-y-6"
-    wire:poll.10s="refreshPaymentStatus"
+    @if ($hasPaymentRequest) wire:poll.10s="refreshPaymentStatus" @endif
 >
     <div class="rounded-2xl border border-warning-200 bg-warning-50 p-6 dark:border-warning-500/30 dark:bg-warning-500/10">
         <div class="space-y-2">
@@ -46,10 +47,16 @@
 
                     <div>
                         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Status atual</p>
-                        <p class="mt-1 inline-flex rounded-full px-3 py-1 text-sm font-medium {{ $isPending ? 'bg-warning-100 text-warning-800 dark:bg-warning-500/20 dark:text-warning-200' : 'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-200' }}">
+                        <p class="mt-1 inline-flex rounded-full border px-3 py-1 text-sm font-semibold {{ $isPending ? 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-400/70 dark:bg-amber-400/20 dark:text-amber-100' : 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-500/70 dark:bg-slate-400/15 dark:text-slate-100' }}">
                             {{ $paymentRequest?->status ? str($paymentRequest->status)->replace('_', ' ')->title() : 'Aguardando geracao' }}
                         </p>
                     </div>
+
+                    @if (! $hasPaymentRequest)
+                        <div class="rounded-2xl border border-sky-300 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-400/70 dark:bg-sky-400/20 dark:text-sky-100">
+                            Clique em <strong>Pagar</strong> para gerar o QR Code Pix. A cobranca fica disponivel por 10 minutos.
+                        </div>
+                    @endif
 
                     @if ($paymentRequest?->expires_at)
                         <div>
@@ -70,20 +77,30 @@
                     @endif
 
                     <div class="flex flex-wrap gap-3 pt-2">
-                        <button
-                            type="button"
-                            wire:click="refreshPaymentStatus"
-                            class="inline-flex items-center justify-center rounded-xl bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-500"
-                        >
-                            Atualizar pagamento
-                        </button>
+                        @if (! $hasPaymentRequest)
+                            <button
+                                type="button"
+                                wire:click="startPayment"
+                                class="inline-flex items-center justify-center rounded-xl bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-500"
+                            >
+                                Pagar
+                            </button>
+                        @else
+                            <button
+                                type="button"
+                                wire:click="refreshPaymentStatus"
+                                class="inline-flex items-center justify-center rounded-xl bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-500"
+                            >
+                                Atualizar pagamento
+                            </button>
+                        @endif
 
                         <button
                             type="button"
                             wire:click="regeneratePayment"
                             class="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/5"
                         >
-                            Gerar novo QR Code
+                            {{ $hasPaymentRequest ? 'Gerar novo QR Code' : 'Regerar cobranca' }}
                         </button>
                     </div>
                 </div>
@@ -105,6 +122,10 @@
                                 alt="QR Code Pix Mercado Pago"
                                 class="h-auto w-full max-w-xs"
                             >
+                        </div>
+                    @else
+                        <div class="rounded-2xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+                            O QR Code aparecera aqui depois que voce clicar em pagar.
                         </div>
                     @endif
 

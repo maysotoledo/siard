@@ -25,7 +25,7 @@ class ListPixelTracks extends ListRecords
     {
         parent::mount();
 
-        $this->preparePaymentRequest();
+        $this->loadPaymentRequest();
     }
 
     protected function getHeaderActions(): array
@@ -55,7 +55,7 @@ class ListPixelTracks extends ListRecords
         ]);
     }
 
-    protected function preparePaymentRequest(bool $forceNew = false): void
+    protected function loadPaymentRequest(): void
     {
         $this->billingError = null;
 
@@ -66,12 +66,27 @@ class ListPixelTracks extends ListRecords
         }
 
         try {
-            $service = $this->billingService();
-            $paymentRequest = $forceNew
-                ? $service->createPayment(auth()->user())
-                : $service->ensurePendingPayment(auth()->user());
+            $paymentRequest = $this->billingService()->latestPendingPayment(auth()->user());
+            $this->paymentRequestId = $paymentRequest?->getKey();
+        } catch (RuntimeException $exception) {
+            $this->paymentRequestId = null;
+            $this->billingError = $exception->getMessage();
+        }
+    }
 
+    public function startPayment(): void
+    {
+        $this->billingError = null;
+
+        try {
+            $paymentRequest = $this->billingService()->createPayment(auth()->user());
             $this->paymentRequestId = $paymentRequest->getKey();
+
+            Notification::make()
+                ->title('Cobranca Pix gerada')
+                ->body('O QR Code ficou disponivel por 10 minutos.')
+                ->success()
+                ->send();
         } catch (RuntimeException $exception) {
             $this->paymentRequestId = null;
             $this->billingError = $exception->getMessage();
@@ -105,7 +120,7 @@ class ListPixelTracks extends ListRecords
                 ->success()
                 ->send();
 
-            $this->preparePaymentRequest();
+            $this->loadPaymentRequest();
 
             return;
         }
@@ -115,15 +130,7 @@ class ListPixelTracks extends ListRecords
 
     public function regeneratePayment(): void
     {
-        $this->preparePaymentRequest(forceNew: true);
-
-        if ($this->paymentRequestId) {
-            Notification::make()
-                ->title('Novo QR Code gerado')
-                ->body('Use o novo Pix do Mercado Pago para liberar o acesso.')
-                ->success()
-                ->send();
-        }
+        $this->startPayment();
     }
 
     protected function shouldShowPaywall(): bool

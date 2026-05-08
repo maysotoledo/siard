@@ -85,14 +85,13 @@ class PixelAdminResource extends Resource
     {
         return $schema->components([
             \Filament\Schemas\Components\Section::make('Mensalidade PIX')
-                ->description('Chave PIX para recebimento: ' . PixelSubscription::pixKey())
                 ->components([
                     Forms\Components\Select::make('user_id')
-                        ->label('UsuÃ¡rio')
+                        ->label('Usuário')
                         ->relationship(
                             name: 'user',
                             titleAttribute: 'name',
-                            modifyQueryUsing: fn (Builder $query) => $query->orderBy('name')
+                            modifyQueryUsing: fn (Builder $query) => $query->orderBy('name'),
                         )
                         ->getOptionLabelFromRecordUsing(fn (User $record): string => "{$record->name} ({$record->email})")
                         ->searchable()
@@ -105,20 +104,16 @@ class PixelAdminResource extends Resource
                         ->seconds(false),
 
                     Forms\Components\DatePicker::make('expires_at')
-                        ->label('Data de expiraÃ§Ã£o')
+                        ->label('Data de expiração')
                         ->required(),
 
                     Forms\Components\Toggle::make('access_enabled')
                         ->label('Liberar acesso ao Pixel Tracker')
                         ->default(true)
-                        ->helperText('O acesso efetivo exige liberaÃ§Ã£o ativa e data de expiraÃ§Ã£o futura.'),
-
-                    Forms\Components\Placeholder::make('pix_key')
-                        ->label('Chave PIX')
-                        ->content(PixelSubscription::pixKey()),
+                        ->helperText('O acesso efetivo exige liberação ativa e data de expiração futura.'),
 
                     Forms\Components\Textarea::make('notes')
-                        ->label('ObservaÃ§Ãµes')
+                        ->label('Observações')
                         ->rows(4)
                         ->columnSpanFull(),
                 ])
@@ -131,7 +126,7 @@ class PixelAdminResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('user.name')
-                    ->label('UsuÃ¡rio')
+                    ->label('Usuário')
                     ->searchable()
                     ->sortable()
                     ->description(fn (PixelSubscription $record): ?string => $record->user?->email),
@@ -144,13 +139,13 @@ class PixelAdminResource extends Resource
                     ->label('Pagamento')
                     ->dateTime('d/m/Y H:i')
                     ->timezone('America/Sao_Paulo')
-                    ->placeholder('â€”')
+                    ->placeholder('—')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('expires_at')
                     ->label('Expira em')
                     ->date('d/m/Y')
-                    ->placeholder('â€”')
+                    ->placeholder('—')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('status')
@@ -169,18 +164,18 @@ class PixelAdminResource extends Resource
 
                 Tables\Columns\TextColumn::make('releasedBy.name')
                     ->label('Liberado por')
-                    ->placeholder('â€”')
+                    ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('released_at')
-                    ->label('LiberaÃ§Ã£o')
+                    ->label('Liberação')
                     ->dateTime('d/m/Y H:i')
                     ->timezone('America/Sao_Paulo')
-                    ->placeholder('â€”')
+                    ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('notes')
-                    ->label('ObservaÃ§Ãµes')
+                    ->label('Observações')
                     ->wrap()
                     ->limit(80)
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -210,7 +205,7 @@ class PixelAdminResource extends Resource
                 Actions\CreateAction::make(),
             ])
             ->emptyStateHeading('Nenhuma mensalidade cadastrada')
-            ->emptyStateDescription('Cadastre aqui os usuÃ¡rios liberados para usar o Pixel Tracker.')
+            ->emptyStateDescription('Cadastre aqui os usuários liberados para usar o Pixel Tracker.')
             ->emptyStateIcon('heroicon-o-credit-card');
     }
 

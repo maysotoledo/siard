@@ -13,14 +13,29 @@ use RuntimeException;
 
 class MercadoPagoPixelBillingService
 {
-    public function ensurePendingPayment(User $user): PixelPaymentRequest
+    public function latestPendingPayment(User $user): ?PixelPaymentRequest
     {
         $existing = $user->pixelPaymentRequests()
             ->whereIn('status', ['pending', 'in_process', 'waiting_payment', 'action_required'])
             ->latest('id')
             ->first();
 
-        if ($existing && (! $existing->expires_at || $existing->expires_at->isFuture())) {
+        if (! $existing) {
+            return null;
+        }
+
+        if ($existing->expires_at && $existing->expires_at->isPast()) {
+            return null;
+        }
+
+        return $existing;
+    }
+
+    public function ensurePendingPayment(User $user): PixelPaymentRequest
+    {
+        $existing = $this->latestPendingPayment($user);
+
+        if ($existing) {
             return $existing;
         }
 
@@ -42,6 +57,7 @@ class MercadoPagoPixelBillingService
                 'payment_method_id' => 'pix',
                 'notification_url' => $this->notificationUrl(),
                 'external_reference' => 'pixel-subscription:' . $user->getKey() . ':' . Str::uuid(),
+                'date_of_expiration' => $this->expirationDate(),
                 'payer' => [
                     'email' => $payerEmail,
                     'first_name' => $user->name ?: 'Usuario',
@@ -257,5 +273,13 @@ class MercadoPagoPixelBillingService
         $path = URL::route('billing.pixel.mercado-pago.webhook', [], false);
 
         return $baseUrl . $path;
+    }
+
+    private function expirationDate(): string
+    {
+        $expiresAt = now()->timezone('America/Sao_Paulo')->addMinutes(10);
+        $milliseconds = str_pad((string) intdiv((int) $expiresAt->format('u'), 1000), 3, '0', STR_PAD_LEFT);
+
+        return $expiresAt->format('Y-m-d\TH:i:s') . '.' . $milliseconds . $expiresAt->format('P');
     }
 }
