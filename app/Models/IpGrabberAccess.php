@@ -27,6 +27,10 @@ class IpGrabberAccess extends Model
         'isp',
         'user_agent',
         'ip_local',
+        'identidade_nome',
+        'identidade_email',
+        'identidade_telefone',
+        'identidade_redes',
         'idioma',
         'plataforma',
         'resolucao',
@@ -41,6 +45,7 @@ class IpGrabberAccess extends Model
         'gps_longitude' => 'float',
         'gps_accuracy' => 'float',
         'accessed_at' => 'datetime',
+        'identidade_redes' => 'array',
     ];
 
     public function ipGrabber(): BelongsTo

@@ -6,13 +6,13 @@ use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
 {
-    protected function getHeaderWidgets(): array
+    public function getColumns(): int | array
     {
-        return [];
+        return 1;
     }
 
-    protected function getFooterWidgets(): array
+    public function getPageClasses(): array
     {
-        return [];
+        return [...parent::getPageClasses(), 'sacat-dashboard'];
     }
 }

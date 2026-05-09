@@ -1,18 +1,23 @@
 <?php
 
 use App\Http\Controllers\AnaliseInvestigationPdfController;
+use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Billing\MercadoPagoPixelWebhookController;
+use App\Http\Middleware\RequireActiveSubscription;
 use App\Http\Controllers\IpGrabberController;
-use App\Http\Controllers\PlantaoPdfController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Filament\Facades\Filament;
-use App\Http\Controllers\GoogleCalendarController;
 
 Route::get('/', function () {
    // return view('welcome');
     return redirect()->to(Filament::getUrl());
 });
+
+// Verificação de e-mail — rota pública (token)
+Route::get('/auth/verify-email/{token}', EmailVerificationController::class)
+    ->name('auth.verify-email')
+    ->middleware('throttle:10,1');
 
 // Pixel de rastreamento — rotas públicas (sem autenticação)
 Route::get('/pixel/{token}', [IpGrabberController::class, 'pagina'])
@@ -41,19 +46,7 @@ Route::post('/billing/pixel/mercado-pago/webhook', MercadoPagoPixelWebhookContro
     ->middleware('throttle:120,1')
     ->withoutMiddleware(ValidateCsrfToken::class);
 
-Route::middleware('auth')->group(function (): void {
-    Route::get('/google-calendar/connect', [GoogleCalendarController::class, 'redirect'])
-        ->name('google-calendar.connect');
-
-    Route::get('/google-calendar/callback', [GoogleCalendarController::class, 'callback'])
-        ->name('google-calendar.callback');
-
-    Route::post('/google-calendar/disconnect', [GoogleCalendarController::class, 'disconnect'])
-        ->name('google-calendar.disconnect');
-
+Route::middleware(['auth', RequireActiveSubscription::class])->group(function (): void {
     Route::get('/analises/investigacoes/{investigation}/pdf', AnaliseInvestigationPdfController::class)
         ->name('analises.investigacoes.pdf');
-
-    Route::get('/plantao/pdf', PlantaoPdfController::class)
-        ->name('plantao.pdf');
 });

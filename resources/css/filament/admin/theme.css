@@ -140,3 +140,69 @@
     visibility: hidden;
     pointer-events: none;
 }
+
+/* ── Dashboard centralizado ──────────────────────────────── */
+.fi-page.sacat-dashboard .fi-page-content {
+    max-width: 42rem; /* 672 px */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ── Login ───────────────────────────────────────────────── */
+.fi-simple-layout {
+    position: relative;
+    min-height: 100dvh;
+    overflow: hidden;
+    background-image:
+        linear-gradient(rgba(2, 6, 23, 0.28), rgba(2, 6, 23, 0.52)),
+        url('/images/login-background.png');
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+.fi-simple-layout::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 18% 50%, rgba(15, 23, 42, 0.15), transparent 34%),
+        linear-gradient(90deg, rgba(2, 6, 23, 0.18), rgba(2, 6, 23, 0.48));
+}
+
+.fi-simple-main-ctn {
+    position: relative;
+    z-index: 1;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.fi-simple-main {
+    background-color: rgba(255, 255, 255, 0.03);
+    box-shadow: 0 24px 80px rgba(2, 6, 23, 0.2);
+    color: #ffffff;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fi-simple-header .fi-logo {
+    height: 10rem;
+}
+
+.dark .fi-simple-main {
+    background-color: rgba(17, 24, 39, 0.06);
+}
+
+@media (min-width: 768px) {
+    .fi-simple-main-ctn {
+        padding-left: clamp(2rem, 6vw, 6rem);
+        padding-right: clamp(2rem, 6vw, 6rem);
+    }
+}
+
+@media (max-width: 767px) {
+    .fi-simple-layout {
+        background-position: center top;
+    }
+}

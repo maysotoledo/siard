@@ -1,0 +1,69 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use App\Models\PixelModuleSetting;
+use Closure;
+use Filament\Facades\Filament;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class RequireActiveSubscription
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        $user = $request->user();
+
+        // Sem usuário autenticado — deixa o middleware de auth tratar
+        if (! $user) {
+            return $next($request);
+        }
+
+        // super_admin sempre tem acesso irrestrito
+        if ($user->hasRole('super_admin')) {
+            return $next($request);
+        }
+
+        // Cobrança desabilitada no painel — libera todos
+        if (! PixelModuleSetting::isPaymentEnabled()) {
+            return $next($request);
+        }
+
+        // Assinatura ativa — libera acesso normal
+        if ($user->hasActivePixelSubscription()) {
+            return $next($request);
+        }
+
+        // Determina a URL base do painel (ex.: /admin)
+        $panel       = Filament::getCurrentPanel();
+        $panelPath   = $panel?->getPath() ?? 'admin';
+        $requestPath = trim($request->path(), '/');
+
+        // O dashboard/paywall precisa abrir, mas isso não pode liberar todo /admin/*.
+        if ($requestPath === $panelPath) {
+            return $next($request);
+        }
+
+        // Requisições Livewire do dashboard passam para não quebrar o widget de pagamento.
+        $refererPath = trim((string) parse_url((string) $request->headers->get('referer'), PHP_URL_PATH), '/');
+
+        if ($request->hasHeader('X-Livewire') && $refererPath === $panelPath) {
+            return $next($request);
+        }
+
+        // Rotas sempre liberadas.
+        $allowedPrefixes = [
+            $panelPath . '/logout',
+            $panelPath . '/email-verification',
+        ];
+
+        foreach ($allowedPrefixes as $prefix) {
+            if ($requestPath === $prefix || str_starts_with($requestPath, $prefix . '/')) {
+                return $next($request);
+            }
+        }
+
+        // Qualquer outra página do painel → redireciona ao dashboard com paywall
+        return redirect()->to(url('/' . $panelPath));
+    }
+}

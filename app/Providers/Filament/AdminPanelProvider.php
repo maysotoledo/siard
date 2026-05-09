@@ -2,16 +2,19 @@
 
 namespace App\Providers\Filament;
 
-use App\Support\BrandingAsset;
 use App\Filament\Pages\Auth\ChangePassword;
+use App\Filament\Pages\Auth\EmailVerificationPrompt;
+use App\Filament\Pages\Auth\Register;
 use App\Filament\Widgets\DashboardAccountWidget;
+use App\Filament\Widgets\SubscriptionStatusWidget;
+use App\Http\Middleware\RequireActiveSubscription;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Carbon\Carbon;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
+use App\Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -21,7 +24,6 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Saade\FilamentFullCalendar\FilamentFullCalendarPlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -33,27 +35,24 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->login()
-
-            // ✅ remove o campo de pesquisa do topo (global search)
+            ->registration(Register::class)
+            ->emailVerification(EmailVerificationPrompt::class)
             ->globalSearch(false)
-
             ->databaseNotifications()
             ->databaseNotificationsPolling('5s')
-            ->profile(ChangePassword::class) // ✅ usa página customizada para alterar senha
+            ->profile(ChangePassword::class)
             ->brandName('SACAT')
-            ->brandLogo(asset('images/logopjc.png'))
-            ->brandLogoHeight('3.5rem')                   // ✅ altura (ajuste)
-            ->favicon(asset('images/logopjc.png'))
+            ->brandLogo(asset('images/siard-logo.png'))
+            ->brandLogoHeight('7rem')
+            ->favicon(asset('images/siard-logo.png'))
             ->colors([
                 'primary' => Color::Amber,
             ])
-            // ✅ ORDEM DOS GRUPOS DO MENU
             ->navigationGroups([
-                'Agenda',
                 'Informação Telemática',
                 'Análise Telemática',
                 'Investigação Telemática',
-                'Férias',
+                'Inteligência Artificial',
                 'Usuários',
                 'Filament Shield',
                 'Logs',
@@ -65,6 +64,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->widgets([
                 DashboardAccountWidget::class,
+                SubscriptionStatusWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -79,16 +79,11 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 FilamentShieldPlugin::make(),
-                FilamentFullCalendarPlugin::make()
-                    ->selectable()
-                    ->editable()
-                    ->config([
-                        'dayMaxEvents' => true,
-                    ]),
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ])
+                RequireActiveSubscription::class,
+            ], isPersistent: true)
             ->bootUsing(function () {
                 app()->setLocale(config('app.locale'));
                 Carbon::setLocale(config('app.locale'));

@@ -1,6 +1,0 @@
-Você é um agente de desenvolvimento Laravel 12, Filament 4 e Livewire.
-
-Antes de alterar, leia os arquivos necessários e explique o plano.
-Depois altere somente os arquivos indispensáveis.
-Não remova funcionalidades existentes.
-Não altere nomes de rotas, models ou tabelas sem avisar.

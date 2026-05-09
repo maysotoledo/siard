@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -28,18 +27,6 @@ class UserForm
                     ->label('Telefone')
                     ->tel()
                     ->maxLength(20),
-                DatePicker::make('data_ingresso')
-                    ->label('Data de ingresso na carreira')
-                    ->native(false)
-                    ->closeOnDateSelection(),
-                //DatePicker::make('data_ingresso_servico_publico')
-                //    ->label('Ingresso no serviço público')
-                //    ->native(false)
-                //    ->closeOnDateSelection(),
-                DatePicker::make('data_ingresso_unidade')
-                    ->label('Ingresso na unidade')
-                    ->native(false)
-                    ->closeOnDateSelection(),
                // DateTimePicker::make('email_verified_at'),
                 //TextInput::make('password')
                 //    ->password()

@@ -57,6 +57,10 @@ class IpGrabber extends Model
         'gps_accuracy',
         'isp',
         'user_agent',
+        'identidade_nome',
+        'identidade_email',
+        'identidade_telefone',
+        'identidade_redes',
         'total_acessos',
         'clicked_at',
         'sent_at',
@@ -72,6 +76,7 @@ class IpGrabber extends Model
         'clicked_at' => 'datetime',
         'sent_at' => 'datetime',
         'total_acessos' => 'integer',
+        'identidade_redes' => 'array',
     ];
 
     protected static function booted(): void

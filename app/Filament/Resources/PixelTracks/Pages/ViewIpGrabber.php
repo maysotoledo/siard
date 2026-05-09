@@ -48,7 +48,25 @@ class ViewIpGrabber extends ViewRecord
                 'resolucao' => $acesso->resolucao ?: '-',
                 'referer' => $acesso->referer ?: '-',
                 'user_agent' => $acesso->user_agent ?: '-',
+                // Identidade Digital
+                'identidade_nome'     => $acesso->identidade_nome ?: null,
+                'identidade_email'    => $acesso->identidade_email ?: null,
+                'identidade_telefone' => $acesso->identidade_telefone ?: null,
+                'identidade_redes'    => ! empty($acesso->identidade_redes) ? $acesso->identidade_redes : [],
             ])
             ->toArray();
+    }
+
+    public function getIdentidadeDigital(): array
+    {
+        /** @var IpGrabber $record */
+        $record = $this->record;
+
+        return [
+            'nome'     => $record->identidade_nome ?: null,
+            'email'    => $record->identidade_email ?: null,
+            'telefone' => $record->identidade_telefone ?: null,
+            'redes'    => ! empty($record->identidade_redes) ? $record->identidade_redes : [],
+        ];
     }
 }

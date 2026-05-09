@@ -2,17 +2,20 @@
 
 namespace App\Models;
 
-use App\Enums\FuncaoOperacional;
+use App\Mail\VerifyEmailMailable;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Concerns\Auditable;
 
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasRoles, Auditable;
@@ -21,46 +24,21 @@ class User extends Authenticatable
         'name',
         'email',
         'telefone',
-        'data_ingresso',
-        'data_ingresso_servico_publico',
-        'data_ingresso_unidade',
-        'data_ingresso_carreira',
         'password',
-        'attendance_hours',
-        'attendance_slot_duration_minutes',
-        'google_calendar_token',
-        'google_calendar_refresh_token',
-        'google_calendar_token_expires_at',
-        'google_calendar_id',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
-        'google_calendar_token',
-        'google_calendar_refresh_token',
     ];
 
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'data_ingresso' => 'date',
-            'data_ingresso_servico_publico' => 'date',
-            'data_ingresso_unidade' => 'date',
-            'data_ingresso_carreira' => 'date',
-            'password' => 'hashed',
-            'attendance_hours' => 'array',
-            'attendance_slot_duration_minutes' => 'integer',
-            'google_calendar_token' => 'encrypted',
-            'google_calendar_refresh_token' => 'encrypted',
-            'google_calendar_token_expires_at' => 'datetime',
+            'email_verified_at'                    => 'datetime',
+            'email_verification_token_expires_at'  => 'datetime',
+            'password'                             => 'hashed',
         ];
-    }
-
-    public function eventos(): HasMany
-    {
-        return $this->hasMany(Evento::class);
     }
 
     public function analiseRuns(): HasMany
@@ -73,34 +51,40 @@ class User extends Authenticatable
         return $this->hasMany(PixelPaymentRequest::class);
     }
 
-    public function plantaoCqh(): HasOne
-    {
-        return $this->hasOne(PlantaoCqhServidor::class);
-    }
-
     public function pixelSubscription(): HasOne
     {
         return $this->hasOne(PixelSubscription::class);
     }
 
-    public function isDerf(): bool
-    {
-        return $this->plantaoCqh?->unidade_operacional === 'DERF_CONFRESA';
-    }
-
-    public function getFuncaoOperacionalAttribute(): ?FuncaoOperacional
-    {
-        foreach (['ipc_plantao', 'epc_plantao', 'cartorio_central', 'dpc', 'ipc', 'epc'] as $role) {
-            if ($this->hasRole($role)) {
-                return FuncaoOperacional::fromRole($role);
-            }
-        }
-
-        return null;
-    }
-
     public function hasActivePixelSubscription(): bool
     {
         return $this->pixelSubscription?->isActive() ?? false;
+    }
+
+    /**
+     * super_admin nunca precisa verificar e-mail.
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        if ($this->hasRole('super_admin')) {
+            return true;
+        }
+
+        return $this->email_verified_at !== null;
+    }
+
+    /**
+     * Envia e-mail de verificação com token próprio via SMTP do sistema.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        $token = Str::random(64);
+
+        $this->forceFill([
+            'email_verification_token'            => $token,
+            'email_verification_token_expires_at' => now()->addHours(24),
+        ])->save();
+
+        Mail::to($this->email)->send(new VerifyEmailMailable($this));
     }
 }
