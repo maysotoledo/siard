@@ -39,11 +39,18 @@ class GoogleCalendarController extends Controller
             return redirect()->to(\Filament\Facades\Filament::getUrl());
         }
 
-        abort_unless(
-            hash_equals((string) session('google_calendar_oauth_state'), (string) $request->query('state'))
-                && (int) session('google_calendar_oauth_user_id') === (int) $user->getKey(),
-            403
-        );
+        if (
+            ! hash_equals((string) session('google_calendar_oauth_state'), (string) $request->query('state'))
+            || (int) session('google_calendar_oauth_user_id') !== (int) $user->getKey()
+        ) {
+            Notification::make()
+                ->title('Google Agenda não conectado')
+                ->body('A sessão de autorização expirou ou foi iniciada em outro domínio. Clique em conectar Google Agenda novamente.')
+                ->danger()
+                ->send();
+
+            return redirect()->to(\Filament\Facades\Filament::getUrl());
+        }
 
         $googleCalendar->connect($user, (string) $request->query('code'));
 
