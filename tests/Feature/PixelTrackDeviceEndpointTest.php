@@ -2,11 +2,13 @@
 
 use App\Models\PixelTrack;
 use App\Models\User;
+use App\Notifications\IpGrabberAccessCapturedNotification;
 use App\Services\Pixel\NewsPreviewMetadataService;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
@@ -191,6 +193,43 @@ test('pagina cria historico para cada acesso valido ao mesmo pixel', function ()
             'Mozilla/5.0 primeiro acesso',
             'Mozilla/5.0 segundo acesso',
         ]);
+});
+
+test('pagina envia email ao criador quando ip grabber recebe acesso valido', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+
+    $pixel = PixelTrack::create([
+        'token' => 'pixel-email-alerta',
+        'label' => 'Pixel email alerta',
+        'created_by' => $user->id,
+    ]);
+
+    $this->get('/pixel/'.$pixel->token, [
+        'X-Real-Port' => '50123',
+        'User-Agent' => 'Mozilla/5.0 alerta email',
+    ])->assertOk();
+
+    Notification::assertSentTo($user, IpGrabberAccessCapturedNotification::class);
+});
+
+test('crawler de preview nao envia email ao criador', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+
+    $pixel = PixelTrack::create([
+        'token' => 'pixel-email-crawler',
+        'label' => 'Pixel email crawler',
+        'created_by' => $user->id,
+    ]);
+
+    $this->get('/pixel/'.$pixel->token, [
+        'User-Agent' => 'WhatsApp/2.24',
+    ])->assertOk();
+
+    Notification::assertNothingSent();
 });
 
 test('endpoint de dispositivo atualiza a linha correta do historico', function () {
