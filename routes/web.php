@@ -5,11 +5,26 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Billing\MercadoPagoPixelWebhookController;
 use App\Http\Middleware\RequireActiveSubscription;
 use App\Http\Controllers\IpGrabberController;
+use App\Models\SiteAccess;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Filament\Facades\Filament;
 
-Route::get('/', function () {
+Route::get('/', function (Request $request) {
+    try {
+        SiteAccess::query()->create([
+            'path' => '/',
+            'ip' => $request->ip(),
+            'referer' => $request->headers->get('referer') ? substr((string) $request->headers->get('referer'), 0, 255) : null,
+            'user_agent' => $request->userAgent(),
+            'accessed_at' => now(),
+        ]);
+    } catch (Throwable $e) {
+        Log::warning('SiteAccess: erro ao registrar visita na pagina inicial: ' . $e->getMessage());
+    }
+
     return view('welcome');
 });
 

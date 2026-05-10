@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PixelAdmin\Widgets;
 
 use App\Models\IpGrabberAccess;
+use App\Models\SiteAccess;
 use Filament\Widgets\ChartWidget;
 
 class AccessEvolutionChart extends ChartWidget
@@ -24,9 +25,7 @@ class AccessEvolutionChart extends ChartWidget
         foreach (range(0, 29) as $offset) {
             $day = $start->copy()->addDays($offset);
             $labels[] = $day->format('d/m');
-            $values[] = IpGrabberAccess::query()
-                ->whereBetween('accessed_at', [$day->copy()->startOfDay(), $day->copy()->endOfDay()])
-                ->count();
+            $values[] = $this->accessCount($day->copy()->startOfDay(), $day->copy()->endOfDay());
         }
 
         return [
@@ -47,5 +46,11 @@ class AccessEvolutionChart extends ChartWidget
     protected function getType(): string
     {
         return 'line';
+    }
+
+    private function accessCount(mixed $start, mixed $end): int
+    {
+        return IpGrabberAccess::query()->whereBetween('accessed_at', [$start, $end])->count()
+            + SiteAccess::query()->whereBetween('accessed_at', [$start, $end])->count();
     }
 }

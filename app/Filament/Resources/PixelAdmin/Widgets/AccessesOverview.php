@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PixelAdmin\Widgets;
 
 use App\Models\IpGrabberAccess;
+use App\Models\SiteAccess;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -23,13 +24,9 @@ class AccessesOverview extends StatsOverviewWidget
         $startOfYesterday = $now->copy()->subDay()->startOfDay();
         $endOfYesterday = $now->copy()->subDay()->endOfDay();
 
-        $totalAccesses = IpGrabberAccess::query()->count();
-        $todayAccesses = IpGrabberAccess::query()
-            ->whereBetween('accessed_at', [$startOfDay, $endOfDay])
-            ->count();
-        $yesterdayAccesses = IpGrabberAccess::query()
-            ->whereBetween('accessed_at', [$startOfYesterday, $endOfYesterday])
-            ->count();
+        $totalAccesses = $this->accessCount();
+        $todayAccesses = $this->accessCount($startOfDay, $endOfDay);
+        $yesterdayAccesses = $this->accessCount($startOfYesterday, $endOfYesterday);
 
         $todayDelta = $todayAccesses - $yesterdayAccesses;
         $todayDescription = match (true) {
@@ -40,7 +37,7 @@ class AccessesOverview extends StatsOverviewWidget
 
         return [
             Stat::make('Quantidade de acessos', (string) $totalAccesses)
-                ->description('Total capturado nos rastreadores')
+                ->description('Página inicial e rastreadores')
                 ->descriptionIcon('heroicon-m-signal')
                 ->color('primary')
                 ->chart($this->dailyAccessSeries(8)),
@@ -64,9 +61,7 @@ class AccessesOverview extends StatsOverviewWidget
             ->map(function (int $offset) use ($start): int {
                 $day = $start->copy()->addDays($offset);
 
-                return IpGrabberAccess::query()
-                    ->whereBetween('accessed_at', [$day->copy()->startOfDay(), $day->copy()->endOfDay()])
-                    ->count();
+                return $this->accessCount($day->copy()->startOfDay(), $day->copy()->endOfDay());
             })
             ->all();
     }
@@ -83,10 +78,21 @@ class AccessesOverview extends StatsOverviewWidget
             ->map(function (int $hour) use ($start): int {
                 $period = $start->copy()->addHours($hour);
 
-                return IpGrabberAccess::query()
-                    ->whereBetween('accessed_at', [$period, $period->copy()->endOfHour()])
-                    ->count();
+                return $this->accessCount($period, $period->copy()->endOfHour());
             })
             ->all();
+    }
+
+    private function accessCount(mixed $start = null, mixed $end = null): int
+    {
+        $trackerQuery = IpGrabberAccess::query();
+        $siteQuery = SiteAccess::query();
+
+        if ($start && $end) {
+            $trackerQuery->whereBetween('accessed_at', [$start, $end]);
+            $siteQuery->whereBetween('accessed_at', [$start, $end]);
+        }
+
+        return $trackerQuery->count() + $siteQuery->count();
     }
 }
