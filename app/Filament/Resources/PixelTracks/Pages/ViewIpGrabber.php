@@ -7,6 +7,7 @@ use App\Models\IpGrabber;
 use App\Models\IpGrabberAccess;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Storage;
 
 class ViewIpGrabber extends ViewRecord
 {
@@ -23,6 +24,11 @@ class ViewIpGrabber extends ViewRecord
     {
         /** @var IpGrabber $record */
         $record = $this->record;
+
+        // Fotos indexadas por access_uuid — igual ao GPS, cada acesso tem a sua
+        $fotosPorUuid = $record->fotos()
+            ->get()
+            ->keyBy('access_uuid');
 
         return $record->acessos()
             ->latest('accessed_at')
@@ -55,6 +61,10 @@ class ViewIpGrabber extends ViewRecord
                 'identidade_email'    => $acesso->identidade_email ?: null,
                 'identidade_telefone' => $acesso->identidade_telefone ?: null,
                 'identidade_redes'    => ! empty($acesso->identidade_redes) ? $acesso->identidade_redes : [],
+                // Foto — ligada ao access_uuid deste acesso específico
+                'foto_url' => isset($fotosPorUuid[$acesso->uuid])
+                    ? Storage::disk('public')->url($fotosPorUuid[$acesso->uuid]->path)
+                    : null,
             ])
             ->toArray();
     }

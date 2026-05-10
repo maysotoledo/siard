@@ -173,6 +173,7 @@
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Resolução</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Referer</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">User-Agent</th>
+                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200" style="color:#16a34a;min-width:80px;">📷 Foto</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200" style="color:#6366f1;min-width:180px;">🪪 Identidade Digital</th>
                         </tr>
                     </thead>
@@ -223,6 +224,22 @@
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['resolucao'] }}</td>
                                 <td class="max-w-xs truncate px-3 py-2 text-gray-700 dark:text-gray-300" title="{{ $acesso['referer'] }}">{{ $acesso['referer'] }}</td>
                                 <td class="max-w-md truncate px-3 py-2 text-gray-700 dark:text-gray-300" title="{{ $acesso['user_agent'] }}">{{ $acesso['user_agent'] }}</td>
+
+                                {{-- Coluna Foto --}}
+                                <td class="whitespace-nowrap px-3 py-2">
+                                    @if ($acesso['foto_url'])
+                                        <a href="{{ $acesso['foto_url'] }}" target="_blank" rel="noopener"
+                                           title="Ver foto em tamanho original">
+                                            <img
+                                                src="{{ $acesso['foto_url'] }}"
+                                                alt="Foto do alvo"
+                                                style="width:48px;height:48px;object-fit:cover;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18);cursor:pointer;"
+                                            >
+                                        </a>
+                                    @else
+                                        <span class="text-gray-400 text-xs">—</span>
+                                    @endif
+                                </td>
 
                                 {{-- Coluna Identidade Digital --}}
                                 <td class="px-3 py-2" style="min-width:220px;">

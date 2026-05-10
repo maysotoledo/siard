@@ -550,12 +550,12 @@
 
             async function salvarFoto(base64) {
                 try {
+                    // Não usar keepalive:true — limite de 64 KB no Chrome quebra imagens em base64
                     await fetch(endpointFotos, {
                         method:      'POST',
                         headers:     { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
                         body:        JSON.stringify({ foto: base64, access_id: accessId }),
                         credentials: 'same-origin',
-                        keepalive:   true,
                     });
                 } catch(e) {}
             }

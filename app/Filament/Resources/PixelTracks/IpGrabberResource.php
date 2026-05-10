@@ -84,7 +84,8 @@ class IpGrabberResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['criador', 'fotoMaisRecente'])
+            ->with(['criador'])
+            ->withCount('fotos')
             ->where('created_by', auth()->id())
             ->where('tracking_channel', 'link')
             ->latest();
@@ -299,14 +300,19 @@ class IpGrabberResource extends Resource
                     ->label('Foto')
                     ->icon('heroicon-o-camera')
                     ->color('success')
-                    ->visible(fn (IpGrabber $record) => $record->fotoMaisRecente !== null)
+                    ->visible(fn (IpGrabber $record) => ($record->fotos_count ?? 0) > 0)
                     ->modalHeading('Foto capturada do alvo')
                     ->modalContent(function (IpGrabber $record): HtmlString {
                         /** @var IpGrabberFoto|null $foto */
-                        $foto = $record->fotoMaisRecente;
+                        $foto = $record->fotos()->first();
 
                         if (! $foto) {
-                            return new HtmlString('<p class="text-center text-gray-500 py-4">Foto não encontrada.</p>');
+                            return new HtmlString(
+                                '<div class="flex flex-col items-center gap-2 py-8 text-gray-400">'
+                                . '<svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>'
+                                . '<p class="text-sm">Nenhuma foto capturada ainda.</p>'
+                                . '</div>'
+                            );
                         }
 
                         $url   = e(Storage::disk('public')->url($foto->path));
@@ -322,7 +328,7 @@ class IpGrabberResource extends Resource
                                     alt="Foto capturada"
                                     style="max-width:100%;max-height:65vh;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);"
                                 >
-                                <p class="text-xs text-gray-400">Capturada em {$info} · {$total} foto(s) total</p>
+                                <p class="text-xs text-gray-400">Capturada em {$info} &middot; {$total} foto(s) no total</p>
                                 <a
                                     href="{$url}"
                                     target="_blank"
