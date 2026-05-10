@@ -397,6 +397,116 @@
         .cta-pricing strong { color: #fff; }
         .cta-banner .btn-primary { position: relative; font-size: 17px; padding: 17px 44px; }
 
+        /* ── INSTAGRAM ── */
+        .insta-section {
+            position: relative; z-index: 1;
+            padding: 0 24px 80px;
+        }
+        .insta-card {
+            max-width: 780px;
+            margin: 0 auto;
+            border-radius: 24px;
+            overflow: hidden;
+            border: 1px solid rgba(188,24,136,.35);
+            background: linear-gradient(135deg,
+                rgba(240,148,51,.06) 0%,
+                rgba(220,39,67,.08) 40%,
+                rgba(188,24,136,.08) 70%,
+                rgba(131,58,180,.06) 100%);
+            padding: 52px 44px;
+            text-align: center;
+            position: relative;
+        }
+        .insta-card::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(188,24,136,.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(188,24,136,.04) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+        .insta-logo-wrap {
+            display: inline-flex;
+            align-items: center; justify-content: center;
+            width: 72px; height: 72px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+            margin: 0 auto 24px;
+            box-shadow: 0 8px 32px rgba(188,24,136,.35);
+            position: relative;
+        }
+        .insta-eyebrow {
+            font-size: 12px; font-weight: 700;
+            letter-spacing: .16em; text-transform: uppercase;
+            color: #e1306c;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .insta-card h2 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(24px, 4vw, 40px);
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 14px;
+            line-height: 1.15;
+            position: relative;
+        }
+        .insta-card h2 span {
+            background: linear-gradient(135deg, #f09433, #dc2743, #bc1888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .insta-card p {
+            font-size: 16px; color: #94a3b8;
+            line-height: 1.7;
+            max-width: 500px;
+            margin: 0 auto 32px;
+            position: relative;
+        }
+        .btn-instagram {
+            display: inline-flex; align-items: center; gap: 12px;
+            padding: 15px 36px;
+            background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+            color: #fff;
+            font-size: 16px; font-weight: 700;
+            border-radius: 12px;
+            text-decoration: none;
+            border: none;
+            transition: transform .2s, box-shadow .2s, filter .2s;
+            box-shadow: 0 6px 28px rgba(188,24,136,.35);
+            position: relative;
+        }
+        .btn-instagram:hover {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 12px 40px rgba(188,24,136,.55);
+            filter: brightness(1.08);
+        }
+        .insta-handle {
+            display: block;
+            margin-top: 18px;
+            font-size: 13px;
+            color: rgba(255,255,255,.35);
+            letter-spacing: .06em;
+            position: relative;
+        }
+        /* Instagram icon no nav */
+        .nav-insta {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 38px; height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #f09433 0%, #dc2743 50%, #bc1888 100%);
+            color: #fff;
+            text-decoration: none;
+            transition: transform .2s, box-shadow .2s;
+            box-shadow: 0 3px 12px rgba(188,24,136,.3);
+            flex-shrink: 0;
+        }
+        .nav-insta:hover {
+            transform: translateY(-1px) scale(1.08);
+            box-shadow: 0 6px 20px rgba(188,24,136,.5);
+        }
+
         /* ── FOOTER ── */
         footer {
             position: relative; z-index: 1;
@@ -413,6 +523,14 @@
             color: #fff;
         }
         .footer-brand span { color: var(--blue-l); }
+        .footer-insta {
+            display: inline-flex; align-items: center; gap: 7px;
+            color: #e1306c;
+            text-decoration: none;
+            font-size: 13px; font-weight: 500;
+            transition: opacity .2s;
+        }
+        .footer-insta:hover { opacity: .75; }
 
         /* ── RESPONSIVE ── */
         @media (max-width: 640px) {
@@ -438,10 +556,15 @@
             <img src="/images/siard-logo.png" alt="SIARD">
             <span class="nav-brand">SI<span>A</span>RD</span>
         </div>
-        <a href="/admin" class="nav-cta">
-            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-            Acessar Sistema
-        </a>
+        <div style="display:flex;align-items:center;gap:10px;">
+            <a href="https://www.instagram.com/siard.sistema/" target="_blank" rel="noopener noreferrer" class="nav-insta" title="Siga o SIARD no Instagram">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            </a>
+            <a href="/admin" class="nav-cta">
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                Acessar Sistema
+            </a>
+        </div>
     </nav>
 
     <!-- HERO -->
@@ -588,11 +711,37 @@
         </div>
     </div>
 
+    <!-- INSTAGRAM -->
+    <div class="insta-section">
+        <div class="insta-card">
+            <div class="insta-logo-wrap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="white" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            </div>
+            <div class="insta-eyebrow">📲 Siga o SIARD</div>
+            <h2>A investigação digital<br>tem um <span>perfil</span> no Instagram</h2>
+            <p>
+                Dicas exclusivas, novidades sobre os módulos, casos reais (anonimizados) e muito mais.
+                Faça parte da comunidade que está revolucionando a investigação telemática no Brasil. 🇧🇷
+            </p>
+            <a href="https://www.instagram.com/siard.sistema/" target="_blank" rel="noopener noreferrer" class="btn-instagram">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                Seguir @siard.sistema
+            </a>
+            <span class="insta-handle">instagram.com/siard.sistema</span>
+        </div>
+    </div>
+
     <!-- FOOTER -->
     <footer>
         <div class="footer-brand">SI<span>A</span>RD</div>
         <div>Sistema Integrado de Análise e Rastreamento Digital</div>
-        <div>© {{ date('Y') }} SIARD. Todos os direitos reservados.</div>
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:center;">
+            <a href="https://www.instagram.com/siard.sistema/" target="_blank" rel="noopener noreferrer" class="footer-insta">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                @siard.sistema
+            </a>
+            <span>© {{ date('Y') }} SIARD. Todos os direitos reservados.</span>
+        </div>
     </footer>
 </body>
 </html>
