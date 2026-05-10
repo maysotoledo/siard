@@ -12,7 +12,7 @@ class TelematicaBancos extends Page
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-library';
     protected static ?string $navigationLabel = 'Bancos';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Informação Telemática';
+    protected static string|\UnitEnum|null $navigationGroup = 'Análise Telemática';
     protected static ?int $navigationSort = 8;
 
     protected static ?string $slug = 'telematica/bancos';

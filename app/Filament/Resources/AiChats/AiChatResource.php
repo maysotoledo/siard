@@ -22,9 +22,9 @@ class AiChatResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedChatBubbleLeftRight;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Inteligência Artificial';
+    protected static string|UnitEnum|null $navigationGroup = 'Administração do Sistema';
 
-    protected static ?string $navigationLabel = 'Histórico de Chats';
+    protected static ?string $navigationLabel = 'Histórico de Chats IA';
 
     protected static ?string $modelLabel = 'Chat IA';
 

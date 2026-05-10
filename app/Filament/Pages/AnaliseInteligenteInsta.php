@@ -68,7 +68,7 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Análise Telemática';
+        return 'Investigação Telemática';
     }
 
     public static function getNavigationSort(): ?int

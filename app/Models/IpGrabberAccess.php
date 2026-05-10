@@ -24,6 +24,8 @@ class IpGrabberAccess extends Model
         'gps_latitude',
         'gps_longitude',
         'gps_accuracy',
+        'gps_status',
+        'gps_error',
         'isp',
         'user_agent',
         'ip_local',

@@ -27,7 +27,7 @@ class MinhasAnalisesIa extends Page implements HasTable
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Investigação Telemática';
+        return 'Inteligência Artificial';
     }
 
     public static function getNavigationSort(): ?int

@@ -12,7 +12,7 @@ class TelematicaApple extends Page
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-device-phone-mobile';
     protected static ?string $navigationLabel = 'Apple';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Informação Telemática';
+    protected static string|\UnitEnum|null $navigationGroup = 'Análise Telemática';
     protected static ?int $navigationSort = 4;
 
     protected static ?string $slug = 'telematica/apple';

@@ -3,6 +3,172 @@
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
 
+/* ═══════════════════════════════════════════════════════════
+   SIARD — Identidade Visual Dark Navy
+   ═══════════════════════════════════════════════════════════ */
+
+/* Força dark mode via JS no body (injetado pelo renderHook) */
+html { color-scheme: dark; }
+
+/* ── Variáveis SIARD ─────────────────────────────────── */
+:root,
+.dark {
+    --siard-bg:        #060b14;
+    --siard-surface:   #0c1220;
+    --siard-surface2:  #111827;
+    --siard-border:    rgba(59,130,246,.18);
+    --siard-border-h:  rgba(59,130,246,.40);
+    --siard-blue:      #2563eb;
+    --siard-blue-l:    #3b82f6;
+    --siard-text:      #e2e8f0;
+    --siard-muted:     #94a3b8;
+}
+
+/* ── BODY / FUNDO GERAL ──────────────────────────────── */
+body,
+.fi-body {
+    background-color: var(--siard-bg) !important;
+}
+
+/* grid decorativo (mesmo da landing) */
+.fi-body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(37,99,235,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(37,99,235,.035) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ── TOPBAR ──────────────────────────────────────────── */
+.fi-topbar,
+.fi-topbar-nav {
+    background-color: rgba(6,11,20,.92) !important;
+    backdrop-filter: blur(16px) !important;
+    border-bottom: 1px solid var(--siard-border) !important;
+    box-shadow: none !important;
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────── */
+.fi-sidebar {
+    background-color: var(--siard-surface) !important;
+    border-right: 1px solid var(--siard-border) !important;
+    box-shadow: none !important;
+}
+
+.fi-sidebar-header {
+    background-color: var(--siard-surface) !important;
+    border-bottom: 1px solid var(--siard-border) !important;
+}
+
+/* ── NAVEGAÇÃO LATERAL ───────────────────────────────── */
+.fi-sidebar-group-label {
+    color: var(--siard-muted) !important;
+    font-size: .68rem !important;
+    letter-spacing: .1em !important;
+    text-transform: uppercase !important;
+    font-weight: 700 !important;
+}
+
+.fi-sidebar-item-button {
+    border-radius: 8px !important;
+    color: #94a3b8 !important;
+    transition: background .15s, color .15s !important;
+}
+
+.fi-sidebar-item-button:hover {
+    background-color: rgba(59,130,246,.10) !important;
+    color: #e2e8f0 !important;
+}
+
+.fi-sidebar-item-button.fi-active,
+.fi-sidebar-item-button[aria-current] {
+    background-color: rgba(37,99,235,.18) !important;
+    color: #93c5fd !important;
+}
+
+.fi-sidebar-item-button.fi-active svg,
+.fi-sidebar-item-button[aria-current] svg {
+    color: #3b82f6 !important;
+}
+
+/* ── MAIN CONTENT ────────────────────────────────────── */
+.fi-main,
+.fi-main-ctn {
+    background-color: var(--siard-bg) !important;
+}
+
+/* ── SECTIONS / CARDS ────────────────────────────────── */
+.fi-section,
+.fi-card {
+    background-color: var(--siard-surface) !important;
+    border-color: var(--siard-border) !important;
+}
+
+/* ── TABLES ──────────────────────────────────────────── */
+.fi-ta-ctn {
+    background-color: var(--siard-surface) !important;
+    border-color: var(--siard-border) !important;
+}
+
+.fi-ta-header-cell,
+.fi-ta-row {
+    border-color: var(--siard-border) !important;
+}
+
+.fi-ta-row:hover td {
+    background-color: rgba(37,99,235,.06) !important;
+}
+
+/* ── INPUTS / FORM ───────────────────────────────────── */
+.fi-input,
+.fi-select-input,
+.fi-textarea {
+    background-color: var(--siard-surface2) !important;
+    border-color: var(--siard-border) !important;
+    color: var(--siard-text) !important;
+}
+
+.fi-input:focus,
+.fi-select-input:focus,
+.fi-textarea:focus {
+    border-color: var(--siard-blue-l) !important;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.18) !important;
+}
+
+/* ── DROPDOWNS / POPOVERS ────────────────────────────── */
+.fi-dropdown-panel {
+    background-color: var(--siard-surface2) !important;
+    border-color: var(--siard-border) !important;
+}
+
+.fi-dropdown-list-item-button:hover {
+    background-color: rgba(37,99,235,.12) !important;
+}
+
+/* ── MODALS ──────────────────────────────────────────── */
+.fi-modal-content,
+.fi-modal-window {
+    background-color: var(--siard-surface) !important;
+    border-color: var(--siard-border) !important;
+}
+
+/* ── BADGES ──────────────────────────────────────────── */
+/* já herdam a cor primary = azul */
+
+
+/* ── NOTIFICATION BADGE ──────────────────────────────── */
+.fi-topbar .fi-icon-btn {
+    color: var(--siard-muted) !important;
+}
+.fi-topbar .fi-icon-btn:hover {
+    background-color: rgba(59,130,246,.10) !important;
+    color: #93c5fd !important;
+}
+
 /* ── Chat IA ─────────────────────────────────────────────── */
 @keyframes chat-ia-bounce {
     0%, 80%, 100% { transform: translateY(0); opacity: 1; }

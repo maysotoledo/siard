@@ -41,20 +41,19 @@ class AdminPanelProvider extends PanelProvider
             ->databaseNotifications()
             ->databaseNotificationsPolling('5s')
             ->profile(ChangePassword::class)
-            ->brandName('SACAT')
+            ->brandName('SIARD')
             ->brandLogo(asset('images/siard-logo.png'))
-            ->brandLogoHeight('7rem')
+            ->brandLogoHeight('5rem')
             ->favicon(asset('images/siard-logo.png'))
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Blue,
             ])
             ->navigationGroups([
-                'Informação Telemática',
                 'Análise Telemática',
                 'Investigação Telemática',
+                'Rastreamento IP',
                 'Inteligência Artificial',
-                'Usuários',
-                'Filament Shield',
+                'Administração do Sistema',
                 'Logs',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
@@ -78,7 +77,9 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->plugins([
-                FilamentShieldPlugin::make(),
+                FilamentShieldPlugin::make()
+                    ->navigationGroup('Administração do Sistema')
+                    ->navigationLabel('Funções'),
             ])
             ->authMiddleware([
                 Authenticate::class,

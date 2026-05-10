@@ -201,7 +201,19 @@
                                             </svg>
                                         </a>
                                     @else
-                                        {{ $acesso['gps'] }}
+                                        @php
+                                            $gpsStatus = match ($acesso['gps_status']) {
+                                                'denied' => 'Não autorizado',
+                                                'unavailable' => 'Indisponível',
+                                                'timeout' => 'Tempo esgotado',
+                                                'unsupported' => 'Sem suporte',
+                                                'insecure' => 'Contexto inseguro',
+                                                'skipped' => 'Não solicitado',
+                                                'error' => 'Erro',
+                                                default => $acesso['gps'],
+                                            };
+                                        @endphp
+                                        <span title="{{ $acesso['gps_error'] }}">{{ $gpsStatus }}</span>
                                     @endif
                                 </td>
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['gps_accuracy'] }}</td>

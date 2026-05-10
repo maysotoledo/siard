@@ -5,6 +5,12 @@ namespace App\Filament\Resources\PixelAdmin;
 use App\Filament\Resources\PixelAdmin\Pages\CreatePixelAdmin;
 use App\Filament\Resources\PixelAdmin\Pages\EditPixelAdmin;
 use App\Filament\Resources\PixelAdmin\Pages\ListPixelAdmins;
+use App\Filament\Resources\PixelAdmin\Widgets\AdminOperationsOverview;
+use App\Filament\Resources\PixelAdmin\Widgets\MonthlyReceivablesChart;
+use App\Filament\Resources\PixelAdmin\Widgets\PaymentStatusChart;
+use App\Filament\Resources\PixelAdmin\Widgets\ReceivablesOverview;
+use App\Filament\Resources\PixelAdmin\Widgets\SubscriptionHealthChart;
+use App\Filament\Resources\PixelAdmin\Widgets\UserGrowthChart;
 use App\Models\PixelSubscription;
 use App\Models\User;
 use Filament\Actions;
@@ -29,12 +35,12 @@ class PixelAdminResource extends Resource
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Investigação Telemática';
+        return 'Administração do Sistema';
     }
 
     public static function getNavigationLabel(): string
     {
-        return 'Painel Admin Recebimentos';
+        return 'Painel de recebimentos';
     }
 
     public static function getNavigationSort(): ?int
@@ -44,12 +50,12 @@ class PixelAdminResource extends Resource
 
     public static function getModelLabel(): string
     {
-        return 'Acesso Mensal aos Rastreadores';
+        return 'Liberar Acesso Mensal';
     }
 
     public static function getPluralModelLabel(): string
     {
-        return 'Painel Admin Recebimentos';
+        return 'Painel de recebimentos';
     }
 
     public static function canViewAny(): bool
@@ -84,7 +90,7 @@ class PixelAdminResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            \Filament\Schemas\Components\Section::make('Mensalidade dos Rastreadores')
+            \Filament\Schemas\Components\Section::make('Liberar Acesso Mensal')
                 ->components([
                     Forms\Components\Select::make('user_id')
                         ->label('Usuário')
@@ -99,18 +105,13 @@ class PixelAdminResource extends Resource
                         ->required()
                         ->unique(ignoreRecord: true),
 
-                    Forms\Components\DateTimePicker::make('paid_at')
-                        ->label('Data do pagamento')
-                        ->seconds(false),
-
                     Forms\Components\DatePicker::make('expires_at')
                         ->label('Data de expiração')
                         ->required(),
 
                     Forms\Components\Toggle::make('access_enabled')
-                        ->label('Liberar acesso aos rastreadores')
-                        ->default(true)
-                        ->helperText('Uma única assinatura ativa libera IP Grabber e Tracker de E-mail.'),
+                        ->label('Liberar Acesso')
+                        ->default(true),
 
                     Forms\Components\Textarea::make('notes')
                         ->label('Observações')
@@ -202,7 +203,35 @@ class PixelAdminResource extends Resource
                 Actions\DeleteAction::make(),
             ])
             ->toolbarActions([
-                Actions\CreateAction::make(),
+                Actions\CreateAction::make()
+                    ->label('Liberar Acesso')
+                    ->modalHeading('Liberar Acesso Mensal')
+                    ->modalSubmitActionLabel('Liberar Acesso')
+                    ->createAnother(false)
+                    ->schema([
+                        Forms\Components\Select::make('user_id')
+                            ->label('Usuário')
+                            ->relationship(
+                                name: 'user',
+                                titleAttribute: 'name',
+                                modifyQueryUsing: fn (Builder $query) => $query->orderBy('name'),
+                            )
+                            ->getOptionLabelFromRecordUsing(fn (User $record): string => "{$record->name} ({$record->email})")
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->unique(ignoreRecord: true),
+
+                        Forms\Components\DatePicker::make('expires_at')
+                            ->label('Data de expiração do acesso')
+                            ->required()
+                            ->minDate(now()->toDateString()),
+                    ])
+                    ->mutateDataUsing(fn (array $data): array => [
+                        ...$data,
+                        'access_enabled' => true,
+                        'paid_at' => now(),
+                    ]),
             ])
             ->emptyStateHeading('Nenhuma mensalidade cadastrada')
             ->emptyStateDescription('Cadastre aqui os usuários liberados para usar IP Grabber e Tracker de E-mail.')
@@ -215,6 +244,18 @@ class PixelAdminResource extends Resource
             'index' => ListPixelAdmins::route('/'),
             'create' => CreatePixelAdmin::route('/create'),
             'edit' => EditPixelAdmin::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getWidgets(): array
+    {
+        return [
+            ReceivablesOverview::class,
+            AdminOperationsOverview::class,
+            MonthlyReceivablesChart::class,
+            PaymentStatusChart::class,
+            SubscriptionHealthChart::class,
+            UserGrowthChart::class,
         ];
     }
 }

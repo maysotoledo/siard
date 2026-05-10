@@ -30,7 +30,7 @@ class RelatoriosProcessados extends Page implements HasTable
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Análise Telemática';
+        return 'Administração do Sistema';
     }
 
     public static function getNavigationSort(): ?int

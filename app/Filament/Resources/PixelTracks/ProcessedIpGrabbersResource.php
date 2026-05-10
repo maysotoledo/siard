@@ -20,7 +20,7 @@ class ProcessedIpGrabbersResource extends Resource
     protected static ?string $slug = 'processed-ip-grabbers';
 
     public static function getNavigationIcon(): string|\BackedEnum|null { return 'heroicon-o-shield-check'; }
-    public static function getNavigationGroup(): string|\UnitEnum|null { return 'Investigação Telemática'; }
+    public static function getNavigationGroup(): string|\UnitEnum|null { return 'Administração do Sistema'; }
     public static function getNavigationLabel(): string { return 'IP Grabber Processados'; }
     public static function getNavigationSort(): ?int { return 61; }
     public static function getModelLabel(): string { return 'IP Grabber Processado'; }

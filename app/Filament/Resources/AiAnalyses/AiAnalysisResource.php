@@ -20,9 +20,9 @@ class AiAnalysisResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCpuChip;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Investigação Telemática';
+    protected static string|UnitEnum|null $navigationGroup = 'Administração do Sistema';
 
-    protected static ?string $navigationLabel = 'Análises IA';
+    protected static ?string $navigationLabel = 'Análises IA Processadas';
 
     protected static ?string $modelLabel = 'Análise IA';
 

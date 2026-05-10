@@ -37,17 +37,29 @@
             <div class="space-y-6" @if ($hasPaymentRequest) wire:poll.10s="refreshPaymentStatus" @endif>
 
                 <div class="rounded-2xl border border-warning-200 bg-warning-50 p-6 dark:border-warning-500/30 dark:bg-warning-500/10">
-                    <div class="space-y-2">
+                    <div class="space-y-3">
                         <h2 class="text-xl font-semibold text-gray-950 dark:text-white">
-                            Acesso ao sistema com liberação mensal
+                            🔓 Desbloqueie o acesso completo à plataforma
                         </h2>
 
                         <p class="text-sm text-gray-700 dark:text-gray-300">
-                            O uso do sistema depende de uma mensalidade ativa para cobrir os custos de infraestrutura de rastreamento, túneis e domínios.
+                            Com uma assinatura ativa você tem acesso ilimitado a todos os módulos — IP Grabber, Rastreamento por Pixel, Investigação Telemática e muito mais.
                         </p>
 
-                        <p class="text-sm text-gray-700 dark:text-gray-300">
-                            A cobrança é única mensal. Assim que o Pix for confirmado pelo Mercado Pago, o acesso é liberado automaticamente.
+                        <ul class="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                            <li>✅ Captura de IP, GPS e Identidade Digital do alvo</li>
+                            <li>✅ Links de rastreamento invisíveis com preview personalizado</li>
+                            <li>✅ Histórico completo de acessos por link</li>
+                            <li>✅ Rastreamento por pixel em e-mails (Email Tracker)</li>
+                            <li>✅ Análise inteligente de log do WhatsApp</li>
+                            <li>✅ Análise inteligente de log do Instagram</li>
+                            <li>✅ Análise inteligente de log do Google</li>
+                            <li>✅ Análise inteligente de log da Apple</li>
+                            <li>✅ Ativação imediata após confirmação do Pix</li>
+                        </ul>
+
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Pagamento único mensal via Pix. Confirmação automática em segundos pelo Mercado Pago.
                         </p>
                     </div>
                 </div>

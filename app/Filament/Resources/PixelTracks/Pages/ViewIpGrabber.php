@@ -41,6 +41,8 @@ class ViewIpGrabber extends ViewRecord
                 'localizacao' => implode(', ', array_filter([$acesso->cidade, $acesso->regiao, $acesso->pais])) ?: '-',
                 'gps' => $acesso->gps_latitude !== null ? "{$acesso->gps_latitude}, {$acesso->gps_longitude}" : '-',
                 'gps_url' => $acesso->gps_latitude !== null ? "https://www.google.com/maps?q={$acesso->gps_latitude},{$acesso->gps_longitude}" : null,
+                'gps_status' => $acesso->gps_status ?: null,
+                'gps_error' => $acesso->gps_error ?: null,
                 'gps_accuracy' => $acesso->gps_accuracy !== null ? number_format($acesso->gps_accuracy, 2, ',', '.') . ' m' : '-',
                 'isp' => $acesso->isp ?: '-',
                 'idioma' => $acesso->idioma ?: '-',

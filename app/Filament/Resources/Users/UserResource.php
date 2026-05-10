@@ -24,7 +24,7 @@ class UserResource extends Resource
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
-        return 'Usuários';
+        return 'Administração do Sistema';
     }
 
         public static function getNavigationLabel(): string

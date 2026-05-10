@@ -30,7 +30,7 @@ class IpGrabberResource extends Resource
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Investigação Telemática';
+        return 'Rastreamento IP';
     }
 
     public static function getNavigationLabel(): string
@@ -157,6 +157,12 @@ class IpGrabberResource extends Resource
                         ->label('Solicitar GPS do alvo')
                         ->default(false)
                         ->helperText('Depende de autorização explícita do alvo no navegador. Pode comprometer a discrição da coleta.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('capture_identity')
+                        ->label('Tentar coletar identidade digital')
+                        ->default(false)
+                        ->helperText('Opcional. Nome, e-mail, telefone/autofill e contas/apps detectáveis dependem de autorização, permissões e comportamento do navegador do alvo; em muitos navegadores esses dados podem não ser disponibilizados.')
                         ->columnSpanFull(),
                 ]),
 

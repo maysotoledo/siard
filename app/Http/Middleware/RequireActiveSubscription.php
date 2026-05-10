@@ -44,11 +44,40 @@ class RequireActiveSubscription
             return $next($request);
         }
 
-        // Requisições Livewire do dashboard passam para não quebrar o widget de pagamento.
-        $refererPath = trim((string) parse_url((string) $request->headers->get('referer'), PHP_URL_PATH), '/');
+        // Requisições Livewire: só libera se TODOS os componentes da requisição
+        // pertencerem à lista de componentes permitidos sem assinatura (widgets do dashboard/paywall).
+        // Não usamos Referer (forjável); validamos o nome do componente no body JSON,
+        // que o servidor precisa resolver — portanto não pode ser abusado para acessar outras rotas.
+        if ($request->hasHeader('X-Livewire')) {
+            $allowedComponents = [
+                'subscription-status-widget',         // widget de pagamento/paywall
+                'dashboard-account-widget',           // widget de conta no dashboard
+                'filament.widgets.account-widget',    // fallback nome Filament
+            ];
 
-        if ($request->hasHeader('X-Livewire') && $refererPath === $panelPath) {
-            return $next($request);
+            try {
+                $components = $request->input('components', []);
+
+                if (is_array($components) && count($components) > 0) {
+                    $allAllowed = true;
+
+                    foreach ($components as $component) {
+                        $snapshot  = json_decode($component['snapshot'] ?? '{}', true);
+                        $name      = $snapshot['memo']['name'] ?? ($snapshot['name'] ?? '');
+
+                        if (! in_array($name, $allowedComponents, true)) {
+                            $allAllowed = false;
+                            break;
+                        }
+                    }
+
+                    if ($allAllowed) {
+                        return $next($request);
+                    }
+                }
+            } catch (\Throwable) {
+                // Qualquer erro no parsing → nega o bypass
+            }
         }
 
         // Rotas sempre liberadas.

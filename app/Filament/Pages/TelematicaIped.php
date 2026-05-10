@@ -12,7 +12,7 @@ class TelematicaIped extends Page
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cpu-chip';
     protected static ?string $navigationLabel = 'IPED';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Informação Telemática';
+    protected static string|\UnitEnum|null $navigationGroup = 'Análise Telemática';
     protected static ?int $navigationSort = 8;
 
     protected static ?string $slug = 'telematica/iped';

@@ -27,7 +27,7 @@ class AgenteIaInvestigativo extends Page
     use HasPageShield;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSparkles;
-    protected static string|UnitEnum|null $navigationGroup = 'Investigação Telemática';
+    protected static string|UnitEnum|null $navigationGroup = 'Inteligência Artificial';
     protected static ?string $navigationLabel = 'Agente IA';
     protected static ?string $title = 'Agente IA Investigativo';
 

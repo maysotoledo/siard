@@ -12,7 +12,7 @@ class TelematicaTelefoniaMovel extends Page
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-phone';
     protected static ?string $navigationLabel = 'Telefonia Móvel';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Informação Telemática';
+    protected static string|\UnitEnum|null $navigationGroup = 'Análise Telemática';
     protected static ?int $navigationSort = 5;
 
     protected static ?string $slug = 'telematica/telefonia-movel';

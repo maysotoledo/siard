@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\PixelSubscription;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Spatie\Permission\Models\Role;
 
 class EmailVerificationController extends Controller
 {
@@ -33,6 +35,26 @@ class EmailVerificationController extends Controller
         if (! $user->hasVerifiedEmail()) {
             $user->markEmailAsVerified();
         }
+
+        if (! $user->hasAnyRole(['user', 'admin', 'super_admin'])) {
+            Role::findOrCreate('user');
+            $user->assignRole('user');
+        }
+
+        $subscription = PixelSubscription::firstOrNew([
+            'user_id' => $user->id,
+        ]);
+
+        $trialExpiresAt = now()->addDays(5)->toDateString();
+
+        if (! $subscription->exists || ! $subscription->expires_at || $subscription->expires_at->lt($trialExpiresAt)) {
+            $subscription->expires_at = $trialExpiresAt;
+        }
+
+        $subscription->access_enabled = true;
+        $subscription->released_at ??= now();
+        $subscription->notes ??= 'Acesso liberado automaticamente por 5 dias após validação do e-mail.';
+        $subscription->save();
 
         $user->forceFill([
             'email_verification_token'            => null,

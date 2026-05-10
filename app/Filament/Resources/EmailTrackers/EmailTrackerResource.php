@@ -29,7 +29,7 @@ class EmailTrackerResource extends Resource
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Investigação Telemática';
+        return 'Rastreamento IP';
     }
 
     public static function getNavigationLabel(): string
