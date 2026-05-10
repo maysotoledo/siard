@@ -55,7 +55,8 @@ Preencha pelo menos:
 - `DB_PASSWORD`
 - `DB_ROOT_PASSWORD`
 - `OLLAMA_URL=http://ollama:11434`
-- `OLLAMA_MODEL=llama3.2:3b`
+- `OLLAMA_MODEL=qwen2.5:0.5b`
+- `OLLAMA_CONTEXT_LENGTH=1024`
 - SMTP (`MAIL_*`)
 - Mercado Pago (`MERCADO_PAGO_*`)
 
@@ -80,7 +81,7 @@ docker compose -f docker-compose.prod.yml run --rm web php artisan migrate --for
 docker compose -f docker-compose.prod.yml run --rm web php artisan storage:link
 docker compose -f docker-compose.prod.yml run --rm web php artisan optimize
 docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.2:3b
+docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:0.5b
 ```
 
 Se sua VPS usa o binário antigo, troque `docker compose` por `docker-compose`.
@@ -107,7 +108,7 @@ docker compose -f docker-compose.prod.yml up -d
 O container do Ollama sobe junto com o compose de produção. Para baixar ou atualizar o modelo local:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.2:3b
+docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:0.5b
 ```
 
 Se a VPS for pequena, deixe o `OLLAMA_URL` apontando para outro servidor com Ollama.

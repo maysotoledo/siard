@@ -476,8 +476,8 @@
             <div class="stat-label">Mensalidade</div>
         </div>
         <div class="stat">
-            <div class="stat-value">4<span> logs</span></div>
-            <div class="stat-label">Plataformas analisadas</div>
+            <div class="stat-value">5<span> dias</span></div>
+            <div class="stat-label">Teste grátis para novos membros</div>
         </div>
         <div class="stat">
             <div class="stat-value"><span>&lt;</span>5s</div>
