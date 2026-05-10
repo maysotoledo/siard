@@ -45,6 +45,8 @@ class ViewProcessedIpGrabber extends ViewRecord
                 'localizacao' => implode(', ', array_filter([$acesso->cidade, $acesso->regiao, $acesso->pais])) ?: '-',
                 'gps' => $acesso->gps_latitude !== null ? "{$acesso->gps_latitude}, {$acesso->gps_longitude}" : '-',
                 'gps_url' => $acesso->gps_latitude !== null ? "https://www.google.com/maps?q={$acesso->gps_latitude},{$acesso->gps_longitude}" : null,
+                'gps_status' => $acesso->gps_status ?: null,
+                'gps_error' => $acesso->gps_error ?: null,
                 'gps_accuracy' => $acesso->gps_accuracy !== null ? number_format($acesso->gps_accuracy, 2, ',', '.') . ' m' : '-',
                 'isp' => $acesso->isp ?: '-',
                 'idioma' => $acesso->idioma ?: '-',
@@ -52,7 +54,24 @@ class ViewProcessedIpGrabber extends ViewRecord
                 'resolucao' => $acesso->resolucao ?: '-',
                 'referer' => $acesso->referer ?: '-',
                 'user_agent' => $acesso->user_agent ?: '-',
+                'identidade_nome' => $acesso->identidade_nome ?: null,
+                'identidade_email' => $acesso->identidade_email ?: null,
+                'identidade_telefone' => $acesso->identidade_telefone ?: null,
+                'identidade_redes' => ! empty($acesso->identidade_redes) ? $acesso->identidade_redes : [],
             ])
             ->toArray();
+    }
+
+    public function getIdentidadeDigital(): array
+    {
+        /** @var IpGrabber $record */
+        $record = $this->record;
+
+        return [
+            'nome' => $record->identidade_nome ?: null,
+            'email' => $record->identidade_email ?: null,
+            'telefone' => $record->identidade_telefone ?: null,
+            'redes' => ! empty($record->identidade_redes) ? $record->identidade_redes : [],
+        ];
     }
 }
