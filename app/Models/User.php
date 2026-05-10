@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Mail\VerifyEmailMailable;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -15,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Concerns\Auditable;
 
 
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasRoles, Auditable;
@@ -59,6 +61,17 @@ class User extends Authenticatable implements MustVerifyEmail
     public function hasActivePixelSubscription(): bool
     {
         return $this->pixelSubscription?->isActive() ?? false;
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // super_admin tem acesso irrestrito ao painel
+        if ($this->hasRole('super_admin')) {
+            return true;
+        }
+
+        // Demais usuários precisam de assinatura ativa
+        return $this->hasActivePixelSubscription();
     }
 
     /**
