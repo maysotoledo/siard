@@ -227,11 +227,11 @@
 
                                 {{-- Coluna Foto --}}
                                 <td class="whitespace-nowrap px-3 py-2">
-                                    @if ($acesso['foto_url'])
-                                        <a href="{{ $acesso['foto_url'] }}" target="_blank" rel="noopener"
+                                    @if ($acesso['foto_url'] ?? null)
+                                        <a href="{{ $acesso['foto_url'] ?? '' }}" target="_blank" rel="noopener"
                                            title="Ver foto em tamanho original">
                                             <img
-                                                src="{{ $acesso['foto_url'] }}"
+                                                src="{{ $acesso['foto_url'] ?? '' }}"
                                                 alt="Foto do alvo"
                                                 style="width:48px;height:48px;object-fit:cover;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18);cursor:pointer;"
                                             >
