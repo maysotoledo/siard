@@ -7,7 +7,6 @@ use App\Models\PixelSubscription;
 use App\Models\User;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Illuminate\Support\Facades\DB;
 
 class AdminOperationsOverview extends StatsOverviewWidget
 {
@@ -43,12 +42,6 @@ class AdminOperationsOverview extends StatsOverviewWidget
         $admins = User::query()
             ->whereHas('roles', fn ($query) => $query->whereIn('name', ['admin', 'super_admin']))
             ->count();
-        $onlineUsers = DB::table('sessions')
-            ->whereNotNull('user_id')
-            ->where('last_activity', '>=', now()->subMinutes(5)->timestamp)
-            ->distinct('user_id')
-            ->count('user_id');
-
         $verifiedRate = $totalUsers > 0 ? round(($verifiedUsers / $totalUsers) * 100) : 0;
 
         return [
@@ -67,11 +60,6 @@ class AdminOperationsOverview extends StatsOverviewWidget
                 ->description('Com acesso mensal ativo')
                 ->descriptionIcon('heroicon-m-check-badge')
                 ->color('success'),
-
-            Stat::make('Usuários online', (string) $onlineUsers)
-                ->description('Ativos nos últimos 5 minutos')
-                ->descriptionIcon('heroicon-m-wifi')
-                ->color($onlineUsers > 0 ? 'success' : 'gray'),
 
             Stat::make('Expiram em 7 dias', (string) $expiringSoon)
                 ->description('Assinaturas ativas próximas do vencimento')

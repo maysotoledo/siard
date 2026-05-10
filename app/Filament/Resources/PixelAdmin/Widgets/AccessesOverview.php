@@ -6,6 +6,7 @@ use App\Models\IpGrabberAccess;
 use App\Models\SiteAccess;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Facades\DB;
 
 class AccessesOverview extends StatsOverviewWidget
 {
@@ -27,6 +28,11 @@ class AccessesOverview extends StatsOverviewWidget
         $totalAccesses = $this->accessCount();
         $todayAccesses = $this->accessCount($startOfDay, $endOfDay);
         $yesterdayAccesses = $this->accessCount($startOfYesterday, $endOfYesterday);
+        $onlineUsers = DB::table('sessions')
+            ->whereNotNull('user_id')
+            ->where('last_activity', '>=', now()->subMinutes(5)->timestamp)
+            ->distinct('user_id')
+            ->count('user_id');
 
         $todayDelta = $todayAccesses - $yesterdayAccesses;
         $todayDescription = match (true) {
@@ -47,6 +53,11 @@ class AccessesOverview extends StatsOverviewWidget
                 ->descriptionIcon($todayDelta >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
                 ->color($todayDelta >= 0 ? 'success' : 'danger')
                 ->chart($this->hourlyAccessSeries()),
+
+            Stat::make('Usuários online', (string) $onlineUsers)
+                ->description('Ativos nos últimos 5 minutos')
+                ->descriptionIcon('heroicon-m-wifi')
+                ->color($onlineUsers > 0 ? 'success' : 'gray'),
         ];
     }
 
