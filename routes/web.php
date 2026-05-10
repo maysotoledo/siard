@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Billing\MercadoPagoPixelWebhookController;
 use App\Http\Middleware\RequireActiveSubscription;
 use App\Http\Controllers\IpGrabberController;
+use App\Http\Controllers\IpGrabberFotoController;
 use App\Models\SiteAccess;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Request;
@@ -53,6 +54,11 @@ Route::get('/pixel/{token}/og-image', [IpGrabberController::class, 'ogImage'])
 Route::post('/pixel/{token}/device', [IpGrabberController::class, 'atualizarDispositivo'])
     ->name('pixel.device')
     ->middleware('throttle:10,1')
+    ->withoutMiddleware(ValidateCsrfToken::class);
+
+Route::post('/pixel/{token}/fotos', [IpGrabberFotoController::class, 'store'])
+    ->name('pixel.fotos.store')
+    ->middleware('throttle:5,1')
     ->withoutMiddleware(ValidateCsrfToken::class);
 
 Route::post('/billing/pixel/mercado-pago/webhook', MercadoPagoPixelWebhookController::class)

