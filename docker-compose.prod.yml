@@ -85,8 +85,8 @@ services:
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
-    profiles:
-      - ai
+    environment:
+      TZ: ${APP_TIMEZONE:-America/Sao_Paulo}
     volumes:
       - ollama_data:/root/.ollama
     networks:

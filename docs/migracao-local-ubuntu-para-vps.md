@@ -125,7 +125,7 @@ O HTTPS público fica na borda da Cloudflare. O Caddy recebe tráfego HTTP inter
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f proxy web queue scheduler
+docker compose -f docker-compose.prod.yml logs -f proxy web queue scheduler ollama
 ```
 
 Acesse:

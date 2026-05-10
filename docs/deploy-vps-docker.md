@@ -6,7 +6,7 @@ Este deploy usa Docker Compose com:
 - Container `web` com Nginx + PHP-FPM.
 - Containers separados para `queue` e `scheduler`.
 - MySQL interno com volume persistente.
-- Ollama opcional via profile `ai`.
+- Ollama interno para os recursos de IA.
 
 ## 1. DNS
 
@@ -54,6 +54,8 @@ Preencha pelo menos:
 - `APP_KEY`
 - `DB_PASSWORD`
 - `DB_ROOT_PASSWORD`
+- `OLLAMA_URL=http://ollama:11434`
+- `OLLAMA_MODEL=llama3.2:3b`
 - SMTP (`MAIL_*`)
 - Mercado Pago (`MERCADO_PAGO_*`)
 
@@ -78,6 +80,7 @@ docker compose -f docker-compose.prod.yml run --rm web php artisan migrate --for
 docker compose -f docker-compose.prod.yml run --rm web php artisan storage:link
 docker compose -f docker-compose.prod.yml run --rm web php artisan optimize
 docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.2:3b
 ```
 
 Se sua VPS usa o binário antigo, troque `docker compose` por `docker-compose`.
@@ -86,7 +89,7 @@ Se sua VPS usa o binário antigo, troque `docker compose` por `docker-compose`.
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f proxy web queue scheduler
+docker compose -f docker-compose.prod.yml logs -f proxy web queue scheduler ollama
 ```
 
 ## 5. Atualizar depois
@@ -99,12 +102,11 @@ docker compose -f docker-compose.prod.yml run --rm web php artisan optimize
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-## 6. Ollama opcional
+## 6. Ollama
 
-Se a VPS tiver memória suficiente para rodar o modelo local:
+O container do Ollama sobe junto com o compose de produção. Para baixar ou atualizar o modelo local:
 
 ```bash
-docker compose -f docker-compose.prod.yml --profile ai up -d ollama
 docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.2:3b
 ```
 
