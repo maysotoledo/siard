@@ -14,6 +14,7 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -193,9 +194,54 @@ class IpGrabberResource extends Resource
                         ->maxLength(255)
                         ->columnSpanFull(),
 
+                    Forms\Components\Toggle::make('preview_usar_upload')
+                        ->label('Usar upload de imagem')
+                        ->default(true)
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
+                            if (! $state) {
+                                return;
+                            }
+
+                            $set('preview_usar_url', false);
+                            $set('preview_usar_nome_alvo', false);
+                        })
+                        ->helperText('A imagem enviada no upload será usada no preview.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('preview_usar_url')
+                        ->label('Usar URL da imagem')
+                        ->default(false)
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
+                            if (! $state) {
+                                return;
+                            }
+
+                            $set('preview_usar_upload', false);
+                            $set('preview_usar_nome_alvo', false);
+                        })
+                        ->helperText('A URL informada será usada como imagem do preview.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('preview_usar_nome_alvo')
+                        ->label('Gerar comprovante em nome do alvo')
+                        ->default(false)
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
+                            if (! $state) {
+                                return;
+                            }
+
+                            $set('preview_usar_upload', false);
+                            $set('preview_usar_url', false);
+                        })
+                        ->helperText('O sistema gerará uma imagem de comprovante usando o nome informado.')
+                        ->columnSpanFull(),
+
                     Forms\Components\FileUpload::make('og_imagem_upload')
                         ->label('Upload de imagem do preview')
-                        ->helperText('JPEG ou PNG. Tem prioridade sobre a URL abaixo.')
+                        ->helperText('JPEG ou PNG. Usado quando o modo de upload está habilitado.')
                         ->image()
                         ->disk('public')
                         ->directory('pixel-og')
@@ -203,13 +249,26 @@ class IpGrabberResource extends Resource
                         ->imagePreviewHeight('120')
                         ->maxSize(4096)
                         ->acceptedFileTypes(['image/jpeg', 'image/png'])
+                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
+                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('og_imagem')
-                        ->label('Ou informe a URL da imagem do preview')
+                        ->label('URL da imagem do preview')
                         ->placeholder('https://seudominio.com/imagens/preview.jpg')
                         ->url()
-                        ->helperText('Alternativa ao upload. Tamanho ideal: 1200x630px.')
+                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_url'))
+                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_url'))
+                        ->helperText('Tamanho ideal: 1200x630px.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('nome_alvo')
+                        ->label('Nome do alvo')
+                        ->placeholder('Ex: João da Silva')
+                        ->maxLength(60)
+                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_nome_alvo'))
+                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_nome_alvo'))
+                        ->helperText('Nome no comprovante — será escrito automaticamente na imagem pix-img-gerar.png com a data e hora atuais.')
                         ->columnSpanFull(),
                 ]),
         ]);

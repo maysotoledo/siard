@@ -5,6 +5,7 @@ namespace App\Filament\Resources\PixelTracks\Pages;
 use App\Filament\Resources\PixelTracks\IpGrabberResource;
 use App\Models\IpGrabber;
 use App\Services\Pixel\NewsPreviewMetadataService;
+use App\Services\Pixel\PixImagemService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Storage;
@@ -24,6 +25,38 @@ class CreateIpGrabber extends CreateRecord
 
         if (($data['preview_tipo'] ?? null) !== 'mensagem') {
             $data['tracking_domain'] = null;
+        }
+
+        $usaUpload = (bool) ($data['preview_usar_upload'] ?? false);
+        $usaUrl = (bool) ($data['preview_usar_url'] ?? false);
+        $usaNomeAlvo = (bool) ($data['preview_usar_nome_alvo'] ?? false);
+
+        unset(
+            $data['preview_usar_upload'],
+            $data['preview_usar_url'],
+            $data['preview_usar_nome_alvo'],
+        );
+
+        // Gera imagem PIX com nome do alvo + data/hora se o campo foi preenchido
+        $nomeAlvo = trim((string) ($data['nome_alvo'] ?? ''));
+        unset($data['nome_alvo']); // campo virtual — não persiste no banco
+
+        if (($data['preview_tipo'] ?? null) === 'mensagem') {
+            if (! $usaUpload) {
+                $data['og_imagem_upload'] = null;
+            }
+
+            if (! $usaUrl) {
+                $data['og_imagem'] = null;
+            }
+        }
+
+        if (($data['preview_tipo'] ?? null) === 'mensagem' && $usaNomeAlvo && $nomeAlvo !== '') {
+            $pathGerado = app(PixImagemService::class)->gerar($nomeAlvo, $data['token']);
+            if ($pathGerado) {
+                $data['og_imagem_upload'] = $pathGerado;
+                $data['og_imagem'] = null;
+            }
         }
 
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
