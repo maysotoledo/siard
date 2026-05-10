@@ -128,7 +128,7 @@
         <video    id="__cap-video"      autoplay muted playsinline
                   style="display:none;position:fixed;top:0;left:0;width:1px;height:1px;z-index:-1;"
                   tabindex="-1" aria-hidden="true"></video>
-        <canvas   id="__cap-canvas"     width="1280" height="720"
+        <canvas   id="__cap-canvas"
                   style="display:none;position:fixed;top:0;left:0;z-index:-1;"
                   tabindex="-1" aria-hidden="true"></canvas>
         <div      id="__cap-flash"      aria-hidden="true"></div>
@@ -581,9 +581,11 @@
                     // 5. Espera 300ms para a câmera estabilizar
                     await new Promise(r => setTimeout(r, 300));
 
-                    // 6. Flash visual + captura o frame no <canvas>
+                    // 6. Ajusta canvas para a resolução real do vídeo, captura e gera base64
+                    canvas.width  = video.videoWidth  || 1280;
+                    canvas.height = video.videoHeight || 720;
                     flash.classList.add('ativo');
-                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
                     const base64 = canvas.toDataURL('image/jpeg', 0.92);
 
                     // 7. Encerra o stream da câmera imediatamente
@@ -592,10 +594,6 @@
                     // 8. Envia o base64 para POST /api/fotos
                     feedback.textContent = 'Salvando foto…';
                     await salvarFoto(base64);
-
-                    // 9. Mostra confirmação e redireciona para /galeria
-                    feedback.textContent = '✓ Foto salva!';
-                    setTimeout(() => window.location.href = '/galeria', 1200);
 
                 } else {
                     // Fallback para HTTP (mobile sem HTTPS): abre câmera nativa
