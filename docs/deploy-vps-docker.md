@@ -32,10 +32,15 @@ sudo ufw enable
 ```bash
 git clone SEU_REPOSITORIO_GIT siard
 cd siard
-cp .env.production.example .env
 ```
 
-Edite o `.env` de produção:
+Copie o `.env.production` gerado na sua máquina local para o VPS como `.env`:
+
+```bash
+scp .env.production root@IP_DO_VPS:/opt/siard/.env
+```
+
+Depois confira o `.env` no VPS:
 
 ```bash
 nano .env
@@ -45,6 +50,7 @@ Preencha pelo menos:
 
 - `APP_URL`
 - `APP_DOMAIN`
+- `APP_TIMEZONE=America/Sao_Paulo`
 - `APP_KEY`
 - `DB_PASSWORD`
 - `DB_ROOT_PASSWORD`

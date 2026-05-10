@@ -1,3 +1,17 @@
+FROM composer:2 AS vendor
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --no-progress \
+    --no-scripts \
+    --prefer-dist \
+    --optimize-autoloader \
+    --ignore-platform-req=ext-intl
+
 FROM node:22-alpine AS assets
 
 WORKDIR /app
@@ -5,10 +19,11 @@ WORKDIR /app
 COPY package.json package-lock.json vite.config.js ./
 COPY resources ./resources
 COPY public ./public
+COPY --from=vendor /app/vendor ./vendor
 
 RUN npm ci && npm run build
 
-FROM php:8.3-fpm-bookworm AS app
+FROM php:8.4-fpm-bookworm AS app
 
 ENV APP_ENV=production \
     COMPOSER_ALLOW_SUPERUSER=1
@@ -44,13 +59,7 @@ RUN apt-get update \
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 COPY composer.json composer.lock ./
-RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --no-progress \
-    --no-scripts \
-    --prefer-dist \
-    --optimize-autoloader
+COPY --from=vendor /app/vendor ./vendor
 
 COPY . .
 COPY --from=assets /app/public/build ./public/build
@@ -69,7 +78,7 @@ RUN mkdir -p \
     && composer dump-autoload --no-dev --optimize \
     && php artisan package:discover --ansi \
     && php artisan filament:assets --ansi \
-    && php artisan storage:link --ansi || true \
+    && (php artisan storage:link --ansi || true) \
     && chown -R www-data:www-data storage bootstrap/cache \
     && rm -f /var/log/nginx/access.log /var/log/nginx/error.log \
     && ln -sf /dev/stdout /var/log/nginx/access.log \

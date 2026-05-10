@@ -21,7 +21,7 @@ class IpGrabberAccessCapturedNotification extends Notification
     {
         $access = $this->access->refresh()->loadMissing('ipGrabber');
         $ipGrabber = $access->ipGrabber;
-        $timezone = 'America/Cuiaba';
+        $timezone = config('app.timezone', 'America/Sao_Paulo');
         $accessedAt = $access->accessed_at
             ? $access->accessed_at->timezone($timezone)->format('d/m/Y H:i:s')
             : now($timezone)->format('d/m/Y H:i:s');
@@ -34,7 +34,7 @@ class IpGrabberAccessCapturedNotification extends Notification
                 'openingLine' => 'Um link de IP Grabber criado por você recebeu um acesso válido.',
                 'details' => [
                     'Identificação' => $ipGrabber?->label ?: '-',
-                    'Data e hora' => $accessedAt . ' (America/Cuiaba)',
+                    'Data e hora' => $accessedAt . " ({$timezone})",
                     'Tipo de link' => $ipGrabber?->preview_tipo === 'noticia' ? 'Notícia externa' : 'Mensagem do sistema',
                     'URL da notícia' => $ipGrabber?->noticia_url ?: '-',
                     'IP público' => $access->ip ?: '-',

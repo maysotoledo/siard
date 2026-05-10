@@ -1,4 +1,4 @@
-{$APP_DOMAIN} {
+http://{$APP_DOMAIN}, http://siard.online, http://comprovante-pix.site, http://agenciadanoticia.online {
     encode zstd gzip
 
     reverse_proxy web:80
