@@ -65,13 +65,10 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        // super_admin tem acesso irrestrito ao painel
-        if ($this->hasRole('super_admin')) {
-            return true;
-        }
-
-        // Demais usuários precisam de assinatura ativa
-        return $this->hasActivePixelSubscription();
+        // Permite entrada no painel para todos os usuários autenticados.
+        // O controle fino (assinatura, email verificado, etc.) é feito
+        // pelo middleware RequireActiveSubscription.
+        return true;
     }
 
     /**
