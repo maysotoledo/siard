@@ -42,7 +42,7 @@ class PixelAdminResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        return 'Painel de recebimentos';
+        return 'Painel Administrativo';
     }
 
     public static function getNavigationSort(): ?int
@@ -57,7 +57,7 @@ class PixelAdminResource extends Resource
 
     public static function getPluralModelLabel(): string
     {
-        return 'Painel de recebimentos';
+        return 'Painel Administrativo';
     }
 
     public static function canViewAny(): bool
@@ -252,6 +252,7 @@ class PixelAdminResource extends Resource
     public static function getWidgets(): array
     {
         return [
+            \App\Filament\Resources\PixelAdmin\Widgets\SistemaAtualizacaoWidget::class,
             ReceivablesOverview::class,
             AccessesOverview::class,
             AdminOperationsOverview::class,

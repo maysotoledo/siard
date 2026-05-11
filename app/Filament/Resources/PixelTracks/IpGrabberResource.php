@@ -150,7 +150,7 @@ class IpGrabberResource extends Resource
                         ->selectablePlaceholder(false)
                         ->live()
                         ->required()
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') !== 'noticia')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('redirect_url')

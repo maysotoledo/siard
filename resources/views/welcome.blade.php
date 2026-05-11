@@ -545,6 +545,9 @@
 <body>
     @php
         $monthlyAmount = 'R$ ' . number_format((float) config('services.mercado_pago.pixel_tracker_amount', 29.90), 2, ',', '.');
+        $setting = \App\Models\PixelModuleSetting::current();
+        $manutencaoAtiva = $setting->manutencao_ativa;
+        $manutencaoPrevista = $setting->manutencao_prevista;
     @endphp
 
     <div class="glow-1"></div>
@@ -567,8 +570,26 @@
         </div>
     </nav>
 
+    <!-- BANNER MANUTENÇÃO -->
+    @if($manutencaoAtiva)
+    <div style="position:relative;z-index:99;background:linear-gradient(90deg,#92400e,#b45309);border-bottom:1px solid #d97706;padding:12px 24px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;text-align:center;margin-top:72px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="#fef3c7" style="flex-shrink:0">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
+        <span style="color:#fef3c7;font-size:14px;font-weight:600;letter-spacing:.02em;">
+            Atualização do sistema prevista
+            @if($manutencaoPrevista)
+                para {{ $manutencaoPrevista->setTimezone('America/Sao_Paulo')->format('d/m/Y \à\s H:i') }}.
+            @else
+                em breve.
+            @endif
+            O sistema poderá ficar indisponível temporariamente.
+        </span>
+    </div>
+    @endif
+
     <!-- HERO -->
-    <section class="hero">
+    <section class="hero" @if($manutencaoAtiva) style="padding-top:80px;" @endif>
         <div class="hero-badge">Plataforma de Investigação Digital</div>
         <img class="hero-logo" src="/images/siard-logo.png" alt="SIARD Logo">
         <h1>SI<span>A</span>RD</h1>

@@ -17,6 +17,16 @@ class CreateIpGrabber extends CreateRecord
 
     protected static ?string $title = 'Gerar IP Grabber';
 
+    protected function getCreateFormAction(): \Filament\Actions\Action
+    {
+        return parent::getCreateFormAction()->label('Gerar isca');
+    }
+
+    protected function getCreateAnotherFormAction(): \Filament\Actions\Action
+    {
+        return parent::getCreateAnotherFormAction()->hidden();
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['token'] = Str::random(40);
@@ -60,14 +70,12 @@ class CreateIpGrabber extends CreateRecord
                 $data['og_descricao'] = 'Abra o comprovante para confirmar sua chave pix';
                 $data['og_imagem_upload'] = $pathGerado;
                 $data['og_imagem'] = null;
-                $data['mensagem'] = IpGrabber::DEFAULT_CLICK_MESSAGE;
             }
         }
 
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
             $data['og_titulo'] = 'Comprovante PIX Bradesco';
             $data['og_descricao'] = 'Confirme sua chave pix clicando aqui.';
-            $data['mensagem'] = IpGrabber::DEFAULT_CLICK_MESSAGE;
             $this->fillPixTemplateImage($data);
         }
 

