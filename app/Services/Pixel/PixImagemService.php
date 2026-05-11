@@ -5,7 +5,7 @@ namespace App\Services\Pixel;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Drivers\Gd\Driver;
-use Intervention\Image\Encoders\PngEncoder;
+use Intervention\Image\Encoders\JpegEncoder;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Typography\FontFactory;
 
@@ -56,9 +56,9 @@ class PixImagemService
             $font->color('#333333');
         });
 
-        $path = "pixel-og/{$token}-pix-gerado.png";
+        $path = "pixel-og/{$token}-pix-gerado.jpg";
 
-        Storage::disk('public')->put($path, (string) $img->encode(new PngEncoder()));
+        Storage::disk('public')->put($path, (string) $img->encode(new JpegEncoder(quality: 82, progressive: true, strip: true)));
 
         return $path;
     }
