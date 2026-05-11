@@ -147,7 +147,7 @@ class IpGrabberResource extends Resource
                         ->default(IpGrabber::DEFAULT_CLICK_MESSAGE)
                         ->selectablePlaceholder(false)
                         ->required()
-                        ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco'], true))
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') !== 'noticia')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('noticia_url')
