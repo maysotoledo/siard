@@ -32,7 +32,7 @@ class IpGrabberController extends Controller
             $this->preencherPreviewDaNoticiaSeNecessario($ipGrabber);
         }
 
-        $mensagem = $ipGrabber?->mensagem ?? 'Este documento não está mais disponível.';
+        $mensagem = $ipGrabber?->mensagem ?? IpGrabber::DEFAULT_CLICK_MESSAGE;
         $ogTitulo = $ipGrabber?->og_titulo ?? $mensagem;
         $ogDescricao = $ipGrabber?->og_descricao ?? '';
         $ogImagem = $this->resolverImagemOpenGraph($ipGrabber, $request);

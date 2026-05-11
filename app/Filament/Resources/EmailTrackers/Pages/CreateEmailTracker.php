@@ -24,7 +24,7 @@ class CreateEmailTracker extends CreateRecord
         $data['created_by'] = auth()->id();
         $data['tracking_channel'] = 'email';
         $data['preview_tipo'] = 'mensagem';
-        $data['mensagem'] = 'Este documento não está mais disponível.';
+        $data['mensagem'] = IpGrabber::DEFAULT_CLICK_MESSAGE;
         $data['capture_gps'] = false;
         $data['tracking_domain'] = 'agenciadanoticia.online';
 
