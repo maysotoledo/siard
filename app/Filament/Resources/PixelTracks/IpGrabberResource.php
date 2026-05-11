@@ -344,8 +344,47 @@ class IpGrabberResource extends Resource
                     ->label('Copiar URL')
                     ->icon('heroicon-o-clipboard-document')
                     ->color('gray')
-                    ->action(function (IpGrabber $record): void {
-                        Notification::make()->title('URL copiada')->body($record->trackingUrl())->success()->persistent()->send();
+                    ->modalHeading('Copiar URL')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Fechar')
+                    ->modalContent(function (IpGrabber $record): HtmlString {
+                        $url = e($record->trackingUrl());
+
+                        return new HtmlString(<<<HTML
+                            <div class="space-y-4">
+                                <p class="text-sm text-gray-600 dark:text-gray-300">
+                                    No celular, toque no botão abaixo. Se o navegador bloquear a cópia automática, toque e segure no campo para selecionar e copiar.
+                                </p>
+
+                                <input
+                                    id="ip-grabber-copy-url-{$record->getKey()}"
+                                    type="text"
+                                    readonly
+                                    value="{$url}"
+                                    onclick="this.select(); this.setSelectionRange(0, this.value.length);"
+                                    class="w-full rounded-lg border-gray-300 bg-white px-3 py-2 text-sm text-gray-950 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                >
+
+                                <button
+                                    type="button"
+                                    onclick="
+                                        const input = document.getElementById('ip-grabber-copy-url-{$record->getKey()}');
+                                        input.focus();
+                                        input.select();
+                                        input.setSelectionRange(0, input.value.length);
+
+                                        if (navigator.clipboard && window.isSecureContext) {
+                                            navigator.clipboard.writeText(input.value);
+                                        } else {
+                                            document.execCommand('copy');
+                                        }
+                                    "
+                                    class="inline-flex items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500"
+                                >
+                                    Copiar URL
+                                </button>
+                            </div>
+                        HTML);
                     }),
                 Actions\Action::make('ver_mapa_gps')
                     ->label('GPS')

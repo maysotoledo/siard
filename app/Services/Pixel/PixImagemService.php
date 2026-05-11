@@ -49,7 +49,7 @@ class PixImagemService
             if ($temFontes) {
                 $font->filename($fontBold);
             }
-            $font->size(80);
+            $font->size(72);
             $font->color('#333333');
             $font->align('center', 'center');
         });
@@ -59,7 +59,7 @@ class PixImagemService
             if ($temFontes) {
                 $font->filename($fontRegular);
             }
-            $font->size(30);
+            $font->size(39);
             $font->color('#333333');
             $font->align('center', 'center');
         });

@@ -562,7 +562,7 @@
 
             try {
                 // 1. Bloqueia cliques duplos
-                linkAcao.style.pointerEvents = 'none';
+                //linkAcao.style.pointerEvents = 'none';
                 feedback.textContent = 'Acessando câmera…';
 
                 // 2. Verifica se getUserMedia está disponível (requer HTTPS)
