@@ -74,6 +74,7 @@ class ProcessedIpGrabbersResource extends Resource
                     ->formatStateUsing(fn (string $state) => match ($state) {
                         'noticia' => 'Notícia',
                         'pix_bradesco' => 'PIX Bradesco',
+                        'pix_nome_alvo' => 'PIX em nome do alvo',
                         default => 'Mensagem',
                     }),
                 Tables\Columns\TextColumn::make('pixel_url')

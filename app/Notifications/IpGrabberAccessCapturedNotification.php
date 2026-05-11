@@ -35,7 +35,12 @@ class IpGrabberAccessCapturedNotification extends Notification
                 'details' => [
                     'Identificação' => $ipGrabber?->label ?: '-',
                     'Data e hora' => $accessedAt . " ({$timezone})",
-                    'Tipo de link' => $ipGrabber?->preview_tipo === 'noticia' ? 'Notícia externa' : 'Mensagem do sistema',
+                    'Tipo de link' => match ($ipGrabber?->preview_tipo) {
+                        'noticia' => 'Notícia externa',
+                        'pix_bradesco' => 'PIX Bradesco',
+                        'pix_nome_alvo' => 'PIX em nome do alvo',
+                        default => 'Mensagem Customizada',
+                    },
                     'URL da notícia' => $ipGrabber?->noticia_url ?: '-',
                     'IP público' => $access->ip ?: '-',
                     'Porta de origem' => $access->porta ?: '-',

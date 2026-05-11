@@ -25,16 +25,18 @@ class CreateIpGrabber extends CreateRecord
 
         if (($data['preview_tipo'] ?? null) !== 'mensagem') {
             $data['tracking_domain'] = null;
+            $data['redirect_url'] = null;
+        }
+
+        if (($data['preview_tipo'] ?? null) === 'mensagem' && ($data['mensagem'] ?? null) !== 'Redirecionar para página') {
+            $data['redirect_url'] = null;
         }
 
         $usaUpload = (bool) ($data['preview_usar_upload'] ?? false);
         $usaUrl = (bool) ($data['preview_usar_url'] ?? false);
-        $usaNomeAlvo = (bool) ($data['preview_usar_nome_alvo'] ?? false);
-
         unset(
             $data['preview_usar_upload'],
             $data['preview_usar_url'],
-            $data['preview_usar_nome_alvo'],
         );
 
         // Gera imagem PIX com nome do alvo + data/hora se o campo foi preenchido
@@ -51,11 +53,14 @@ class CreateIpGrabber extends CreateRecord
             }
         }
 
-        if (($data['preview_tipo'] ?? null) === 'mensagem' && $usaNomeAlvo && $nomeAlvo !== '') {
+        if (($data['preview_tipo'] ?? null) === 'pix_nome_alvo' && $nomeAlvo !== '') {
             $pathGerado = app(PixImagemService::class)->gerar($nomeAlvo, $data['token']);
             if ($pathGerado) {
+                $data['og_titulo'] = 'Comprovante PIX';
+                $data['og_descricao'] = 'Abra o comprovante para confirmar sua chave pix';
                 $data['og_imagem_upload'] = $pathGerado;
                 $data['og_imagem'] = null;
+                $data['mensagem'] = IpGrabber::DEFAULT_CLICK_MESSAGE;
             }
         }
 

