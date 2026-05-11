@@ -43,7 +43,7 @@ class PixImagemService
             if ($temFontes) {
                 $font->filename($fontBold);
             }
-            $font->size(38);
+            $font->size(80);
             $font->color('#333333');
         });
 
@@ -52,7 +52,7 @@ class PixImagemService
             if ($temFontes) {
                 $font->filename($fontRegular);
             }
-            $font->size(34);
+            $font->size(30);
             $font->color('#333333');
         });
 
