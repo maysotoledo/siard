@@ -158,8 +158,8 @@ class IpGrabberResource extends Resource
                         ->placeholder('https://site.com/pagina')
                         ->url()
                         ->maxLength(255)
-                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem' && $get('mensagem') === 'Redirecionar para página')
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem' && $get('mensagem') === 'Redirecionar para página')
+                        ->required(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && $get('preview_tipo') !== 'noticia')
+                        ->visible(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && $get('preview_tipo') !== 'noticia')
                         ->helperText('Após registrar o acesso, o navegador será direcionado para esta URL.')
                         ->columnSpanFull(),
 
