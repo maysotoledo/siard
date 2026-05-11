@@ -457,11 +457,12 @@ class IpGrabberController extends Controller
         if ($ipGrabber->og_imagem_upload) {
             $path = ltrim($ipGrabber->og_imagem_upload, '/');
             $dimensions = $this->dimensoesDaImagem(Storage::disk('public')->path($path));
+            $publicStoragePath = '/storage/' . $path;
 
             return [
                 'url' => $ipGrabber->trackingDomain() && ! $this->deveUsarHostDaRequisicao($request)
-                    ? $ipGrabber->trackingAssetUrl(route('pixel.og-image', $ipGrabber->token, false))
-                    : $this->urlAbsolutaDaRequisicao($request, route('pixel.og-image', $ipGrabber->token, false)),
+                    ? $ipGrabber->trackingAssetUrl($publicStoragePath)
+                    : $this->urlAbsolutaDaRequisicao($request, $publicStoragePath),
                 'type' => $this->mimeTypePorExtensao($path) ?: Storage::disk('public')->mimeType($path),
                 'width' => $dimensions['width'] ?? null,
                 'height' => $dimensions['height'] ?? null,
