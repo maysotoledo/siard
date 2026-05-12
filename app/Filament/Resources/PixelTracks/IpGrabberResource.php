@@ -219,7 +219,7 @@ class IpGrabberResource extends Resource
             \Filament\Schemas\Components\Section::make('Preview no WhatsApp / Telegram')
                 ->description('O que aparece quando o link é colado antes de ser clicado.')
                 ->collapsed()
-                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                ->visible(fn (Get $get): bool => in_array($get('preview_tipo'), ['mensagem', 'pix_nome_alvo'], true))
                 ->components([
                     Forms\Components\TextInput::make('og_titulo')
                         ->label('Título do preview')
