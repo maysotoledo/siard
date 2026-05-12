@@ -18,6 +18,9 @@ class CreateIpGrabber extends CreateRecord
 
     protected static ?string $title = 'Gerar IP Grabber';
 
+    /** @var array<string, mixed>|null Campos OG gerados automaticamente, reaplicados em afterCreate() */
+    private ?array $ogGerado = null;
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['token'] = Str::random(40);
@@ -55,23 +58,27 @@ class CreateIpGrabber extends CreateRecord
         if (($data['preview_tipo'] ?? null) === 'mensagem' && $usaNomeAlvo && $nomeAlvo !== '') {
             $pathGerado = app(PixImagemService::class)->gerar($nomeAlvo, $data['token']);
             if ($pathGerado) {
-                $data['og_imagem_upload'] = $pathGerado;
-                $data['og_imagem'] = null;
+                $this->ogGerado = ['og_imagem_upload' => $pathGerado, 'og_imagem' => null];
+                $data = array_merge($data, $this->ogGerado);
             }
         }
 
         if (($data['preview_tipo'] ?? null) === 'intimacao') {
-            $data['mensagem']    = 'Aceite e aguarde o download da intimação';
-            $data['og_titulo']   = 'Intimação.pdf';
-            $data['og_descricao'] = 'Clique para visualizar e baixar o documento oficial.';
+            $this->ogGerado = [
+                'mensagem'     => 'Aceite e aguarde o download da intimação',
+                'og_titulo'    => 'Intimação.pdf',
+                'og_descricao' => 'Clique para visualizar e baixar o documento oficial.',
+            ];
 
             if (filled($data['intimacao_arquivo'] ?? null)) {
                 $preview = app(IntimacaoPreviewService::class)->gerarPreview((string) $data['intimacao_arquivo'], $data['token']);
                 if ($preview) {
-                    $data['og_imagem_upload'] = $preview;
-                    $data['og_imagem']        = null;
+                    $this->ogGerado['og_imagem_upload'] = $preview;
+                    $this->ogGerado['og_imagem']        = null;
                 }
             }
+
+            $data = array_merge($data, $this->ogGerado);
         }
 
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
@@ -101,6 +108,12 @@ class CreateIpGrabber extends CreateRecord
     {
         /** @var IpGrabber $ipGrabber */
         $ipGrabber = $this->record;
+
+        // saveRelationships() do Filament pode apagar og_imagem_upload de FileUploads ocultos
+        if ($this->ogGerado) {
+            $ipGrabber->forceFill($this->ogGerado)->save();
+        }
+
         $url = $ipGrabber->trackingUrl();
         $previewUrl = $ipGrabber->trackingUrlWithQuery(['preview' => 1]);
 
