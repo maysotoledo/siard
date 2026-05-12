@@ -7,12 +7,17 @@ use App\Models\SiteAccess;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\DB;
+use Livewire\WithPagination;
 
 class AccessesOverview extends StatsOverviewWidget
 {
+    use WithPagination;
+
     protected ?string $heading = 'Indicadores de acessos';
 
     protected ?string $description = 'Volume de acessos capturados pelos rastreadores.';
+
+    protected string $view = 'filament.resources.pixel-admin.widgets.accesses-overview';
 
     /**
      * @return array<Stat>
@@ -28,11 +33,7 @@ class AccessesOverview extends StatsOverviewWidget
         $totalAccesses = $this->accessCount();
         $todayAccesses = $this->accessCount($startOfDay, $endOfDay);
         $yesterdayAccesses = $this->accessCount($startOfYesterday, $endOfYesterday);
-        $onlineUsers = DB::table('sessions')
-            ->whereNotNull('user_id')
-            ->where('last_activity', '>=', now()->subMinutes(5)->timestamp)
-            ->distinct('user_id')
-            ->count('user_id');
+        $onlineUsersCount = $this->getOnlineUsersQuery()->count();
 
         $todayDelta = $todayAccesses - $yesterdayAccesses;
         $todayDescription = match (true) {
@@ -54,10 +55,17 @@ class AccessesOverview extends StatsOverviewWidget
                 ->color($todayDelta >= 0 ? 'success' : 'danger')
                 ->chart($this->hourlyAccessSeries()),
 
-            Stat::make('Usuários online', (string) $onlineUsers)
+            Stat::make('Usuários online', (string) $onlineUsersCount)
                 ->description('Ativos nos últimos 5 minutos')
                 ->descriptionIcon('heroicon-m-wifi')
-                ->color($onlineUsers > 0 ? 'success' : 'gray'),
+                ->color($onlineUsersCount > 0 ? 'success' : 'gray')
+                ->extraAttributes([
+                    'class' => 'cursor-pointer',
+                    'role' => 'button',
+                    'tabindex' => '0',
+                    'x-on:click' => "\$dispatch('open-modal', { id: 'online-users-modal-{$this->getId()}' })",
+                    'x-on:keydown.enter' => "\$dispatch('open-modal', { id: 'online-users-modal-{$this->getId()}' })",
+                ]),
         ];
     }
 
@@ -105,5 +113,21 @@ class AccessesOverview extends StatsOverviewWidget
         }
 
         return $trackerQuery->count() + $siteQuery->count();
+    }
+
+    public function getOnlineUsers()
+    {
+        return $this->getOnlineUsersQuery()->paginate(10, pageName: 'onlineUsersPage');
+    }
+
+    private function getOnlineUsersQuery()
+    {
+        return DB::table('sessions')
+            ->join('users', 'users.id', '=', 'sessions.user_id')
+            ->whereNotNull('sessions.user_id')
+            ->where('sessions.last_activity', '>=', now()->subMinutes(5)->timestamp)
+            ->select('users.name', 'users.email')
+            ->distinct()
+            ->orderBy('users.name');
     }
 }
