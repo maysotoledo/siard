@@ -366,9 +366,9 @@ class IpGrabberResource extends Resource
             : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:192px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.9rem;font-weight:600;">WhatsApp</div>';
 
         return new HtmlString(
-            '<div style="max-width:560px;border-radius:16px;background:#efeae2;padding:16px 14px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
-                . '<div style="display:flex;justify-content:flex-end;">'
-                    . '<div style="max-width:420px;min-width:320px;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:10px 10px 8px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
+            '<div style="width:100%;max-width:560px;box-sizing:border-box;border-radius:16px;background:#efeae2;padding:16px 14px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
+                . '<div style="display:flex;justify-content:flex-end;width:100%;">'
+                    . '<div style="width:100%;max-width:420px;box-sizing:border-box;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:10px 10px 8px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
                         . '<div style="margin-bottom:8px;color:#111b21;font-size:13px;line-height:1.45;">' . e($previewMessage) . '</div>'
                         . '<div style="overflow:hidden;border-radius:8px;background:#fff;border:1px solid #d1d7db;">'
                             . $imageBlock
