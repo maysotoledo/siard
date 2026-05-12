@@ -117,6 +117,7 @@ class IpGrabberResource extends Resource
                             'mensagem' => 'Mensagem do sistema',
                             'noticia' => 'Notícia externa',
                             'pix_bradesco' => 'PIX Bradesco (comprovante)',
+                            'pix_caixa' => 'PIX Caixa (comprovante)',
                         ])
                         ->default('mensagem')
                         ->selectablePlaceholder(false)
@@ -151,6 +152,15 @@ class IpGrabberResource extends Resource
                         ->visible(fn (Get $get): bool => $get('preview_tipo') !== 'noticia')
                         ->columnSpanFull(),
 
+                    Forms\Components\TextInput::make('pix_caixa_valor')
+                        ->label('Informe o valor')
+                        ->placeholder('Ex: 380,00')
+                        ->maxLength(20)
+                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
+                        ->helperText('Valor que aparecerá no comprovante.')
+                        ->columnSpanFull(),
+
                     Forms\Components\TextInput::make('noticia_url')
                         ->label('Link da notícia')
                         ->placeholder('https://site.com/noticia...')
@@ -183,7 +193,7 @@ class IpGrabberResource extends Resource
             \Filament\Schemas\Components\Section::make('Preview no WhatsApp / Telegram')
                 ->description('O que aparece quando o link é colado antes de ser clicado.')
                 ->collapsed()
-                ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco'], true))
+                ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'pix_bradesco', 'pix_caixa'], true))
                 ->components([
                     Forms\Components\TextInput::make('og_titulo')
                         ->label('Título do preview')

