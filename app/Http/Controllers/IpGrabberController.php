@@ -31,6 +31,7 @@ class IpGrabberController extends Controller
             $this->preencherPreviewDoPixBradescoSeNecessario($ipGrabber);
             $this->preencherPreviewDaNoticiaSeNecessario($ipGrabber);
             $this->preencherPreviewDaIntimacaoSeNecessario($ipGrabber);
+            $ipGrabber->refresh();
         }
 
         $mensagem = $ipGrabber?->mensagem ?? IpGrabber::DEFAULT_CLICK_MESSAGE;

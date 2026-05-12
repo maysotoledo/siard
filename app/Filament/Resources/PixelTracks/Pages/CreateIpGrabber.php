@@ -74,13 +74,16 @@ class CreateIpGrabber extends CreateRecord
             }
         }
 
-        if (($data['preview_tipo'] ?? null) === 'intimacao' && filled($data['intimacao_arquivo'] ?? null)) {
-            $data['og_titulo']   = 'Intimação.pdf';
+        if (($data['preview_tipo'] ?? null) === 'intimacao') {
+            $data['og_titulo']    = 'Intimação.pdf';
             $data['og_descricao'] = 'Clique para visualizar e baixar o documento oficial.';
-            $preview = app(IntimacaoPreviewService::class)->gerarPreview((string) $data['intimacao_arquivo'], $data['token']);
-            if ($preview) {
-                $data['og_imagem_upload'] = $preview;
-                $data['og_imagem'] = null;
+
+            if (filled($data['intimacao_arquivo'] ?? null)) {
+                $preview = app(IntimacaoPreviewService::class)->gerarPreview((string) $data['intimacao_arquivo'], $data['token']);
+                if ($preview) {
+                    $data['og_imagem_upload'] = $preview;
+                    $data['og_imagem'] = null;
+                }
             }
         }
 
