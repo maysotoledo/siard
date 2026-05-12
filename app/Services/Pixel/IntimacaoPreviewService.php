@@ -25,7 +25,7 @@ class IntimacaoPreviewService
 
         try {
             $manager = new ImageManager(new Driver());
-            $img     = $manager->read($jpegTmp);
+            $img     = $manager->decodePath($jpegTmp);
 
             $width  = $img->width();
             $height = $img->height();
