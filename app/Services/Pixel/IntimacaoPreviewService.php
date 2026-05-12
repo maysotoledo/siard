@@ -58,6 +58,7 @@ class IntimacaoPreviewService
         $pdftoppm = trim((string) shell_exec('which pdftoppm 2>/dev/null'));
 
         if (! $pdftoppm) {
+            \Illuminate\Support\Facades\Log::warning('IntimacaoPreviewService: pdftoppm não encontrado');
             return null;
         }
 
@@ -66,11 +67,33 @@ class IntimacaoPreviewService
              . ' -jpeg -r 96 -f 1 -l 1 '
              . escapeshellarg($fullPath) . ' '
              . escapeshellarg($tmp)
-             . ' 2>/dev/null';
+             . ' 2>&1';
 
-        exec($cmd);
+        $output = [];
+        $exitCode = 0;
+        exec($cmd, $output, $exitCode);
 
-        // pdftoppm gera sufixo -1.jpg ou -000001.jpg dependendo da versão
-        return glob($tmp . '*.jpg')[0] ?? null;
+        if ($exitCode !== 0) {
+            \Illuminate\Support\Facades\Log::warning('IntimacaoPreviewService: pdftoppm falhou', [
+                'exit_code' => $exitCode,
+                'output'    => implode("\n", $output),
+                'pdf'       => $fullPath,
+            ]);
+        }
+
+        // pdftoppm gera sufixo -1.jpg, -000001.jpg ou -1.jpeg dependendo da versão
+        foreach (['.jpg', '.jpeg'] as $ext) {
+            $files = glob($tmp . '*' . $ext);
+            if (is_array($files) && ! empty($files)) {
+                return $files[0];
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::warning('IntimacaoPreviewService: nenhum arquivo gerado pelo pdftoppm', [
+            'tmp_prefix' => $tmp,
+            'pdf'        => $fullPath,
+        ]);
+
+        return null;
     }
 }
