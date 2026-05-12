@@ -6,6 +6,7 @@ use App\Http\Responses\LogoutResponse;
 use App\Services\Queue\QueueHealthService;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse as LogoutResponseContract;
 use Illuminate\Queue\Events\Looping;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,6 +24,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if ($this->app->environment('production') && str_starts_with((string) config('app.url'), 'https://')) {
+            URL::forceRootUrl(config('app.url'));
+            URL::forceScheme('https');
+        }
+
         $this->app['events']->listen(Looping::class, function (): void {
             app(QueueHealthService::class)->touchHeartbeat();
         });
