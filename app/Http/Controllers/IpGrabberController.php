@@ -42,7 +42,7 @@ class IpGrabberController extends Controller
         $ogImagem = $this->resolverImagemOpenGraph($ipGrabber, $request);
         $ogUrl = $ipGrabber
             ? ($this->deveUsarHostDaRequisicao($request) || ! $ipGrabber->trackingDomain()
-                ? $this->urlAbsolutaDaRequisicao($request, route('pixel.track', $token, false))
+                ? $this->urlAbsolutaDaRequisicao($request, $ipGrabber->trackingPath())
                 : $ipGrabber->trackingUrl())
             : $this->urlAbsolutaDaRequisicao($request, $request->getPathInfo());
         $captureGps = (bool) $ipGrabber?->capture_gps;
@@ -506,7 +506,7 @@ class IpGrabberController extends Controller
             return null;
         }
 
-        return route('pixel.intimacao.download', $ipGrabber->token);
+        return $ipGrabber->trackingPath() . '/download';
     }
 
     public function downloadIntimacao(string $token): \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\Response

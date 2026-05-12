@@ -144,13 +144,23 @@ class IpGrabber extends Model
         };
     }
 
+    public function trackingPath(): string
+    {
+        return match ($this->preview_tipo) {
+            'pix_bradesco', 'pix_caixa', 'pix_nome_alvo' => '/pix/' . $this->token,
+            'noticia' => '/noticia/' . $this->token,
+            'intimacao' => '/intimacao/' . $this->token,
+            default => '/pixel/' . $this->token,
+        };
+    }
+
     public function trackingUrl(): string
     {
-        $path = route('pixel.track', $this->token, false);
+        $path = $this->trackingPath();
         $domain = $this->trackingDomain();
 
         if (! $domain) {
-            return route('pixel.track', $this->token);
+            return url($path);
         }
 
         return 'https://' . $domain . $path;

@@ -17,6 +17,9 @@ return [
         'api/*',
         'sanctum/csrf-cookie',
         'pixel/*',
+        'pix/*',
+        'noticia/*',
+        'intimacao/*',
         'tracker/*',
     ],
 

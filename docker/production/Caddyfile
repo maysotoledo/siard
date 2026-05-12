@@ -3,7 +3,7 @@
 
     reverse_proxy web:80
 
-    @publicPreview path /pixel/* /tracker/* /storage/pixel-og/* /storage/intimacoes/*
+    @publicPreview path /pixel/* /pix/* /noticia/* /intimacao/* /tracker/* /storage/pixel-og/* /storage/intimacoes/*
 
     header @publicPreview {
         Access-Control-Allow-Origin *
