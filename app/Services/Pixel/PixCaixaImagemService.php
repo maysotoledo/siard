@@ -49,7 +49,7 @@ class PixCaixaImagemService
         });
 
         // Valor — linha "Valor" entre y=760-820, alinhado à direita
-        $img->text($valorFormatado, 1220, 789, function (FontFactory $font) use ($fontBold, $temFontes): void {
+        $img->text($valorFormatado, 1220, 808, function (FontFactory $font) use ($fontBold, $temFontes): void {
             if ($temFontes) {
                 $font->filename($fontBold);
             }

