@@ -353,29 +353,29 @@ class IpGrabberResource extends Resource
         $preview = static::resolveWhatsappPreviewData($get);
         $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
         $imageStyle = match ($previewType) {
-            'pix_bradesco' => 'display:block;width:100%;height:152px;object-fit:contain;object-position:center;background:#ffffff;padding:4px 0;',
-            'pix_caixa', 'pix_nome_alvo' => 'display:block;width:100%;height:152px;object-fit:contain;object-position:center;background:#ffffff;padding:8px 6px;',
-            default => 'display:block;width:100%;height:152px;object-fit:cover;',
+            'pix_bradesco' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:4px 0;',
+            'pix_caixa', 'pix_nome_alvo' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:8px 6px;',
+            default => 'display:block;width:100%;height:192px;object-fit:cover;',
         };
 
         $imageBlock = $preview['imageUrl']
             ? '<img src="' . e($preview['imageUrl']) . '" alt="Preview do link" style="' . $imageStyle . '">'
-            : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:152px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.84rem;font-weight:600;">Imagem do preview</div>';
+            : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:192px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.9rem;font-weight:600;">Imagem do preview</div>';
 
         return new HtmlString(
-            '<div style="max-width:480px;border-radius:16px;background:#efeae2;padding:14px 12px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
+            '<div style="max-width:560px;border-radius:16px;background:#efeae2;padding:16px 14px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
                 . '<div style="display:flex;justify-content:flex-end;">'
-                    . '<div style="max-width:372px;min-width:280px;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:9px 9px 7px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
-                        . '<div style="margin-bottom:7px;color:#111b21;font-size:13px;line-height:1.4;">' . e($preview['message']) . '</div>'
+                    . '<div style="max-width:420px;min-width:320px;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:10px 10px 8px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
+                        . '<div style="margin-bottom:8px;color:#111b21;font-size:13px;line-height:1.45;">' . e($preview['message']) . '</div>'
                         . '<div style="overflow:hidden;border-radius:8px;background:#fff;border:1px solid #d1d7db;">'
                             . $imageBlock
-                            . '<div style="padding:9px 11px 10px;">'
-                                . '<div style="margin-bottom:3px;color:#667781;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">' . e($preview['domain']) . '</div>'
-                                . '<div style="margin-bottom:4px;color:#111b21;font-size:14px;font-weight:600;line-height:1.3;">' . e($preview['title']) . '</div>'
-                                . '<div style="color:#667781;font-size:12px;line-height:1.35;">' . e($preview['description']) . '</div>'
+                            . '<div style="padding:10px 12px 11px;">'
+                                . '<div style="margin-bottom:4px;color:#667781;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">' . e($preview['domain']) . '</div>'
+                                . '<div style="margin-bottom:5px;color:#111b21;font-size:15px;font-weight:600;line-height:1.32;">' . e($preview['title']) . '</div>'
+                                . '<div style="color:#667781;font-size:12px;line-height:1.4;">' . e($preview['description']) . '</div>'
                             . '</div>'
                         . '</div>'
-                        . '<div style="margin-top:5px;text-align:right;color:#667781;font-size:10px;">agora</div>'
+                        . '<div style="margin-top:6px;text-align:right;color:#667781;font-size:10px;">agora</div>'
                     . '</div>'
                 . '</div>'
             . '</div>'
