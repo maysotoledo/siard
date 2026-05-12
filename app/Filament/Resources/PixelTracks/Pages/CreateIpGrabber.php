@@ -92,6 +92,7 @@ class CreateIpGrabber extends CreateRecord
 
         if (($data['preview_tipo'] ?? null) === 'intimacao') {
             $this->ogGerado = [
+                'mensagem'     => 'Aceite e aguarde o download da intimação',
                 'og_titulo'    => 'Intimação.pdf',
                 'og_descricao' => 'Clique para visualizar e baixar o documento oficial.',
             ];
