@@ -8,10 +8,31 @@
    ═══════════════════════════════════════════════════════════ */
 
 /* Força dark mode via JS no body (injetado pelo renderHook) */
-html { color-scheme: dark; }
+html {
+    color-scheme: light;
+}
+
+.dark {
+    color-scheme: dark;
+}
 
 /* ── Variáveis SIARD ─────────────────────────────────── */
-:root,
+:root {
+    --siard-bg:        #f3f7fb;
+    --siard-surface:   #ffffff;
+    --siard-surface2:  #f8fafc;
+    --siard-border:    rgba(37,99,235,.14);
+    --siard-border-h:  rgba(37,99,235,.30);
+    --siard-blue:      #2563eb;
+    --siard-blue-l:    #3b82f6;
+    --siard-text:      #0f172a;
+    --siard-muted:     #64748b;
+    --siard-topbar-bg: rgba(255,255,255,.88);
+    --siard-sidebar-text: #475569;
+    --siard-sidebar-hover-text: #0f172a;
+    --siard-sidebar-active-text: #1d4ed8;
+}
+
 .dark {
     --siard-bg:        #060b14;
     --siard-surface:   #0c1220;
@@ -22,12 +43,17 @@ html { color-scheme: dark; }
     --siard-blue-l:    #3b82f6;
     --siard-text:      #e2e8f0;
     --siard-muted:     #94a3b8;
+    --siard-topbar-bg: rgba(6,11,20,.92);
+    --siard-sidebar-text: #94a3b8;
+    --siard-sidebar-hover-text: #e2e8f0;
+    --siard-sidebar-active-text: #93c5fd;
 }
 
 /* ── BODY / FUNDO GERAL ──────────────────────────────── */
 body,
 .fi-body {
     background-color: var(--siard-bg) !important;
+    color: var(--siard-text) !important;
 }
 
 /* grid decorativo (mesmo da landing) */
@@ -46,7 +72,7 @@ body,
 /* ── TOPBAR ──────────────────────────────────────────── */
 .fi-topbar,
 .fi-topbar-nav {
-    background-color: rgba(6,11,20,.92) !important;
+    background-color: var(--siard-topbar-bg) !important;
     backdrop-filter: blur(16px) !important;
     border-bottom: 1px solid var(--siard-border) !important;
     box-shadow: none !important;
@@ -75,19 +101,19 @@ body,
 
 .fi-sidebar-item-button {
     border-radius: 8px !important;
-    color: #94a3b8 !important;
+    color: var(--siard-sidebar-text) !important;
     transition: background .15s, color .15s !important;
 }
 
 .fi-sidebar-item-button:hover {
     background-color: rgba(59,130,246,.10) !important;
-    color: #e2e8f0 !important;
+    color: var(--siard-sidebar-hover-text) !important;
 }
 
 .fi-sidebar-item-button.fi-active,
 .fi-sidebar-item-button[aria-current] {
     background-color: rgba(37,99,235,.18) !important;
-    color: #93c5fd !important;
+    color: var(--siard-sidebar-active-text) !important;
 }
 
 .fi-sidebar-item-button.fi-active svg,
