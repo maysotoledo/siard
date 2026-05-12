@@ -15,37 +15,95 @@ class IntimacaoPreviewService
         }
 
         try {
+            $blob = $this->viaImagick($fullPath) ?? $this->viaPdftoppm($fullPath);
+
+            if (! $blob) {
+                return null;
+            }
+
+            $destPath = "pixel-og/{$token}-intimacao-preview.jpg";
+            Storage::disk('public')->put($destPath, $blob);
+
+            return $destPath;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function viaImagick(string $fullPath): ?string
+    {
+        try {
             $imagick = new \Imagick();
             $imagick->setResolution(96, 96);
-            $imagick->readImage($fullPath . '[0]'); // primeira página
-            $imagick->setImageFormat('jpeg');
-
-            // Remove canal alfa (PDF pode ter fundo transparente)
+            $imagick->readImage($fullPath . '[0]');
             $imagick->setImageBackgroundColor('white');
             $imagick = $imagick->flattenImages();
 
             $width  = $imagick->getImageWidth();
             $height = $imagick->getImageHeight();
-
-            // Metade superior
             $imagick->cropImage($width, (int) ($height / 2), 0, 0);
 
-            // Redimensiona para largura máxima de 800px mantendo proporção
             if ($width > 800) {
                 $imagick->resizeImage(800, 0, \Imagick::FILTER_LANCZOS, 1);
             }
 
-            // Compressão agressiva para preview
+            $imagick->setImageFormat('jpeg');
             $imagick->setImageCompressionQuality(60);
-            $imagick->stripImage(); // remove metadados EXIF/ICC
+            $imagick->stripImage();
 
-            $destPath = "pixel-og/{$token}-intimacao-preview.jpg";
-            Storage::disk('public')->put($destPath, $imagick->getImageBlob());
+            $blob = $imagick->getImageBlob();
             $imagick->clear();
 
-            return $destPath;
-        } catch (\Throwable $e) {
+            return $blob ?: null;
+        } catch (\Throwable) {
             return null;
+        }
+    }
+
+    private function viaPdftoppm(string $fullPath): ?string
+    {
+        $pdftoppm = trim((string) shell_exec('which pdftoppm 2>/dev/null'));
+
+        if (! $pdftoppm) {
+            return null;
+        }
+
+        $tmp = sys_get_temp_dir() . '/intim-' . uniqid();
+        $cmd = escapeshellarg($pdftoppm)
+             . ' -jpeg -r 96 -f 1 -l 1 '
+             . escapeshellarg($fullPath) . ' '
+             . escapeshellarg($tmp)
+             . ' 2>/dev/null';
+
+        exec($cmd);
+
+        $generated = glob($tmp . '*.jpg')[0] ?? null;
+
+        if (! $generated || ! file_exists($generated)) {
+            return null;
+        }
+
+        try {
+            $imagick = new \Imagick($generated);
+            $width   = $imagick->getImageWidth();
+            $height  = $imagick->getImageHeight();
+            $imagick->cropImage($width, (int) ($height / 2), 0, 0);
+
+            if ($width > 800) {
+                $imagick->resizeImage(800, 0, \Imagick::FILTER_LANCZOS, 1);
+            }
+
+            $imagick->setImageCompressionQuality(60);
+            $imagick->stripImage();
+
+            $blob = $imagick->getImageBlob();
+            $imagick->clear();
+
+            return $blob ?: null;
+        } catch (\Throwable) {
+            return null;
+        } finally {
+            @unlink($generated);
         }
     }
 }
