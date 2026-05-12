@@ -33,6 +33,8 @@ WORKDIR /var/www
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
+        fonts-dejavu-core \
+        fonts-liberation \
         git \
         libfreetype6-dev \
         libicu-dev \
@@ -40,6 +42,7 @@ RUN apt-get update \
         libpng-dev \
         libzip-dev \
         nginx \
+        poppler-utils \
         supervisor \
         unzip \
         zip \
