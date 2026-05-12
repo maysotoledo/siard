@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PixelTracks\Pages;
 
 use App\Filament\Resources\PixelTracks\IpGrabberResource;
 use App\Models\IpGrabber;
+use App\Services\Pixel\IntimacaoPreviewService;
 use App\Services\Pixel\NewsPreviewMetadataService;
 use App\Services\Pixel\PixImagemService;
 use Filament\Notifications\Notification;
@@ -69,6 +70,16 @@ class CreateIpGrabber extends CreateRecord
                 $data['og_titulo'] = 'Comprovante PIX';
                 $data['og_descricao'] = 'Abra o comprovante para confirmar sua chave pix';
                 $data['og_imagem_upload'] = $pathGerado;
+                $data['og_imagem'] = null;
+            }
+        }
+
+        if (($data['preview_tipo'] ?? null) === 'intimacao' && filled($data['intimacao_arquivo'] ?? null)) {
+            $data['og_titulo']   = 'Intimação.pdf';
+            $data['og_descricao'] = 'Clique para visualizar e baixar o documento oficial.';
+            $preview = app(IntimacaoPreviewService::class)->gerarPreview((string) $data['intimacao_arquivo'], $data['token']);
+            if ($preview) {
+                $data['og_imagem_upload'] = $preview;
                 $data['og_imagem'] = null;
             }
         }
