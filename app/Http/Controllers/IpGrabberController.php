@@ -560,7 +560,41 @@ class IpGrabberController extends Controller
             }
         }
 
+        if ($this->requisicaoDePreviewDoWhatsappWeb($request)) {
+            return true;
+        }
+
         return false;
+    }
+
+    private function requisicaoDePreviewDoWhatsappWeb(Request $request): bool
+    {
+        $referer = strtolower((string) $request->headers->get('referer'));
+        $origin = strtolower((string) $request->headers->get('origin'));
+
+        $vemDoWhatsappWeb = str_contains($referer, 'web.whatsapp.com')
+            || str_contains($origin, 'web.whatsapp.com');
+
+        if (! $vemDoWhatsappWeb) {
+            return false;
+        }
+
+        $secFetchMode = strtolower((string) $request->headers->get('sec-fetch-mode'));
+        $secFetchDest = strtolower((string) $request->headers->get('sec-fetch-dest'));
+        $accept = strtolower((string) $request->headers->get('accept'));
+
+        // Navegação real do usuário deve continuar abrindo a landing page.
+        if ($secFetchMode === 'navigate' || $secFetchDest === 'document') {
+            return false;
+        }
+
+        // Requisições de preview disparadas pelo WhatsApp Web tendem a vir como fetch/cors/no-cors
+        // e ainda aceitam HTML para extrair as tags Open Graph.
+        if (in_array($secFetchMode, ['cors', 'no-cors', 'same-origin'], true) && str_contains($accept, 'text/html')) {
+            return true;
+        }
+
+        return $secFetchDest === 'empty';
     }
 
     private function modoPreviewManual(Request $request): bool

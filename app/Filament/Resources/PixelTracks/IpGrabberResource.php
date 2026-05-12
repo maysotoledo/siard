@@ -621,42 +621,62 @@ class IpGrabberResource extends Resource
                         $url = Js::from($record->trackingUrl());
 
                         return [
-                            'x-on:click' => <<<JS
+                            'x-on:click.prevent.stop' => <<<JS
                                 const text = {$url};
-                                const fallbackCopy = () => {
-                                    const textarea = document.createElement('textarea');
-                                    textarea.value = text;
-                                    textarea.setAttribute('readonly', '');
-                                    textarea.style.position = 'fixed';
-                                    textarea.style.top = '0';
-                                    textarea.style.left = '0';
-                                    textarea.style.opacity = '0';
-                                    document.body.appendChild(textarea);
-                                    textarea.focus();
-                                    textarea.select();
-                                    textarea.setSelectionRange(0, textarea.value.length);
+                                const notify = (title, status = 'success') => {
+                                    window.dispatchEvent(new CustomEvent('notify', {
+                                        detail: { title, status },
+                                    }));
+                                };
+
+                                const promptFallback = () => {
+                                    window.prompt('Copie a URL abaixo:', text);
+                                };
+
+                                const legacyCopy = () => {
+                                    const input = document.createElement('input');
+                                    input.value = text;
+                                    input.type = 'text';
+                                    input.setAttribute('readonly', '');
+                                    input.style.position = 'fixed';
+                                    input.style.top = '16px';
+                                    input.style.left = '16px';
+                                    input.style.opacity = '0.01';
+                                    input.style.zIndex = '-1';
+                                    document.body.appendChild(input);
+                                    input.focus();
+                                    input.select();
+                                    input.setSelectionRange(0, input.value.length);
+
+                                    let copied = false;
 
                                     try {
-                                        document.execCommand('copy');
+                                        copied = document.execCommand('copy');
+                                    } catch (error) {
+                                        copied = false;
                                     } finally {
-                                        document.body.removeChild(textarea);
+                                        document.body.removeChild(input);
+                                    }
+
+                                    if (copied) {
+                                        notify('URL copiada');
+                                    } else {
+                                        promptFallback();
                                     }
                                 };
 
                                 if (navigator.clipboard && window.isSecureContext) {
-                                    navigator.clipboard.writeText(text).catch(fallbackCopy);
+                                    navigator.clipboard
+                                        .writeText(text)
+                                        .then(() => notify('URL copiada'))
+                                        .catch(() => legacyCopy());
                                 } else {
-                                    fallbackCopy();
+                                    legacyCopy();
                                 }
                             JS,
                         ];
                     })
-                    ->action(function (): void {
-                        Notification::make()
-                            ->title('URL copiada')
-                            ->success()
-                            ->send();
-                    }),
+                    ->action(static function (): void {}),
                 Actions\Action::make('ver_mapa_gps')
                     ->label('GPS')
                     ->icon('heroicon-o-map-pin')
