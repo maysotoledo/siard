@@ -34,7 +34,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
         fonts-dejavu-core \
-        fonts-liberation \
+        fonts-liberation2 \
         git \
         libfreetype6-dev \
         libicu-dev \
