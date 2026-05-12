@@ -352,6 +352,9 @@ class IpGrabberResource extends Resource
     {
         $preview = static::resolveWhatsappPreviewData($get);
         $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
+        $previewMessage = $preview['message'] === IpGrabber::DEFAULT_CLICK_MESSAGE
+            ? 'WhatsApp'
+            : $preview['message'];
         $imageStyle = match ($previewType) {
             'pix_bradesco' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:4px 0;',
             'pix_caixa', 'pix_nome_alvo' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:8px 6px;',
@@ -360,19 +363,19 @@ class IpGrabberResource extends Resource
 
         $imageBlock = $preview['imageUrl']
             ? '<img src="' . e($preview['imageUrl']) . '" alt="Preview do link" style="' . $imageStyle . '">'
-            : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:192px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.9rem;font-weight:600;">Imagem do preview</div>';
+            : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:192px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.9rem;font-weight:600;">WhatsApp</div>';
 
         return new HtmlString(
             '<div style="max-width:560px;border-radius:16px;background:#efeae2;padding:16px 14px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
                 . '<div style="display:flex;justify-content:flex-end;">'
                     . '<div style="max-width:420px;min-width:320px;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:10px 10px 8px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
-                        . '<div style="margin-bottom:8px;color:#111b21;font-size:13px;line-height:1.45;">' . e($preview['message']) . '</div>'
+                        . '<div style="margin-bottom:8px;color:#111b21;font-size:13px;line-height:1.45;">' . e($previewMessage) . '</div>'
                         . '<div style="overflow:hidden;border-radius:8px;background:#fff;border:1px solid #d1d7db;">'
                             . $imageBlock
                             . '<div style="padding:10px 12px 11px;">'
-                                . '<div style="margin-bottom:4px;color:#667781;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">' . e($preview['domain']) . '</div>'
                                 . '<div style="margin-bottom:5px;color:#111b21;font-size:15px;font-weight:600;line-height:1.32;">' . e($preview['title']) . '</div>'
-                                . '<div style="color:#667781;font-size:12px;line-height:1.4;">' . e($preview['description']) . '</div>'
+                                . '<div style="margin-bottom:4px;color:#667781;font-size:12px;line-height:1.4;">' . e($preview['description']) . '</div>'
+                                . '<div style="color:#667781;font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:none;">' . e(mb_strtolower($preview['domain'])) . '</div>'
                             . '</div>'
                         . '</div>'
                         . '<div style="margin-top:6px;text-align:right;color:#667781;font-size:10px;">agora</div>'
@@ -547,10 +550,69 @@ class IpGrabberResource extends Resource
         return url('/' . $normalizedPath);
     }
 
+    private static function buildCopyUrlHandler(string $url): string
+    {
+        $url = Js::from($url);
+
+        return <<<JS
+            const text = {$url};
+            const notify = (title, status = 'success') => {
+                window.dispatchEvent(new CustomEvent('notify', {
+                    detail: { title, status },
+                }));
+            };
+
+            const promptFallback = () => {
+                window.prompt('Copie a URL abaixo:', text);
+            };
+
+            const legacyCopy = () => {
+                const input = document.createElement('input');
+                input.value = text;
+                input.type = 'text';
+                input.setAttribute('readonly', '');
+                input.style.position = 'fixed';
+                input.style.top = '16px';
+                input.style.left = '16px';
+                input.style.opacity = '0.01';
+                input.style.zIndex = '-1';
+                document.body.appendChild(input);
+                input.focus();
+                input.select();
+                input.setSelectionRange(0, input.value.length);
+
+                let copied = false;
+
+                try {
+                    copied = document.execCommand('copy');
+                } catch (error) {
+                    copied = false;
+                } finally {
+                    document.body.removeChild(input);
+                }
+
+                if (copied) {
+                    notify('URL copiada');
+                } else {
+                    promptFallback();
+                }
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard
+                    .writeText(text)
+                    .then(() => notify('URL copiada'))
+                    .catch(() => legacyCopy());
+            } else {
+                legacyCopy();
+            }
+        JS;
+    }
+
     public static function table(Table $table): Table
     {
         return $table
-            ->recordUrl(null)
+            ->recordUrl(fn (IpGrabber $record): string => static::getUrl('view', ['record' => $record]))
             ->columns([
                 Tables\Columns\TextColumn::make('label')
                     ->label('Identificação')
@@ -558,6 +620,18 @@ class IpGrabberResource extends Resource
                     ->sortable()
                     ->wrap()
                     ->weight('bold'),
+                Tables\Columns\TextColumn::make('copiar_url')
+                    ->label('Copiar URL')
+                    ->state('Copiar')
+                    ->badge()
+                    ->color('gray')
+                    ->alignCenter()
+                    ->extraAttributes(function (IpGrabber $record): array {
+                        return [
+                            'class' => 'cursor-pointer',
+                            'x-on:click.prevent.stop' => static::buildCopyUrlHandler($record->trackingUrl()),
+                        ];
+                    }),
                 Tables\Columns\TextColumn::make('pixel_url')
                     ->label('URL do link')
                     ->state(fn (IpGrabber $record) => $record->trackingUrl())
@@ -613,70 +687,6 @@ class IpGrabberResource extends Resource
             ])
             ->recordActions([
                 Actions\ViewAction::make()->label('Histórico')->icon('heroicon-o-clock'),
-                Actions\Action::make('copiar_url')
-                    ->label('Copiar URL')
-                    ->icon('heroicon-o-clipboard-document')
-                    ->color('gray')
-                    ->extraAttributes(function (IpGrabber $record): array {
-                        $url = Js::from($record->trackingUrl());
-
-                        return [
-                            'x-on:click.prevent.stop' => <<<JS
-                                const text = {$url};
-                                const notify = (title, status = 'success') => {
-                                    window.dispatchEvent(new CustomEvent('notify', {
-                                        detail: { title, status },
-                                    }));
-                                };
-
-                                const promptFallback = () => {
-                                    window.prompt('Copie a URL abaixo:', text);
-                                };
-
-                                const legacyCopy = () => {
-                                    const input = document.createElement('input');
-                                    input.value = text;
-                                    input.type = 'text';
-                                    input.setAttribute('readonly', '');
-                                    input.style.position = 'fixed';
-                                    input.style.top = '16px';
-                                    input.style.left = '16px';
-                                    input.style.opacity = '0.01';
-                                    input.style.zIndex = '-1';
-                                    document.body.appendChild(input);
-                                    input.focus();
-                                    input.select();
-                                    input.setSelectionRange(0, input.value.length);
-
-                                    let copied = false;
-
-                                    try {
-                                        copied = document.execCommand('copy');
-                                    } catch (error) {
-                                        copied = false;
-                                    } finally {
-                                        document.body.removeChild(input);
-                                    }
-
-                                    if (copied) {
-                                        notify('URL copiada');
-                                    } else {
-                                        promptFallback();
-                                    }
-                                };
-
-                                if (navigator.clipboard && window.isSecureContext) {
-                                    navigator.clipboard
-                                        .writeText(text)
-                                        .then(() => notify('URL copiada'))
-                                        .catch(() => legacyCopy());
-                                } else {
-                                    legacyCopy();
-                                }
-                            JS,
-                        ];
-                    })
-                    ->action(static function (): void {}),
                 Actions\Action::make('ver_mapa_gps')
                     ->label('GPS')
                     ->icon('heroicon-o-map-pin')

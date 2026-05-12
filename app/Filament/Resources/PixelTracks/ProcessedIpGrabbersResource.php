@@ -64,7 +64,7 @@ class ProcessedIpGrabbersResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->recordUrl(null)
+            ->recordUrl(fn (IpGrabber $record): string => static::getUrl('view', ['record' => $record]))
             ->columns([
                 Tables\Columns\TextColumn::make('criador.name')->label('Criado por')->searchable()->sortable()->badge()->color('info'),
                 Tables\Columns\TextColumn::make('label')->label('Identificação')->searchable()->sortable()->wrap(),
