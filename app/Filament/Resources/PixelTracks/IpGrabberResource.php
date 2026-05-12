@@ -226,7 +226,7 @@ class IpGrabberResource extends Resource
                         ->columnSpanFull(),
                 ]),
 
-            \Filament\Schemas\Components\Section::make('Preview no WhatsApp / Telegram')
+            \Filament\Schemas\Components\Section::make('Mensagem Customizada')
                 ->description('O que aparece quando o link é colado antes de ser clicado.')
                 ->collapsed()
                 ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
@@ -295,7 +295,61 @@ class IpGrabberResource extends Resource
                         ->columnSpanFull(),
 
                 ]),
+
+            \Filament\Schemas\Components\Section::make('Preview no Whatsapp')
+                ->description('Simula visualmente como o link tende a aparecer no WhatsApp Web.')
+                ->components([
+                    Forms\Components\Placeholder::make('whatsapp_preview')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => static::renderWhatsappPreview($get))
+                        ->columnSpanFull(),
+                ]),
         ]);
+    }
+
+    private static function renderWhatsappPreview(Get $get): HtmlString
+    {
+        $title = trim((string) ($get('og_titulo') ?: 'Título do preview'));
+        $description = trim((string) ($get('og_descricao') ?: 'A descrição do link aparecerá aqui no momento do compartilhamento.'));
+        $message = trim((string) ($get('mensagem') ?: IpGrabber::DEFAULT_CLICK_MESSAGE));
+        $domain = trim((string) ($get('tracking_domain') ?: 'comprovante-pix.site'));
+        $imageUrl = static::resolveWhatsappPreviewImageUrl($get);
+
+        $imageBlock = $imageUrl
+            ? '<img src="' . e($imageUrl) . '" alt="Preview do link" style="display:block;width:100%;height:180px;object-fit:cover;">'
+            : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:180px;background:linear-gradient(135deg,#d1fae5 0%,#dcfce7 45%,#f0fdf4 100%);color:#166534;font-size:0.9rem;font-weight:600;">Imagem do preview</div>';
+
+        return new HtmlString(
+            '<div style="max-width:540px;border-radius:18px;background:#efeae2;padding:18px 16px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">'
+                . '<div style="display:flex;justify-content:flex-end;">'
+                    . '<div style="max-width:420px;min-width:320px;border-radius:10px 10px 4px 10px;background:#d9fdd3;padding:10px 10px 8px;box-shadow:0 1px 1px rgba(0,0,0,.08);">'
+                        . '<div style="margin-bottom:8px;color:#111b21;font-size:14px;line-height:1.45;">' . e($message) . '</div>'
+                        . '<div style="overflow:hidden;border-radius:8px;background:#fff;border:1px solid #d1d7db;">'
+                            . $imageBlock
+                            . '<div style="padding:10px 12px 12px;">'
+                                . '<div style="margin-bottom:4px;color:#667781;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">' . e($domain) . '</div>'
+                                . '<div style="margin-bottom:4px;color:#111b21;font-size:15px;font-weight:600;line-height:1.35;">' . e($title) . '</div>'
+                                . '<div style="color:#667781;font-size:13px;line-height:1.4;">' . e($description) . '</div>'
+                            . '</div>'
+                        . '</div>'
+                        . '<div style="margin-top:6px;text-align:right;color:#667781;font-size:11px;">agora</div>'
+                    . '</div>'
+                . '</div>'
+            . '</div>'
+        );
+    }
+
+    private static function resolveWhatsappPreviewImageUrl(Get $get): ?string
+    {
+        $uploadPath = trim((string) ($get('og_imagem_upload') ?: ''));
+
+        if ($uploadPath !== '') {
+            return Storage::disk('public')->url($uploadPath);
+        }
+
+        $imageUrl = trim((string) ($get('og_imagem') ?: ''));
+
+        return $imageUrl !== '' ? $imageUrl : null;
     }
 
     public static function table(Table $table): Table
