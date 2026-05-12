@@ -136,6 +136,7 @@ class IpGrabber extends Model
 
         return match ($this->preview_tipo) {
             'pix_bradesco' => 'comprovante-pix.site',
+            'pix_caixa' => 'comprovante.online',
             'pix_nome_alvo' => 'comprovante.online',
             'intimacao' => 'intimacao.online',
             'noticia' => 'agenciadanoticia.online',
