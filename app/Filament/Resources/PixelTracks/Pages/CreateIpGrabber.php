@@ -158,7 +158,7 @@ class CreateIpGrabber extends CreateRecord
                     ->storeImage((string) $metadata['og_imagem'], (string) $data['token']);
             }
 
-            $data['mensagem'] = 'Redirecionando para a notícia...';
+            $data['mensagem'] = 'Abrindo notícia, aguarde...';
         }
 
         return $data;
