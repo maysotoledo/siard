@@ -130,6 +130,8 @@ class IpGrabberResource extends Resource
                         ->label('Domínio do link')
                         ->options([
                             'comprovante-pix.site' => 'comprovante-pix.site',
+                            'comprovante.online' => 'comprovante.online',
+                            'intimacao.online' => 'intimacao.online',
                             'agenciadanoticia.online' => 'agenciadanoticia.online',
                         ])
                         ->default('comprovante-pix.site')

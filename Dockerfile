@@ -40,6 +40,7 @@ RUN apt-get update \
         libpng-dev \
         libzip-dev \
         nginx \
+        poppler-utils \
         supervisor \
         unzip \
         zip \

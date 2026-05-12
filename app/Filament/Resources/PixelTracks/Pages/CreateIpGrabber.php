@@ -36,10 +36,13 @@ class CreateIpGrabber extends CreateRecord
 
         if (($data['preview_tipo'] ?? null) !== 'mensagem') {
             $data['tracking_domain'] = null;
-            $data['redirect_url'] = null;
         }
 
-        if (($data['preview_tipo'] ?? null) === 'mensagem' && ($data['mensagem'] ?? null) !== 'Redirecionar para página') {
+        // Limpa redirect_url se mensagem não for redirecionamento, ou se for tipo que não suporta
+        if (
+            ($data['mensagem'] ?? null) !== 'Redirecionar para página'
+            || in_array($data['preview_tipo'] ?? null, ['noticia', 'intimacao'], true)
+        ) {
             $data['redirect_url'] = null;
         }
 
