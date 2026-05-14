@@ -7,6 +7,8 @@ use App\Filament\Resources\PixelTracks\Pages\ListIpGrabbers;
 use App\Filament\Resources\PixelTracks\Pages\ViewIpGrabber;
 use App\Models\IpGrabber;
 use App\Models\IpGrabberFoto;
+use App\Services\Pixel\PixCaixaImagemService;
+use App\Services\Pixel\PixImagemService;
 use Filament\Actions;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
@@ -101,262 +103,448 @@ class IpGrabberResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
-            ->columns([
-                'default' => 1,
-                'xl' => 3,
-            ])
+            ->columns(1)
             ->components([
-            \Filament\Schemas\Components\Section::make('Identificação')
-                ->description('Descreva o alvo ou contexto de uso deste IP Grabber.')
-                ->columnSpan([
-                    'default' => 1,
-                    'xl' => 2,
-                ])
-                ->components([
-                    Forms\Components\TextInput::make('label')
-                        ->label('Rótulo / Identificação')
-                        ->placeholder('Ex: Suspeito João - e-mail enviado em 07/05/2026')
-                        ->required()
-                        ->maxLength(255)
-                        ->columnSpanFull(),
+                \Filament\Schemas\Components\Wizard::make([
+                    \Filament\Schemas\Components\Wizard\Step::make('Identificação')
+                        ->description('Informe o contexto de uso deste IP Grabber.')
+                        ->icon('heroicon-o-identification')
+                        ->components([
+                            Forms\Components\Hidden::make('preview_tipo')
+                                ->default('pix_bradesco')
+                                ->required(),
 
-                    Forms\Components\Select::make('preview_tipo')
-                        ->label('Tipo de link')
-                        ->options([
-                            'mensagem' => 'Mensagem Customizada',
-                            'noticia' => 'Notícia externa',
-                            'pix_bradesco' => 'PIX Bradesco (comprovante)',
-                            'pix_caixa' => 'PIX Caixa (comprovante)',
-                            'pix_nome_alvo' => 'Comprovante PIX em nome do alvo',
-                            'intimacao' => 'Intimação',
+                            Forms\Components\TextInput::make('label')
+                                ->label('Rótulo / Identificação')
+                                ->placeholder('Ex: Suspeito João - mensagem enviada em 07/05/2026')
+                                ->required()
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                        ]),
+
+                    \Filament\Schemas\Components\Wizard\Step::make('Captura')
+                        ->description('Escolha quais dados serão solicitados ao abrir o link.')
+                        ->icon('heroicon-o-finger-print')
+                        ->columns([
+                            'default' => 1,
+                            'md' => 2,
                         ])
-                        ->default('mensagem')
-                        ->selectablePlaceholder(false)
-                        ->live()
-                        ->required()
-                        ->columnSpanFull(),
+                        ->components([
+                            Forms\Components\Toggle::make('capture_ip_porta')
+                                ->label('Capturar IP e Porta Lógica')
+                                ->default(true)
+                                ->disabled()
+                                ->dehydrated(false)
+                                ->helperText('Captura padrão do sistema.')
+                                ->columnSpan(1),
 
-                    Forms\Components\Select::make('tracking_domain')
-                        ->label('Domínio do link')
-                        ->options([
-                            'comprovante-pix.site' => 'comprovante-pix.site',
-                            'comprovante.online' => 'comprovante.online',
-                            'intimacao.online' => 'intimacao.online',
-                            'agenciadanoticia.online' => 'agenciadanoticia.online',
+                            Forms\Components\Toggle::make('capture_gps')
+                                ->label('Solicitar GPS')
+                                ->default(false)
+                                ->helperText('Depende de autorização explícita do Alvo.')
+                                ->columnSpan(1),
+
+                            Forms\Components\Toggle::make('capture_alvo')
+                                ->label('Capturar foto')
+                                ->default(false)
+                                ->helperText('Depende de autorização explícita do Alvo.')
+                                ->columnSpan(1),
+
+                            Forms\Components\Toggle::make('capture_identity')
+                                ->label('Identidade digital')
+                                ->default(false)
+                                ->helperText('Tenta coletar nome, e-mail, telefone e contas detectáveis. Depende de autorização explícita do Alvo.')
+                                ->columnSpan([
+                                    'default' => 1,
+                                    'md' => 2,
+                                ]),
+                        ]),
+
+                    \Filament\Schemas\Components\Wizard\Step::make('Tipo')
+                        ->description('Escolha o formato da isca.')
+                        ->icon('heroicon-o-squares-2x2')
+                        ->components([
+                            Forms\Components\Radio::make('tipo_link')
+                                ->label('Tipo de link')
+                                ->options([
+                                    'pix' => 'Comprovante PIX',
+                                    'noticia' => 'Notícia externa',
+                                    'intimacao' => 'Intimação',
+                                    'mensagem' => 'Mensagem customizada',
+                                ])
+                                ->descriptions([
+                                    'pix' => 'Usa um comprovante bancário como preview. Na próxima etapa você escolhe o modelo disponível para esta isca.',
+                                    'noticia' => 'Usa título, descrição e imagem de uma URL de notícia e redireciona o clique para ela.',
+                                    'intimacao' => 'Mostra um documento oficial e entrega um PDF ou imagem após a captura.',
+                                    'mensagem' => 'Permite configurar domínio, título, descrição, imagem e mensagem exibida ao clicar.',
+                                ])
+                                ->default('pix')
+                                ->columns([
+                                    'default' => 1,
+                                    'md' => 2,
+                                ])
+                                ->live()
+                                ->dehydrated(false)
+                                ->afterStateUpdated(function (Set $set, ?string $state): void {
+                                    $previewTipo = match ($state) {
+                                        'noticia' => 'noticia',
+                                        'intimacao' => 'intimacao',
+                                        'mensagem' => 'mensagem',
+                                        default => 'pix_bradesco',
+                                    };
+
+                                    $set('preview_tipo', $previewTipo);
+
+                                    if ($state === 'pix') {
+                                        $set('pix_modelo', 'pix_bradesco');
+                                    }
+                                })
+                                ->required()
+                                ->columnSpanFull(),
+
+                            Forms\Components\Placeholder::make('tipo_preview')
+                                ->hiddenLabel()
+                                ->content(fn (Get $get): HtmlString => static::renderTypeGuide($get))
+                                ->columnSpanFull(),
+                        ]),
+
+                    \Filament\Schemas\Components\Wizard\Step::make('Configuração')
+                        ->description('Preencha apenas o necessário para o tipo escolhido.')
+                        ->icon('heroicon-o-adjustments-horizontal')
+                        ->columns([
+                            'default' => 1,
+                            'md' => 2,
                         ])
-                        ->default('comprovante-pix.site')
-                        ->selectablePlaceholder(false)
-                        ->live()
-                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
-                        ->helperText('Escolha qual domínio será usado no link gerado para a mensagem do sistema.')
-                        ->columnSpanFull(),
+                        ->components([
+                            Forms\Components\Radio::make('pix_modelo')
+                                ->label('Modelo do comprovante PIX')
+                                ->options(static::pixModelCardOptions())
+                                ->default('pix_bradesco')
+                                ->columns([
+                                    'default' => 1,
+                                    'md' => 3,
+                                ])
+                                ->extraAttributes(['class' => 'siard-pix-model-picker'])
+                                ->live()
+                                ->dehydrated(false)
+                                ->visible(fn (Get $get): bool => $get('tipo_link') === 'pix')
+                                ->required(fn (Get $get): bool => $get('tipo_link') === 'pix')
+                                ->afterStateUpdated(fn (Set $set, ?string $state): mixed => $set('preview_tipo', $state ?: 'pix_bradesco'))
+                                ->columnSpanFull(),
 
-                    Forms\Components\Select::make('mensagem')
-                        ->label('Mensagem exibida ao clicar')
-                        ->options([
-                            IpGrabber::DEFAULT_CLICK_MESSAGE => IpGrabber::DEFAULT_CLICK_MESSAGE,
-                            'Sistema fora do ar' => 'Sistema fora do ar',
-                            'PIX Estornado' => 'PIX Estornado',
-                            'Redirecionar para página' => 'Redirecionar para página',
+                            Forms\Components\Select::make('mensagem')
+                                ->label('Mensagem exibida ao clicar')
+                                ->options([
+                                    'PIX Estornado' => 'PIX Estornado',
+                                    IpGrabber::DEFAULT_CLICK_MESSAGE => IpGrabber::DEFAULT_CLICK_MESSAGE,
+                                    'Sistema fora do ar' => 'Sistema fora do ar',
+                                    'Redirecionar para página' => 'Redirecionar para página',
+                                ])
+                                ->default('PIX Estornado')
+                                ->selectablePlaceholder(false)
+                                ->live()
+                                ->required()
+                                ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('pix_caixa_valor')
+                                ->label('Valor do comprovante Caixa')
+                                ->placeholder('Ex: 380,00')
+                                ->maxLength(20)
+                                ->live(debounce: 400)
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
+                                ->helperText('Valor que aparecerá no comprovante.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('nome_alvo')
+                                ->label('Nome do alvo')
+                                ->placeholder('Ex: João da Silva')
+                                ->maxLength(60)
+                                ->live(debounce: 400)
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
+                                ->helperText('Nome que será escrito automaticamente no comprovante PIX.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('noticia_url')
+                                ->label('Link da notícia')
+                                ->placeholder('https://site.com/noticia...')
+                                ->url()
+                                ->maxLength(255)
+                                ->live(debounce: 400)
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
+                                ->helperText('O sistema usará título, descrição e imagem da notícia no preview.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\FileUpload::make('intimacao_arquivo')
+                                ->label('Arquivo da intimação')
+                                ->helperText('PDF ou documento a ser entregue ao alvo após a captura.')
+                                ->disk('public')
+                                ->directory('intimacoes')
+                                ->visibility('public')
+                                ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                                ->maxSize(10240)
+                                ->live()
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
+                                ->columnSpanFull(),
+
+                            Forms\Components\Select::make('tracking_domain')
+                                ->label('Domínio do link')
+                                ->options([
+                                    'comprovante-pix.site' => 'comprovante-pix.site',
+                                    'comprovante.online' => 'comprovante.online',
+                                    'intimacao.online' => 'intimacao.online',
+                                    'agenciadanoticia.online' => 'agenciadanoticia.online',
+                                ])
+                                ->default('comprovante-pix.site')
+                                ->selectablePlaceholder(false)
+                                ->live()
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                                ->helperText('Domínio usado no link gerado.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('redirect_url')
+                                ->label('URL de redirecionamento')
+                                ->placeholder('https://site.com/pagina')
+                                ->url()
+                                ->maxLength(255)
+                                ->required(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
+                                ->visible(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
+                                ->helperText('Após registrar o acesso, o navegador será direcionado para esta URL.')
+                                ->columnSpanFull(),
+
+                            \Filament\Schemas\Components\Section::make('Preview personalizado')
+                                ->description('Use apenas para mensagem customizada.')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
+                                ->columnSpanFull()
+                                ->columns([
+                                    'default' => 1,
+                                    'md' => 2,
+                                ])
+                                ->components([
+                                    Forms\Components\TextInput::make('og_titulo')
+                                        ->label('Título do preview')
+                                        ->placeholder('Ex: Documento Policial - Delegacia de Confresa')
+                                        ->maxLength(255)
+                                        ->live(debounce: 400)
+                                        ->columnSpanFull(),
+
+                                    Forms\Components\TextInput::make('og_descricao')
+                                        ->label('Descrição do preview')
+                                        ->placeholder('Ex: Clique para visualizar o documento.')
+                                        ->maxLength(255)
+                                        ->live(debounce: 400)
+                                        ->columnSpanFull(),
+
+                                    Forms\Components\Toggle::make('preview_usar_upload')
+                                        ->label('Usar upload de imagem')
+                                        ->default(true)
+                                        ->live()
+                                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
+                                            if ($state) {
+                                                $set('preview_usar_url', false);
+                                            }
+                                        })
+                                        ->helperText('A imagem enviada no upload será usada no preview.'),
+
+                                    Forms\Components\Toggle::make('preview_usar_url')
+                                        ->label('Usar URL da imagem')
+                                        ->default(false)
+                                        ->live()
+                                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
+                                            if ($state) {
+                                                $set('preview_usar_upload', false);
+                                            }
+                                        })
+                                        ->helperText('A URL informada será usada como imagem do preview.'),
+
+                                    Forms\Components\FileUpload::make('og_imagem_upload')
+                                        ->label('Upload de imagem do preview')
+                                        ->helperText('JPEG ou PNG. Usado quando o modo de upload está habilitado.')
+                                        ->image()
+                                        ->disk('public')
+                                        ->directory('pixel-og')
+                                        ->visibility('public')
+                                        ->imagePreviewHeight('120')
+                                        ->maxSize(4096)
+                                        ->acceptedFileTypes(['image/jpeg', 'image/png'])
+                                        ->live()
+                                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
+                                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
+                                        ->columnSpanFull(),
+
+                                    Forms\Components\TextInput::make('og_imagem')
+                                        ->label('URL da imagem do preview')
+                                        ->placeholder('https://seudominio.com/imagens/preview.jpg')
+                                        ->url()
+                                        ->live(debounce: 400)
+                                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_url'))
+                                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_url'))
+                                        ->helperText('Tamanho ideal: 1200x630px.')
+                                        ->columnSpanFull(),
+                                ]),
+                        ]),
+
+                    \Filament\Schemas\Components\Wizard\Step::make('Revisão')
+                        ->description('Confira como o link deve aparecer antes de gerar.')
+                        ->icon('heroicon-o-eye')
+                        ->columns([
+                            'default' => 1,
+                            'xl' => 3,
                         ])
-                        ->default(IpGrabber::DEFAULT_CLICK_MESSAGE)
-                        ->selectablePlaceholder(false)
-                        ->live()
-                        ->required()
-                        ->visible(fn (Get $get): bool => ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
-                        ->columnSpanFull(),
+                        ->components([
+                            Forms\Components\Placeholder::make('resumo')
+                                ->hiddenLabel()
+                                ->content(fn (Get $get): HtmlString => static::renderReviewSummary($get))
+                                ->columnSpan([
+                                    'default' => 1,
+                                    'xl' => 1,
+                                ]),
 
-                    Forms\Components\TextInput::make('pix_caixa_valor')
-                        ->label('Informe o valor')
-                        ->placeholder('Ex: 380,00')
-                        ->maxLength(20)
-                        ->live(debounce: 400)
-                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_caixa')
-                        ->helperText('Valor que aparecerá no comprovante.')
-                        ->columnSpanFull(),
-
-                    Forms\Components\FileUpload::make('intimacao_arquivo')
-                        ->label('Arquivo da intimação')
-                        ->helperText('PDF ou documento a ser entregue ao alvo após a captura.')
-                        ->disk('public')
-                        ->directory('intimacoes')
-                        ->visibility('public')
-                        ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
-                        ->maxSize(10240)
-                        ->live()
-                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'intimacao')
-                        ->columnSpanFull(),
-
-                    Forms\Components\TextInput::make('redirect_url')
-                        ->label('URL de redirecionamento')
-                        ->placeholder('https://site.com/pagina')
-                        ->url()
-                        ->maxLength(255)
-                        ->required(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
-                        ->visible(fn (Get $get): bool => $get('mensagem') === 'Redirecionar para página' && ! in_array($get('preview_tipo'), ['noticia', 'intimacao'], true))
-                        ->helperText('Após registrar o acesso, o navegador será direcionado para esta URL.')
-                        ->columnSpanFull(),
-
-                    Forms\Components\TextInput::make('noticia_url')
-                        ->label('Link da notícia')
-                        ->placeholder('https://site.com/noticia...')
-                        ->url()
-                        ->maxLength(255)
-                        ->live(debounce: 400)
-                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'noticia')
-                        ->helperText('O sistema usará título, descrição e imagem da notícia no preview. Ao clicar, o alvo será encaminhado para esta URL.')
-                        ->columnSpanFull(),
-
-                    Forms\Components\TextInput::make('nome_alvo')
-                        ->label('Nome do alvo')
-                        ->placeholder('Ex: João da Silva')
-                        ->maxLength(60)
-                        ->live(debounce: 400)
-                        ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
-                        ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
-                        ->helperText('Nome que será escrito automaticamente no comprovante PIX com a data e hora atuais.')
-                        ->columnSpanFull(),
-
-                    Forms\Components\Toggle::make('capture_gps')
-                        ->label('Solicitar GPS do alvo')
-                        ->default(false)
-                        ->helperText('Depende de autorização explícita do alvo no navegador. Pode comprometer a discrição da coleta.')
-                        ->columnSpanFull(),
-
-                    Forms\Components\Toggle::make('capture_alvo')
-                        ->label('Capturar foto do alvo')
-                        ->default(false)
-                        ->helperText('Depende de autorização explícita do alvo no navegador. Pode comprometer a discrição da coleta.')
-                        ->columnSpanFull(),
-
-                    Forms\Components\Toggle::make('capture_identity')
-                        ->label('Tentar coletar identidade digital')
-                        ->default(false)
-                        ->helperText('Opcional. Nome, e-mail, telefone/autofill e contas/apps detectáveis dependem de autorização, permissões e comportamento do navegador do alvo; em muitos navegadores esses dados podem não ser disponibilizados.')
-                        ->columnSpanFull(),
-                ]),
-
-            \Filament\Schemas\Components\Section::make('Preview no Whatsapp')
-                ->description('Simula visualmente como o link tende a aparecer no WhatsApp Web.')
-                ->columnStart([
-                    'xl' => 3,
+                            \Filament\Schemas\Components\Section::make('Preview no WhatsApp')
+                                ->description('Simula visualmente como o link tende a aparecer no WhatsApp.')
+                                ->components([
+                                    Forms\Components\Placeholder::make('whatsapp_preview')
+                                        ->hiddenLabel()
+                                        ->content(fn (Get $get): HtmlString => static::renderWhatsappPreview($get))
+                                        ->columnSpanFull(),
+                                ])
+                                ->columnSpan([
+                                    'default' => 1,
+                                    'xl' => 2,
+                                ]),
+                        ]),
                 ])
-                ->components([
-                    Forms\Components\Placeholder::make('whatsapp_preview_top')
-                        ->hiddenLabel()
-                        ->content(fn (Get $get): HtmlString => static::renderWhatsappPreview($get))
-                        ->columnSpanFull(),
-                ]),
+                    ->columnSpanFull()
+                    ->nextAction(fn (Actions\Action $action): Actions\Action => $action->label('Próximo'))
+                    ->previousAction(fn (Actions\Action $action): Actions\Action => $action->label('Voltar'))
+                    ->submitAction(static::renderWizardSubmitAction()),
+            ]);
+    }
 
-            \Filament\Schemas\Components\Section::make('Mensagem Customizada')
-                ->description('O que aparece quando o link é colado antes de ser clicado.')
-                ->collapsed()
-                ->columnSpan([
-                    'default' => 1,
-                    'xl' => 2,
-                ])
-                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
-                ->components([
-                    Forms\Components\TextInput::make('og_titulo')
-                        ->label('Título do preview')
-                        ->placeholder('Ex: Documento Policial - Delegacia de Confresa')
-                        ->maxLength(255)
-                        ->live(debounce: 400)
-                        ->columnSpanFull(),
+    private static function renderWizardSubmitAction(): HtmlString
+    {
+        return new HtmlString(
+            '<button type="submit" class="fi-btn fi-color-primary fi-btn-color-primary fi-size-md" style="background:#2563eb;border-color:#2563eb;color:#ffffff;" wire:loading.attr="disabled">'
+                . '<span class="fi-btn-label">Gerar isca</span>'
+            . '</button>'
+        );
+    }
 
-                    Forms\Components\TextInput::make('og_descricao')
-                        ->label('Descrição do preview')
-                        ->placeholder('Ex: Clique para visualizar o documento.')
-                        ->maxLength(255)
-                        ->live(debounce: 400)
-                        ->columnSpanFull(),
+    private static function renderTypeGuide(Get $get): HtmlString
+    {
+        $type = (string) ($get('tipo_link') ?: 'pix');
 
-                    Forms\Components\Toggle::make('preview_usar_upload')
-                        ->label('Usar upload de imagem')
-                        ->default(true)
-                        ->live()
-                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
-                            if (! $state) {
-                                return;
-                            }
+        [$title, $description, $accent] = match ($type) {
+            'noticia' => ['Notícia externa', 'Cole uma URL de notícia. O sistema tenta carregar título, descrição e imagem para o preview.', '#0ea5e9'],
+            'intimacao' => ['Intimação', 'Envie um PDF ou imagem. O clique registra a captura e entrega o arquivo ao alvo.', '#6366f1'],
+            'mensagem' => ['Mensagem customizada', 'Configure manualmente domínio, título, descrição, imagem e mensagem de clique.', '#f59e0b'],
+            default => ['Comprovante PIX', 'Escolha um modelo PIX na próxima etapa. O preview será atualizado conforme o valor ou nome informado.', '#22c55e'],
+        };
 
-                            $set('preview_usar_url', false);
-                        })
-                        ->helperText('A imagem enviada no upload será usada no preview.')
-                        ->columnSpanFull(),
+        return new HtmlString(
+            '<div style="border:1px solid rgba(148,163,184,.25);border-left:4px solid ' . e($accent) . ';border-radius:10px;padding:14px 16px;background:rgba(15,23,42,.03);">'
+                . '<div style="font-weight:700;color:#0f172a;margin-bottom:4px;">' . e($title) . '</div>'
+                . '<div style="color:#64748b;font-size:13px;line-height:1.5;">' . e($description) . '</div>'
+            . '</div>'
+        );
+    }
 
-                    Forms\Components\Toggle::make('preview_usar_url')
-                        ->label('Usar URL da imagem')
-                        ->default(false)
-                        ->live()
-                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
-                            if (! $state) {
-                                return;
-                            }
+    /**
+     * @return array<string, HtmlString>
+     */
+    private static function pixModelCardOptions(): array
+    {
+        return [
+            'pix_bradesco' => static::pixModelCardLabel(
+                'Bradesco',
+                'Comprovante pronto',
+                'comprovante-pix.site',
+                static::resolveStoragePreviewAssetUrl('pixel-og/templates/pix-bradesco.png')
+            ),
+            'pix_caixa' => static::pixModelCardLabel(
+                'Caixa',
+                'Informe o valor',
+                'comprovante.online',
+                static::resolvePublicPreviewAssetUrl('images/comprovante-pix-caixa.png')
+            ),
+            'pix_nome_alvo' => static::pixModelCardLabel(
+                'Em nome do alvo',
+                'Informe o nome do alvo',
+                'comprovante.online',
+                static::resolvePublicPreviewAssetUrl('images/pix-img-gerar.png')
+            ),
+        ];
+    }
 
-                            $set('preview_usar_upload', false);
-                        })
-                        ->helperText('A URL informada será usada como imagem do preview.')
-                        ->columnSpanFull(),
+    private static function pixModelCardLabel(string $title, string $description, string $domain, ?string $imageUrl): HtmlString
+    {
+        $image = $imageUrl
+            ? '<img class="siard-pix-model-card-image" src="' . e($imageUrl) . '" alt="' . e($title) . '">'
+            : '<span class="siard-pix-model-card-image siard-pix-model-card-image-empty">Preview</span>';
 
-                    Forms\Components\FileUpload::make('og_imagem_upload')
-                        ->label('Upload de imagem do preview')
-                        ->helperText('JPEG ou PNG. Usado quando o modo de upload está habilitado.')
-                        ->image()
-                        ->disk('public')
-                        ->directory('pixel-og')
-                        ->visibility('public')
-                        ->imagePreviewHeight('120')
-                        ->maxSize(4096)
-                        ->acceptedFileTypes(['image/jpeg', 'image/png'])
-                        ->live()
-                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
-                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_upload'))
-                        ->columnSpanFull(),
+        return new HtmlString(
+            '<span class="siard-pix-model-card">'
+                . '<span class="siard-pix-model-card-media">' . $image . '</span>'
+                . '<span class="siard-pix-model-card-title">' . e($title) . '</span>'
+                . '<span class="siard-pix-model-card-description">' . e($description) . '</span>'
+                . '<span class="siard-pix-model-card-domain">' . e($domain) . '</span>'
+            . '</span>'
+        );
+    }
 
-                    Forms\Components\TextInput::make('og_imagem')
-                        ->label('URL da imagem do preview')
-                        ->placeholder('https://seudominio.com/imagens/preview.jpg')
-                        ->url()
-                        ->live(debounce: 400)
-                        ->required(fn (Get $get): bool => (bool) $get('preview_usar_url'))
-                        ->visible(fn (Get $get): bool => (bool) $get('preview_usar_url'))
-                        ->helperText('Tamanho ideal: 1200x630px.')
-                        ->columnSpanFull(),
+    private static function renderReviewSummary(Get $get): HtmlString
+    {
+        $previewType = (string) ($get('preview_tipo') ?: 'pix_bradesco');
+        $typeLabel = match ($previewType) {
+            'noticia' => 'Notícia externa',
+            'pix_bradesco' => 'PIX Bradesco',
+            'pix_caixa' => 'PIX Caixa',
+            'pix_nome_alvo' => 'PIX em nome do alvo',
+            'intimacao' => 'Intimação',
+            default => 'Mensagem customizada',
+        };
 
-                ]),
+        $captures = collect([
+            $get('capture_gps') ? 'GPS' : null,
+            $get('capture_alvo') ? 'Foto' : null,
+            $get('capture_identity') ? 'Identidade digital' : null,
+        ])->filter()->implode(', ') ?: 'Nenhuma captura opcional';
 
-            \Filament\Schemas\Components\Section::make('Preview no Whatsapp')
-                ->description('Simula visualmente como o link tende a aparecer no WhatsApp Web.')
-                ->columnStart([
-                    'xl' => 3,
-                ])
-                ->columnOrder([
-                    'xl' => 1,
-                ])
-                ->hidden()
-                ->components([
-                    Forms\Components\Placeholder::make('whatsapp_preview')
-                        ->hiddenLabel()
-                        ->content(fn (Get $get): HtmlString => static::renderWhatsappPreview($get))
-                        ->columnSpanFull(),
-                ]),
-        ]);
+        $preview = static::resolveWhatsappPreviewData($get);
+
+        return new HtmlString(
+            '<div style="border:1px solid rgba(148,163,184,.25);border-radius:12px;padding:16px;background:#fff;">'
+                . '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:12px;">Resumo</div>'
+                . '<dl style="display:grid;gap:10px;margin:0;">'
+                    . static::reviewRow('Tipo', $typeLabel)
+                    . static::reviewRow('Domínio', mb_strtolower($preview['domain']))
+                    . static::reviewRow('Mensagem', $preview['message'])
+                    . static::reviewRow('Capturas', $captures)
+                . '</dl>'
+            . '</div>'
+        );
+    }
+
+    private static function reviewRow(string $label, string $value): string
+    {
+        return '<div>'
+            . '<dt style="font-size:11px;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2px;">' . e($label) . '</dt>'
+            . '<dd style="margin:0;color:#0f172a;font-size:14px;font-weight:600;line-height:1.4;word-break:break-word;">' . e($value) . '</dd>'
+        . '</div>';
     }
 
     private static function renderWhatsappPreview(Get $get): HtmlString
     {
         $preview = static::resolveWhatsappPreviewData($get);
         $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
-        $previewMessage = $preview['message'] === IpGrabber::DEFAULT_CLICK_MESSAGE
-            ? 'WhatsApp'
-            : $preview['message'];
+        $previewMessage = $preview['message'];
         $imageStyle = match ($previewType) {
-            'pix_bradesco' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:4px 0;',
+            'pix_bradesco' => 'display:block;width:100%;height:192px;object-fit:cover;object-position:center;background:#ffffff;',
             'pix_caixa', 'pix_nome_alvo' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:8px 6px;',
             default => 'display:block;width:100%;height:192px;object-fit:cover;',
         };
@@ -393,7 +581,9 @@ class IpGrabberResource extends Resource
         $previewType = (string) ($get('preview_tipo') ?: 'mensagem');
         $title = trim((string) ($get('og_titulo') ?: ''));
         $description = trim((string) ($get('og_descricao') ?: ''));
-        $message = trim((string) ($get('mensagem') ?: ''));
+        $message = in_array($previewType, ['noticia', 'intimacao'], true)
+            ? ''
+            : trim((string) ($get('mensagem') ?: ''));
         $domain = static::resolvePreviewDomain($get);
         $newsMetadata = static::resolveNewsPreviewMetadata($get);
 
@@ -401,7 +591,7 @@ class IpGrabberResource extends Resource
             'noticia' => [
                 'Prévia da notícia',
                 trim((string) ($get('noticia_url') ?: 'Clique para abrir a notícia compartilhada.')),
-                'Abrindo notícia, aguarde...',
+                'Notícia externa',
                 'agenciadanoticia.online',
             ],
             'pix_bradesco' => [
@@ -418,20 +608,20 @@ class IpGrabberResource extends Resource
             ],
             'pix_nome_alvo' => [
                 'Comprovante PIX',
-                'Abra o comprovante para confirmar sua chave pix',
+                'Clique para abrir seu comprovante.',
                 (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
                 'comprovante.online',
             ],
             'intimacao' => [
                 'Intimação.pdf',
                 'Clique para visualizar e baixar o documento oficial.',
-                'Aceite e aguarde o download da intimação',
+                'Intimação',
                 'intimacao.online',
             ],
             default => [
                 'Título do preview',
                 'A descrição do link aparecerá aqui no momento do compartilhamento.',
-                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'PIX Estornado',
                 'comprovante-pix.site',
             ],
         };
@@ -474,6 +664,30 @@ class IpGrabberResource extends Resource
 
             if ($intimacaoArquivo !== '' && preg_match('/\.(png|jpe?g|webp)$/i', $intimacaoArquivo)) {
                 return static::resolveStoragePreviewAssetUrl($intimacaoArquivo);
+            }
+        }
+
+        if ($previewType === 'pix_nome_alvo') {
+            $nomeAlvo = trim((string) ($get('nome_alvo') ?: ''));
+
+            if ($nomeAlvo !== '') {
+                try {
+                    return app(PixImagemService::class)->gerarDataUri($nomeAlvo);
+                } catch (\Throwable) {
+                    return static::resolvePublicPreviewAssetUrl('images/pix-img-gerar.png');
+                }
+            }
+        }
+
+        if ($previewType === 'pix_caixa') {
+            $valor = trim((string) ($get('pix_caixa_valor') ?: ''));
+
+            if ($valor !== '') {
+                try {
+                    return app(PixCaixaImagemService::class)->gerarDataUri($valor);
+                } catch (\Throwable) {
+                    return static::resolvePublicPreviewAssetUrl('images/comprovante-pix-caixa.png');
+                }
             }
         }
 
@@ -557,13 +771,58 @@ class IpGrabberResource extends Resource
         return <<<JS
             const text = {$url};
             const notify = (title, status = 'success') => {
-                window.dispatchEvent(new CustomEvent('notify', {
-                    detail: { title, status },
-                }));
+                if (window.FilamentNotification) {
+                    window.FilamentNotification
+                        .notification()
+                        .title(title)
+                        .status(status)
+                        .send();
+
+                    return;
+                }
+
+                const existingToast = document.getElementById('siard-copy-toast');
+
+                if (existingToast) {
+                    existingToast.remove();
+                }
+
+                const toast = document.createElement('div');
+                toast.id = 'siard-copy-toast';
+                toast.textContent = title;
+                toast.setAttribute('role', 'status');
+                toast.style.position = 'fixed';
+                toast.style.right = '20px';
+                toast.style.bottom = '20px';
+                toast.style.zIndex = '99999';
+                toast.style.borderRadius = '12px';
+                toast.style.background = status === 'success' ? '#16a34a' : '#dc2626';
+                toast.style.color = '#ffffff';
+                toast.style.fontSize = '14px';
+                toast.style.fontWeight = '700';
+                toast.style.padding = '12px 16px';
+                toast.style.boxShadow = '0 14px 34px rgba(15, 23, 42, 0.22)';
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(8px)';
+                toast.style.transition = 'opacity 160ms ease, transform 160ms ease';
+
+                document.body.appendChild(toast);
+
+                requestAnimationFrame(() => {
+                    toast.style.opacity = '1';
+                    toast.style.transform = 'translateY(0)';
+                });
+
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(8px)';
+
+                    setTimeout(() => toast.remove(), 180);
+                }, 2200);
             };
 
             const promptFallback = () => {
-                window.prompt('Copie a URL abaixo:', text);
+                window.prompt('Não foi possível copiar automaticamente. Copie a URL abaixo:', text);
             };
 
             const legacyCopy = () => {
@@ -592,7 +851,7 @@ class IpGrabberResource extends Resource
                 }
 
                 if (copied) {
-                    notify('URL copiada');
+                    notify('Link copiado');
                 } else {
                     promptFallback();
                 }
@@ -601,7 +860,7 @@ class IpGrabberResource extends Resource
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard
                     .writeText(text)
-                    .then(() => notify('URL copiada'))
+                    .then(() => notify('Link copiado'))
                     .catch(() => legacyCopy());
             } else {
                 legacyCopy();
@@ -626,12 +885,11 @@ class IpGrabberResource extends Resource
                     ->badge()
                     ->color('gray')
                     ->alignCenter()
-                    ->extraAttributes(function (IpGrabber $record): array {
-                        return [
-                            'class' => 'cursor-pointer',
-                            'x-on:click.prevent.stop' => static::buildCopyUrlHandler($record->trackingUrl()),
-                        ];
-                    }),
+                    ->copyable()
+                    ->copyMessage('Link copiado')
+                    ->copyMessageDuration(2500)
+                    ->copyableState(fn (IpGrabber $record): string => $record->trackingUrl())
+                    ->extraAttributes(['class' => 'cursor-pointer']),
                 Tables\Columns\TextColumn::make('pixel_url')
                     ->label('URL do link')
                     ->state(fn (IpGrabber $record) => $record->trackingUrl())

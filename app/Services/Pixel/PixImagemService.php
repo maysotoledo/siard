@@ -18,6 +18,32 @@ class PixImagemService
      */
     public function gerar(string $nome, string $token): ?string
     {
+        $conteudo = $this->renderJpeg($nome);
+
+        if ($conteudo === null) {
+            return null;
+        }
+
+        $path = "pixel-og/{$token}-pix-gerado.jpg";
+
+        Storage::disk('public')->put($path, $conteudo);
+
+        return $path;
+    }
+
+    public function gerarDataUri(string $nome): ?string
+    {
+        $conteudo = $this->renderJpeg($nome);
+
+        if ($conteudo === null) {
+            return null;
+        }
+
+        return 'data:image/jpeg;base64,' . base64_encode($conteudo);
+    }
+
+    private function renderJpeg(string $nome): ?string
+    {
         $baseImage = public_path('images/pix-img-gerar.png');
 
         if (! file_exists($baseImage)) {
@@ -64,11 +90,7 @@ class PixImagemService
             $font->align('center', 'center');
         });
 
-        $path = "pixel-og/{$token}-pix-gerado.jpg";
-
-        Storage::disk('public')->put($path, (string) $img->encode(new JpegEncoder(quality: 82, progressive: true, strip: true)));
-
-        return $path;
+        return (string) $img->encode(new JpegEncoder(quality: 82, progressive: true, strip: true));
     }
 
     /**

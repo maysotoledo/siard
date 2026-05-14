@@ -225,6 +225,12 @@
         }
         .stat-value span { color: var(--blue-l); }
         .stat-label { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+        .stat-label a {
+            color: #cbd5e1;
+            text-decoration: none;
+            transition: color .2s;
+        }
+        .stat-label a:hover { color: #fff; }
 
         /* ── FEATURES ── */
         .section {
@@ -621,7 +627,9 @@
         </div>
         <div class="stat">
             <div class="stat-value">5<span> dias</span></div>
-            <div class="stat-label">Teste grátis para novos membros</div>
+            <div class="stat-label">
+                <a href="/admin/register">Faça seu cadastro clicando aqui e ganhe 5 dias grátis para teste</a>
+            </div>
         </div>
         <div class="stat">
             <div class="stat-value"><span>&lt;</span>5s</div>

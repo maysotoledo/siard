@@ -333,6 +333,113 @@ body,
     pointer-events: none;
 }
 
+/* ── Seletor visual de modelos PIX ───────────────────── */
+.siard-pix-model-picker.fi-fo-radio {
+    gap: 0.9rem !important;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 180px)) !important;
+    justify-content: start;
+    margin-top: 0.75rem;
+}
+
+.siard-pix-model-picker .fi-fo-radio-label {
+    position: relative;
+    display: flex !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    overflow: hidden;
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 14px;
+    background: var(--siard-surface);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+    transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+}
+
+.siard-pix-model-picker .fi-fo-radio-label:hover {
+    border-color: rgba(37, 99, 235, 0.55);
+    transform: translateY(-1px);
+}
+
+.siard-pix-model-picker .fi-fo-radio-label:has(.fi-radio-input:checked) {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16), 0 14px 34px rgba(37, 99, 235, 0.16);
+}
+
+.siard-pix-model-picker .fi-radio-input {
+    position: absolute;
+    top: 0.65rem;
+    left: 0.65rem;
+    z-index: 2;
+    background-color: rgba(255, 255, 255, 0.85);
+}
+
+.siard-pix-model-picker .fi-fo-radio-label-text {
+    display: block;
+    width: 100%;
+}
+
+.siard-pix-model-picker .fi-fo-radio-label-text > p {
+    margin: 0 !important;
+}
+
+.siard-pix-model-card {
+    display: flex;
+    min-height: 240px;
+    flex-direction: column;
+}
+
+.siard-pix-model-card-media {
+    display: flex;
+    height: 158px;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #0f172a;
+}
+
+.siard-pix-model-card-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+}
+
+.siard-pix-model-card-image-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.siard-pix-model-card-title {
+    padding: 0.75rem 0.8rem 0.1rem;
+    color: var(--siard-text);
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.siard-pix-model-card-description {
+    padding: 0 0.8rem;
+    color: var(--siard-muted);
+    font-size: 0.76rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.siard-pix-model-card-domain {
+    margin-top: auto;
+    padding: 0.55rem 0.8rem 0.75rem;
+    color: var(--siard-muted);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 /* ── Dashboard centralizado ──────────────────────────────── */
 .fi-page.sacat-dashboard .fi-page-content {
     max-width: 42rem; /* 672 px */
@@ -376,6 +483,29 @@ body,
     color: #ffffff;
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fi-simple-main,
+.fi-simple-main h1,
+.fi-simple-main h2,
+.fi-simple-main p,
+.fi-simple-main label,
+.fi-simple-main .fi-fo-field-wrp-label,
+.fi-simple-main .fi-fo-field-wrp-helper-text,
+.fi-simple-main .fi-link {
+    color: #ffffff !important;
+}
+
+.fi-simple-main .fi-input,
+.fi-simple-main .fi-select-input,
+.fi-simple-main .fi-textarea {
+    color: #ffffff !important;
+}
+
+.fi-simple-main .fi-input::placeholder,
+.fi-simple-main .fi-select-input::placeholder,
+.fi-simple-main .fi-textarea::placeholder {
+    color: rgba(255, 255, 255, 0.68) !important;
 }
 
 .fi-simple-header .fi-logo {

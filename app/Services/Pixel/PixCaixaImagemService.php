@@ -13,6 +13,32 @@ class PixCaixaImagemService
 {
     public function gerar(string $valor, string $token): ?string
     {
+        $conteudo = $this->renderJpeg($valor);
+
+        if ($conteudo === null) {
+            return null;
+        }
+
+        $path = "pixel-og/{$token}-pix-caixa.jpg";
+
+        Storage::disk('public')->put($path, $conteudo);
+
+        return $path;
+    }
+
+    public function gerarDataUri(string $valor): ?string
+    {
+        $conteudo = $this->renderJpeg($valor);
+
+        if ($conteudo === null) {
+            return null;
+        }
+
+        return 'data:image/jpeg;base64,' . base64_encode($conteudo);
+    }
+
+    private function renderJpeg(string $valor): ?string
+    {
         $baseImage = public_path('images/comprovante-pix-caixa.png');
 
         if (! file_exists($baseImage)) {
@@ -48,8 +74,8 @@ class PixCaixaImagemService
             $font->align('left', 'center');
         });
 
-        // Valor — linha "Valor" entre y=760-820, alinhado à direita
-        $img->text($valorFormatado, 1220, 820, function (FontFactory $font) use ($fontBold, $temFontes): void {
+        // Valor — linha "Valor" entre y=760-850, alinhado à direita
+        $img->text($valorFormatado, 1220, 850, function (FontFactory $font) use ($fontBold, $temFontes): void {
             if ($temFontes) {
                 $font->filename($fontBold);
             }
@@ -58,14 +84,7 @@ class PixCaixaImagemService
             $font->align('right', 'center');
         });
 
-        $path = "pixel-og/{$token}-pix-caixa.jpg";
-
-        Storage::disk('public')->put(
-            $path,
-            (string) $img->encode(new JpegEncoder(quality: 85, progressive: true, strip: true))
-        );
-
-        return $path;
+        return (string) $img->encode(new JpegEncoder(quality: 85, progressive: true, strip: true));
     }
 
     /**

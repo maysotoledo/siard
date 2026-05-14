@@ -165,6 +165,24 @@ test('pagina extrai porta de origem quando x forwarded for inclui ip e porta', f
     expect($pixel->fresh()->porta)->toBe('49876');
 });
 
+test('pagina nao usa porta do tunel cloudflare como porta de origem do alvo', function () {
+    $user = User::factory()->create();
+
+    $pixel = PixelTrack::create([
+        'token' => 'pixel-cloudflare-sem-porta',
+        'label' => 'Pixel cloudflare sem porta',
+        'created_by' => $user->id,
+    ]);
+
+    $this->get('/pixel/'.$pixel->token, [
+        'CF-Connecting-IP' => '203.0.113.10',
+        'X-Real-Port' => '51234',
+    ])->assertOk();
+
+    expect($pixel->fresh()->ip)->toBe('203.0.113.10')
+        ->and($pixel->fresh()->porta)->toBeNull();
+});
+
 test('pagina cria historico para cada acesso valido ao mesmo pixel', function () {
     $user = User::factory()->create();
 

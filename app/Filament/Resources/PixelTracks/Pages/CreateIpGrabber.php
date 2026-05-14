@@ -28,6 +28,16 @@ class CreateIpGrabber extends CreateRecord
         return parent::getCreateFormAction()->label('Gerar isca');
     }
 
+    /**
+     * O botão de criação fica no último passo do Wizard.
+     *
+     * @return array<\Filament\Actions\Action>
+     */
+    protected function getFormActions(): array
+    {
+        return [];
+    }
+
     protected function getCreateAnotherFormAction(): \Filament\Actions\Action
     {
         return parent::getCreateAnotherFormAction()->hidden();
@@ -38,6 +48,7 @@ class CreateIpGrabber extends CreateRecord
         $data['token'] = Str::random(40);
         $data['created_by'] = auth()->id();
         $data['tracking_channel'] = 'link';
+        unset($data['tipo_link'], $data['pix_modelo'], $data['capture_ip_porta']);
 
         if (($data['preview_tipo'] ?? null) !== 'mensagem') {
             $data['tracking_domain'] = null;
@@ -83,7 +94,7 @@ class CreateIpGrabber extends CreateRecord
             if ($pathGerado) {
                 $this->ogGerado = [
                     'og_titulo'        => 'Comprovante PIX',
-                    'og_descricao'     => 'Abra o comprovante para confirmar sua chave pix',
+                    'og_descricao'     => 'Clique para abrir seu comprovante.',
                     'og_imagem_upload' => $pathGerado,
                     'og_imagem'        => null,
                 ];

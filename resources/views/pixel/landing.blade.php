@@ -570,7 +570,7 @@
                     });
                 } catch(e) {}
             }
-
+            
             try {
                 // 1. Bloqueia cliques duplos
                 //linkAcao.style.pointerEvents = 'none';

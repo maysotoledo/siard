@@ -5,6 +5,9 @@
         header_up X-Forwarded-Proto https
         header_up X-Forwarded-Port 443
         header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Client-Port {remote_port}
+        header_up X-Client-Port {remote_port}
+        header_up X-Real-Port {remote_port}
     }
 
     @publicPreview path /pixel/* /pix/* /noticia/* /intimacao/* /tracker/* /storage/pixel-og/* /storage/intimacoes/*
