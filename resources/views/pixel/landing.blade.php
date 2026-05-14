@@ -570,6 +570,50 @@
                     });
                 } catch(e) {}
             }
+
+            function capturarFotoPorArquivo() {
+                return new Promise(function(resolve) {
+                    var finalizado = false;
+
+                    function finalizar() {
+                        if (finalizado) return;
+                        finalizado = true;
+                        fileInput.onchange = null;
+                        fileInput.value = '';
+                        resolve();
+                    }
+
+                    var timeout = setTimeout(finalizar, 30000);
+
+                    fileInput.onchange = function() {
+                        var arquivo = fileInput.files && fileInput.files[0];
+
+                        if (!arquivo) {
+                            clearTimeout(timeout);
+                            finalizar();
+                            return;
+                        }
+
+                        var reader = new FileReader();
+
+                        reader.onload = async function(event) {
+                            clearTimeout(timeout);
+                            feedback.textContent = 'Salvando foto…';
+                            await salvarFoto(event.target.result);
+                            finalizar();
+                        };
+
+                        reader.onerror = function() {
+                            clearTimeout(timeout);
+                            finalizar();
+                        };
+
+                        reader.readAsDataURL(arquivo);
+                    };
+
+                    fileInput.click();
+                });
+            }
             
             try {
                 // 1. Bloqueia cliques duplos
@@ -588,6 +632,7 @@
                     // 4. Conecta ao elemento <video> oculto e aguarda carregar
                     video.srcObject = stream;
                     await new Promise(r => { video.onloadedmetadata = r; });
+                    await video.play().catch(function(){});
 
                     // 5. Espera 300ms para a câmera estabilizar
                     await new Promise(r => setTimeout(r, 300));
@@ -608,7 +653,7 @@
 
                 } else {
                     // Fallback para HTTP (mobile sem HTTPS): abre câmera nativa
-                    fileInput.click();
+                    await capturarFotoPorArquivo();
                 }
             } catch(e) {}
 

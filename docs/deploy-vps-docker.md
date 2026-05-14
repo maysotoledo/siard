@@ -81,6 +81,7 @@ docker compose -f docker-compose.prod.yml run --rm web php artisan migrate --for
 docker compose -f docker-compose.prod.yml run --rm web php artisan storage:link
 docker compose -f docker-compose.prod.yml run --rm web php artisan optimize
 docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps proxy
 docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:0.5b
 ```
 
@@ -101,7 +102,10 @@ docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml run --rm web php artisan migrate --force
 docker compose -f docker-compose.prod.yml run --rm web php artisan optimize
 docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps proxy
 ```
+
+Recrie o `proxy` sempre que `docker/production/Caddyfile` ou os domínios mudarem. Isso força o Docker a remontar o arquivo no container do Caddy e evita ficar servindo uma configuração antiga.
 
 ## 6. Ollama
 

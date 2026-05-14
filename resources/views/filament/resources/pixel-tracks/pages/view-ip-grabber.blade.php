@@ -158,163 +158,102 @@
         @if (empty($acessos))
             <p class="text-sm text-gray-500 dark:text-gray-400">Nenhum acesso registrado.</p>
         @else
-            <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-                    <thead class="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Data/Hora</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Origem</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">IP Público</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Porta</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">IP Local</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">GMT</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Localização IP</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">GPS autorizado</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Precisão GPS</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">ISP</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Idioma</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Plataforma</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Resolução</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">Referer</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200">User-Agent</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200" style="color:#16a34a;min-width:80px;">📷 Foto</th>
-                            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200" style="color:#6366f1;min-width:340px;">🪪 Identidade Digital</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
-                        @foreach ($acessos as $acesso)
-                            @php
-                                $acessoRedesLogadas   = collect($acesso['identidade_redes'])->filter(fn($r) => !empty($r['usuario']) || !empty($r['logado']))->values();
-                                $acessoAppsInstalados = collect($acesso['identidade_redes'])->filter(fn($r) => empty($r['usuario']) && empty($r['logado']) && !empty($r['instalado']))->values();
-                                $acessoTemId = $acesso['identidade_nome'] || $acesso['identidade_email'] || $acesso['identidade_telefone']
-                                            || $acessoRedesLogadas->isNotEmpty() || $acessoAppsInstalados->isNotEmpty();
-                            @endphp
-                            <tr>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-900 dark:text-gray-100">{{ $acesso['accessed_at'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['endpoint'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-900 dark:text-gray-100">{{ $acesso['ip'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{{ $acesso['porta'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{{ $acesso['ip_local'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ explode(' ', $acesso['gmt'])[0] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['localizacao'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700 dark:text-gray-300">
-                                    @if ($acesso['gps_url'])
-                                        <a href="{{ $acesso['gps_url'] }}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:4px;text-decoration:underline;color:var(--color-primary-600);">
-                                            {{ $acesso['gps'] }}
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="flex-shrink:0;">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                                            </svg>
-                                        </a>
-                                    @else
-                                        @php
-                                            $gpsStatus = match ($acesso['gps_status']) {
-                                                'denied' => 'Não autorizado',
-                                                'unavailable' => 'Indisponível',
-                                                'timeout' => 'Tempo esgotado',
-                                                'unsupported' => 'Sem suporte',
-                                                'insecure' => 'Contexto inseguro',
-                                                'skipped' => 'Não solicitado',
-                                                'error' => 'Erro',
-                                                default => $acesso['gps'],
-                                            };
-                                        @endphp
-                                        <span title="{{ $acesso['gps_error'] }}">{{ $gpsStatus }}</span>
-                                    @endif
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['gps_accuracy'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['isp'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['idioma'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['plataforma'] }}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300">{{ $acesso['resolucao'] }}</td>
-                                <td class="max-w-xs truncate px-3 py-2 text-gray-700 dark:text-gray-300" title="{{ $acesso['referer'] }}">{{ $acesso['referer'] }}</td>
-                                <td class="max-w-md truncate px-3 py-2 text-gray-700 dark:text-gray-300" title="{{ $acesso['user_agent'] }}">{{ $acesso['user_agent'] }}</td>
+            <div class="space-y-3">
+                <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    @foreach ($acessos as $index => $acesso)
+                        @php
+                            $gpsStatus = match ($acesso['gps_status']) {
+                                'denied' => 'Não autorizado',
+                                'unavailable' => 'Indisponível',
+                                'timeout' => 'Tempo esgotado',
+                                'unsupported' => 'Sem suporte',
+                                'insecure' => 'Contexto inseguro',
+                                'skipped' => 'Não solicitado',
+                                'error' => 'Erro',
+                                default => $acesso['gps'],
+                            };
 
-                                {{-- Coluna Foto --}}
-                                <td class="whitespace-nowrap px-3 py-2">
-                                    @if ($acesso['foto_url'] ?? null)
-                                        <a href="{{ $acesso['foto_url'] ?? '' }}" target="_blank" rel="noopener"
-                                           title="Ver foto em tamanho original">
-                                            <img
-                                                src="{{ $acesso['foto_url'] ?? '' }}"
-                                                alt="Foto do alvo"
-                                                style="width:48px;height:48px;object-fit:cover;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18);cursor:pointer;"
-                                            >
-                                        </a>
-                                    @else
-                                        <span class="text-gray-400 text-xs">—</span>
-                                    @endif
-                                </td>
+                            $acessoRedesLogadas = collect($acesso['identidade_redes'])->filter(fn ($r) => ! empty($r['usuario']) || ! empty($r['logado']))->values();
+                            $acessoAppsInstalados = collect($acesso['identidade_redes'])->filter(fn ($r) => empty($r['usuario']) && empty($r['logado']) && ! empty($r['instalado']))->values();
+                            $acessoTemId = $acesso['identidade_nome'] || $acesso['identidade_email'] || $acesso['identidade_telefone']
+                                || $acessoRedesLogadas->isNotEmpty() || $acessoAppsInstalados->isNotEmpty();
+                        @endphp
 
-                                {{-- Coluna Identidade Digital --}}
-                                <td class="px-3 py-2" style="min-width:340px;">
-                                    @if ($acessoTemId)
-                                        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.78rem;line-height:1.4;">
-                                            @if($acesso['identidade_nome'] || $acesso['identidade_email'] || $acesso['identidade_telefone'])
-                                                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;">
-                                                    <div style="padding:6px 8px;border-radius:8px;background:#f9fafb;border:1px solid #e5e7eb;">
-                                                        <div style="font-size:0.65rem;text-transform:uppercase;color:#6b7280;font-weight:700;">Nome</div>
-                                                        <div style="font-weight:600;color:#111827;word-break:break-word;">{{ $acesso['identidade_nome'] ?: '—' }}</div>
-                                                    </div>
-                                                    <div style="padding:6px 8px;border-radius:8px;background:#f9fafb;border:1px solid #e5e7eb;">
-                                                        <div style="font-size:0.65rem;text-transform:uppercase;color:#6b7280;font-weight:700;">E-mail</div>
-                                                        <div style="font-weight:600;color:#111827;word-break:break-word;">{{ $acesso['identidade_email'] ?: '—' }}</div>
-                                                    </div>
-                                                    <div style="padding:6px 8px;border-radius:8px;background:#f9fafb;border:1px solid #e5e7eb;">
-                                                        <div style="font-size:0.65rem;text-transform:uppercase;color:#6b7280;font-weight:700;">Telefone</div>
-                                                        <div style="font-weight:600;color:#111827;word-break:break-word;">{{ $acesso['identidade_telefone'] ?: '—' }}</div>
-                                                    </div>
-                                                </div>
-                                            @endif
+                        <button
+                            type="button"
+                            onclick="document.getElementById('ip-grabber-access-modal-{{ $index }}')?.showModal()"
+                            class="group w-full rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-primary-400 hover:bg-primary-50/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-primary-500 dark:hover:bg-primary-950/20"
+                        >
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                            #{{ $index + 1 }}
+                                        </span>
+                                        <span class="rounded-md bg-primary-50 px-2 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                                            {{ $acesso['endpoint'] }}
+                                        </span>
+                                        @if ($acesso['foto_url'])
+                                            <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{{ $acesso['foto_contexto'] ?? 'Foto' }}</span>
+                                        @endif
+                                        @if ($acessoTemId)
+                                            <span class="rounded-md bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">Identidade</span>
+                                        @endif
+                                    </div>
 
-                                            {{-- Redes logadas --}}
-                                            @if($acessoRedesLogadas->isNotEmpty())
-                                                <div style="padding:7px 8px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;">
-                                                    <div style="font-size:0.65rem;text-transform:uppercase;color:#166534;font-weight:800;margin-bottom:5px;">Contas detectadas</div>
-                                                    <div style="display:flex;flex-wrap:wrap;gap:5px;">
-                                                        @foreach($acessoRedesLogadas as $r)
-                                                            @php
-                                                                $redeSemUser = ['Instagram','Twitter/X','LinkedIn','TikTok','Pinterest','Facebook'];
-                                                            @endphp
-                                                            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:9999px;background:#dcfce7;color:#166534;font-weight:700;">
-                                                                {{ $r['rede'] }}:
-                                                                @if(!empty($r['usuario']))
-                                                                    <span style="color:#14532d;">{{ $r['usuario'] }}</span>
-                                                                    @if(!empty($r['nome']))
-                                                                        <span style="font-weight:500;color:#4b5563;">({{ $r['nome'] }})</span>
-                                                                    @endif
-                                                                @elseif(in_array($r['rede'], $redeSemUser))
-                                                                    <span style="font-weight:500;" title="Perfil/username não é disponibilizado pelo navegador">logado, perfil indisponível</span>
-                                                                @else
-                                                                    <span style="font-weight:500;">logado</span>
-                                                                @endif
-                                                            </span>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                            @endif
+                                    <p class="mt-3 text-sm font-semibold text-gray-950 dark:text-white">{{ $acesso['accessed_at'] }}</p>
+                                    <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $acesso['localizacao'] }}</p>
+                                </div>
 
-                                            {{-- Apps instalados --}}
-                                            @if($acessoAppsInstalados->isNotEmpty())
-                                                <div style="padding:7px 8px;border-radius:8px;background:#eef2ff;border:1px solid #c7d2fe;">
-                                                    <div style="font-size:0.65rem;text-transform:uppercase;color:#3730a3;font-weight:800;margin-bottom:5px;">Apps detectados no celular</div>
-                                                    <div style="display:flex;flex-wrap:wrap;gap:5px;">
-                                                        @foreach($acessoAppsInstalados as $app)
-                                                            <span style="display:inline-block;padding:3px 8px;border-radius:9999px;background:#e0e7ff;color:#3730a3;font-weight:700;">
-                                                                {{ $app['rede'] }}
-                                                            </span>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @else
-                                        <span class="text-gray-400 text-xs">—</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                                @if ($acesso['foto_url'])
+                                    <img
+                                        src="{{ $acesso['foto_url'] }}"
+                                        alt="Foto capturada"
+                                        class="h-14 w-14 rounded-md object-cover shadow-sm ring-1 ring-gray-200 dark:ring-gray-700"
+                                    >
+                                @endif
+                            </div>
+
+                            <div class="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                                <div>
+                                    <div class="font-medium text-gray-500 dark:text-gray-400">IP público</div>
+                                    <div class="mt-1 truncate font-mono text-gray-900 dark:text-gray-100">{{ $acesso['ip'] }}</div>
+                                </div>
+                                <div>
+                                    <div class="font-medium text-gray-500 dark:text-gray-400">Porta</div>
+                                    <div class="mt-1 font-mono text-gray-900 dark:text-gray-100">{{ $acesso['porta'] }}</div>
+                                </div>
+                                <div>
+                                    <div class="font-medium text-gray-500 dark:text-gray-400">GPS</div>
+                                    <div class="mt-1 truncate text-gray-900 dark:text-gray-100">{{ $acesso['gps_url'] ? $acesso['gps'] : $gpsStatus }}</div>
+                                </div>
+                                <div>
+                                    <div class="font-medium text-gray-500 dark:text-gray-400">Plataforma</div>
+                                    <div class="mt-1 truncate text-gray-900 dark:text-gray-100">{{ $acesso['plataforma'] }}</div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                                <span class="truncate">{{ $acesso['isp'] }}</span>
+                                <span class="ml-3 shrink-0 font-semibold text-primary-600 group-hover:underline dark:text-primary-400">Ver detalhes</span>
+                            </div>
+                        </button>
+
+                        <dialog
+                            id="ip-grabber-access-modal-{{ $index }}"
+                            onclick="if (event.target === this) this.close()"
+                            class="m-auto w-[min(96vw,72rem)] max-h-[90vh] overflow-hidden rounded-xl bg-white p-0 text-left shadow-2xl backdrop:bg-gray-950/65 dark:bg-gray-900"
+                        >
+                            @include('filament.resources.pixel-tracks.partials.access-history-modal', [
+                                'acesso' => $acesso,
+                                'redesLogadas' => $acessoRedesLogadas,
+                                'appsInstalados' => $acessoAppsInstalados,
+                                'temIdentidade' => $acessoTemId,
+                                'gpsStatus' => $gpsStatus,
+                            ])
+                        </dialog>
+                    @endforeach
+                </div>
             </div>
         @endif
     </x-filament::section>

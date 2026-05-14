@@ -25,15 +25,23 @@ class ViewIpGrabber extends ViewRecord
         /** @var IpGrabber $record */
         $record = $this->record;
 
-        // Fotos indexadas por access_uuid — igual ao GPS, cada acesso tem a sua
-        $fotosPorUuid = $record->fotos()
-            ->get()
+        // Fotos indexadas por access_uuid. Fotos antigas ou de browsers que não enviaram
+        // access_id ficam sem vínculo; mostramos a mais recente no primeiro acesso como fallback.
+        $fotos = $record->fotos()->get();
+        $fotosPorUuid = $fotos
+            ->filter(fn ($foto) => filled($foto->access_uuid))
             ->keyBy('access_uuid');
+        $fotoSemVinculo = $fotos
+            ->first(fn ($foto) => blank($foto->access_uuid));
 
         return $record->acessos()
             ->latest('accessed_at')
             ->get()
-            ->map(fn (IpGrabberAccess $acesso): array => [
+            ->values()
+            ->map(function (IpGrabberAccess $acesso, int $index) use ($fotosPorUuid, $fotoSemVinculo): array {
+                $foto = $fotosPorUuid[$acesso->uuid] ?? ($index === 0 ? $fotoSemVinculo : null);
+
+                return [
                 'accessed_at' => $acesso->accessed_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s') ?? '-',
                 'endpoint' => match ($acesso->endpoint) {
                     'gif' => 'GIF',
@@ -62,10 +70,12 @@ class ViewIpGrabber extends ViewRecord
                 'identidade_telefone' => $acesso->identidade_telefone ?: null,
                 'identidade_redes'    => ! empty($acesso->identidade_redes) ? $acesso->identidade_redes : [],
                 // Foto — ligada ao access_uuid deste acesso específico
-                'foto_url' => isset($fotosPorUuid[$acesso->uuid])
-                    ? Storage::disk('public')->url($fotosPorUuid[$acesso->uuid]->path)
+                'foto_url' => $foto ? Storage::disk('public')->url($foto->path) : null,
+                'foto_contexto' => $foto
+                    ? (filled($foto->access_uuid) ? 'Foto deste acesso' : 'Foto sem vínculo ao acesso')
                     : null,
-            ])
+                ];
+            })
             ->toArray();
     }
 

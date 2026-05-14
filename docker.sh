@@ -78,6 +78,11 @@ status() {
   docker ps --filter "name=siard-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker ps
 }
 
+recreate_proxy() {
+  info "Recriando proxy para remontar Caddyfile atualizado..."
+  docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps proxy
+}
+
 deploy() {
   echo -e "\n${BOLD}${BLUE}=== Deploy SIARD ===${NC}"
   cd "$PROJECT_DIR"
@@ -90,6 +95,7 @@ deploy() {
 
   info "3/6 — Subindo containers..."
   docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+  recreate_proxy
 
   info "4/6 — Aguardando banco ficar saudável..."
   local tries=0
@@ -122,6 +128,7 @@ update() {
 
   info "Reiniciando containers com a imagem atual..."
   docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+  recreate_proxy
 
   info "Rodando migrations..."
   docker exec "$APP" php artisan migrate --force --ansi

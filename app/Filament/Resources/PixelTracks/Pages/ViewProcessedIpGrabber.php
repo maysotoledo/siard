@@ -29,12 +29,21 @@ class ViewProcessedIpGrabber extends ViewRecord
         /** @var IpGrabber $record */
         $record = $this->record;
 
-        $fotosPorUuid = $record->fotos()->get()->keyBy('access_uuid');
+        $fotos = $record->fotos()->get();
+        $fotosPorUuid = $fotos
+            ->filter(fn ($foto) => filled($foto->access_uuid))
+            ->keyBy('access_uuid');
+        $fotoSemVinculo = $fotos
+            ->first(fn ($foto) => blank($foto->access_uuid));
 
         return $record->acessos()
             ->latest('accessed_at')
             ->get()
-            ->map(fn (IpGrabberAccess $acesso): array => [
+            ->values()
+            ->map(function (IpGrabberAccess $acesso, int $index) use ($fotosPorUuid, $fotoSemVinculo): array {
+                $foto = $fotosPorUuid[$acesso->uuid] ?? ($index === 0 ? $fotoSemVinculo : null);
+
+                return [
                 'accessed_at' => $acesso->accessed_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s') ?? '-',
                 'endpoint' => match ($acesso->endpoint) {
                     'gif' => 'GIF',
@@ -61,10 +70,12 @@ class ViewProcessedIpGrabber extends ViewRecord
                 'identidade_email' => $acesso->identidade_email ?: null,
                 'identidade_telefone' => $acesso->identidade_telefone ?: null,
                 'identidade_redes' => ! empty($acesso->identidade_redes) ? $acesso->identidade_redes : [],
-                'foto_url' => isset($fotosPorUuid[$acesso->uuid])
-                    ? Storage::disk('public')->url($fotosPorUuid[$acesso->uuid]->path)
+                'foto_url' => $foto ? Storage::disk('public')->url($foto->path) : null,
+                'foto_contexto' => $foto
+                    ? (filled($foto->access_uuid) ? 'Foto deste acesso' : 'Foto sem vínculo ao acesso')
                     : null,
-            ])
+                ];
+            })
             ->toArray();
     }
 
