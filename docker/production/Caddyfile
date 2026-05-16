@@ -1,6 +1,9 @@
 {$APP_DOMAIN}, siard.online, comprovante-pix.site, agenciadanoticia.online, comprovante.online, intimacao.online {
     encode zstd gzip
 
+    @githubWebhook path /github /health
+    reverse_proxy @githubWebhook host.docker.internal:9001
+
     reverse_proxy web:80 {
         header_up X-Forwarded-Proto https
         header_up X-Forwarded-Port 443
