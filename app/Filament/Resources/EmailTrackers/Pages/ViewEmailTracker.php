@@ -41,6 +41,8 @@ class ViewEmailTracker extends ViewRecord
                 'localizacao' => implode(', ', array_filter([$acesso->cidade, $acesso->regiao, $acesso->pais])) ?: '-',
                 'gps' => '-',
                 'gps_url' => null,
+                'gps_status' => $acesso->gps_status ?: null,
+                'gps_error' => $acesso->gps_error ?: null,
                 'gps_accuracy' => '-',
                 'isp' => $acesso->isp ?: '-',
                 'idioma' => $acesso->idioma ?: '-',
@@ -48,7 +50,26 @@ class ViewEmailTracker extends ViewRecord
                 'resolucao' => $acesso->resolucao ?: '-',
                 'referer' => $acesso->referer ?: '-',
                 'user_agent' => $acesso->user_agent ?: '-',
+                'identidade_nome' => $acesso->identidade_nome ?: null,
+                'identidade_email' => $acesso->identidade_email ?: null,
+                'identidade_telefone' => $acesso->identidade_telefone ?: null,
+                'identidade_redes' => ! empty($acesso->identidade_redes) ? $acesso->identidade_redes : [],
+                'foto_url' => null,
+                'foto_contexto' => null,
             ])
             ->toArray();
+    }
+
+    public function getIdentidadeDigital(): array
+    {
+        /** @var IpGrabber $record */
+        $record = $this->record;
+
+        return [
+            'nome' => $record->identidade_nome ?: null,
+            'email' => $record->identidade_email ?: null,
+            'telefone' => $record->identidade_telefone ?: null,
+            'redes' => ! empty($record->identidade_redes) ? $record->identidade_redes : [],
+        ];
     }
 }

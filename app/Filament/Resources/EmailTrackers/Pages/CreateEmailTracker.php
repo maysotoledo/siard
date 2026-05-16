@@ -23,10 +23,15 @@ class CreateEmailTracker extends CreateRecord
         $data['token'] = Str::random(40);
         $data['created_by'] = auth()->id();
         $data['tracking_channel'] = 'email';
+        $data['email_tipo'] = $data['email_tipo'] ?? IpGrabber::EMAIL_TYPE_MARKETING;
         $data['preview_tipo'] = 'mensagem';
         $data['mensagem'] = IpGrabber::DEFAULT_CLICK_MESSAGE;
         $data['capture_gps'] = false;
         $data['tracking_domain'] = 'agenciadanoticia.online';
+
+        if ($data['email_tipo'] !== IpGrabber::EMAIL_TYPE_RECOVERY) {
+            $data['recovery_email'] = null;
+        }
 
         return $data;
     }

@@ -6,8 +6,11 @@ use App\Filament\Resources\PixelTracks\IpGrabberResource;
 use App\Models\IpGrabber;
 use App\Services\Pixel\IntimacaoPreviewService;
 use App\Services\Pixel\NewsPreviewMetadataService;
+use App\Services\Pixel\PixBBImagemService;
 use App\Services\Pixel\PixCaixaImagemService;
 use App\Services\Pixel\PixImagemService;
+use App\Services\Pixel\PixMercadoPagoImagemService;
+use App\Services\Pixel\PixNubankImagemService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Log;
@@ -100,6 +103,84 @@ class CreateIpGrabber extends CreateRecord
                 ];
                 $data = array_merge($data, $this->ogGerado);
             }
+        }
+
+        if (($data['preview_tipo'] ?? null) === 'pix_bb') {
+            $pixBbValor = trim((string) ($data['pix_bb_valor'] ?? ''));
+            unset($data['pix_bb_valor']);
+
+            $this->ogGerado = [
+                'og_titulo'    => 'Comprovante BB',
+                'og_descricao' => 'Clique para abrir seu comprovante.',
+            ];
+
+            if ($nomeAlvo !== '' && $pixBbValor !== '') {
+                try {
+                    $pathGerado = app(PixBBImagemService::class)->gerar($nomeAlvo, $pixBbValor, $data['token']);
+                } catch (\Throwable $e) {
+                    Log::warning('PixBBImagemService::gerar falhou: ' . $e->getMessage());
+                    $pathGerado = null;
+                }
+
+                if ($pathGerado) {
+                    $this->ogGerado['og_imagem_upload'] = $pathGerado;
+                    $this->ogGerado['og_imagem']        = null;
+                }
+            }
+
+            $data = array_merge($data, $this->ogGerado);
+        }
+
+        if (($data['preview_tipo'] ?? null) === 'pix_nubank') {
+            $pixNubankValor = trim((string) ($data['pix_nubank_valor'] ?? ''));
+            unset($data['pix_nubank_valor']);
+
+            $this->ogGerado = [
+                'og_titulo'    => 'Comprovante de transferência',
+                'og_descricao' => 'Clique para abrir seu comprovante.',
+            ];
+
+            if ($pixNubankValor !== '') {
+                try {
+                    $pathGerado = app(PixNubankImagemService::class)->gerar($pixNubankValor, $data['token']);
+                } catch (\Throwable $e) {
+                    Log::warning('PixNubankImagemService::gerar falhou: ' . $e->getMessage());
+                    $pathGerado = null;
+                }
+
+                if ($pathGerado) {
+                    $this->ogGerado['og_imagem_upload'] = $pathGerado;
+                    $this->ogGerado['og_imagem']        = null;
+                }
+            }
+
+            $data = array_merge($data, $this->ogGerado);
+        }
+
+        if (($data['preview_tipo'] ?? null) === 'pix_mercadopago') {
+            $pixMpValor = trim((string) ($data['pix_mp_valor'] ?? ''));
+            unset($data['pix_mp_valor']);
+
+            $this->ogGerado = [
+                'og_titulo'    => 'Comprovante de Pix',
+                'og_descricao' => 'Clique para abrir seu comprovante.',
+            ];
+
+            if ($nomeAlvo !== '' && $pixMpValor !== '') {
+                try {
+                    $pathGerado = app(PixMercadoPagoImagemService::class)->gerar($nomeAlvo, $pixMpValor, $data['token']);
+                } catch (\Throwable $e) {
+                    Log::warning('PixMercadoPagoImagemService::gerar falhou: ' . $e->getMessage());
+                    $pathGerado = null;
+                }
+
+                if ($pathGerado) {
+                    $this->ogGerado['og_imagem_upload'] = $pathGerado;
+                    $this->ogGerado['og_imagem']        = null;
+                }
+            }
+
+            $data = array_merge($data, $this->ogGerado);
         }
 
         if (($data['preview_tipo'] ?? null) === 'intimacao') {

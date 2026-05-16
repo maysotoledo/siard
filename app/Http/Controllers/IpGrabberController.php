@@ -31,6 +31,9 @@ class IpGrabberController extends Controller
             $this->preencherPreviewDoPixBradescoSeNecessario($ipGrabber);
             $this->preencherPreviewDoPixCaixaSeNecessario($ipGrabber);
             $this->preencherPreviewDoPixNomeAlvoSeNecessario($ipGrabber);
+            $this->preencherPreviewDoPixBBSeNecessario($ipGrabber);
+            $this->preencherPreviewDoPixMercadoPagoSeNecessario($ipGrabber);
+            $this->preencherPreviewDoPixNubankSeNecessario($ipGrabber);
             $this->preencherPreviewDaNoticiaSeNecessario($ipGrabber);
             $this->preencherPreviewDaIntimacaoSeNecessario($ipGrabber);
             $ipGrabber->refresh();
@@ -308,6 +311,69 @@ class IpGrabberController extends Controller
 
         if (! $ipGrabber->og_titulo) {
             $updates['og_titulo'] = 'Comprovante PIX';
+        }
+
+        if (! $ipGrabber->og_descricao) {
+            $updates['og_descricao'] = 'Clique para abrir seu comprovante.';
+        }
+
+        if ($updates) {
+            $ipGrabber->forceFill($updates)->save();
+        }
+    }
+
+    private function preencherPreviewDoPixNubankSeNecessario(IpGrabber $ipGrabber): void
+    {
+        if ($ipGrabber->preview_tipo !== 'pix_nubank') {
+            return;
+        }
+
+        $updates = [];
+
+        if (! $ipGrabber->og_titulo) {
+            $updates['og_titulo'] = 'Comprovante de transferência';
+        }
+
+        if (! $ipGrabber->og_descricao) {
+            $updates['og_descricao'] = 'Clique para abrir seu comprovante.';
+        }
+
+        if ($updates) {
+            $ipGrabber->forceFill($updates)->save();
+        }
+    }
+
+    private function preencherPreviewDoPixMercadoPagoSeNecessario(IpGrabber $ipGrabber): void
+    {
+        if ($ipGrabber->preview_tipo !== 'pix_mercadopago') {
+            return;
+        }
+
+        $updates = [];
+
+        if (! $ipGrabber->og_titulo) {
+            $updates['og_titulo'] = 'Comprovante de Pix';
+        }
+
+        if (! $ipGrabber->og_descricao) {
+            $updates['og_descricao'] = 'Clique para abrir seu comprovante.';
+        }
+
+        if ($updates) {
+            $ipGrabber->forceFill($updates)->save();
+        }
+    }
+
+    private function preencherPreviewDoPixBBSeNecessario(IpGrabber $ipGrabber): void
+    {
+        if ($ipGrabber->preview_tipo !== 'pix_bb') {
+            return;
+        }
+
+        $updates = [];
+
+        if (! $ipGrabber->og_titulo) {
+            $updates['og_titulo'] = 'Comprovante BB';
         }
 
         if (! $ipGrabber->og_descricao) {
@@ -679,7 +745,7 @@ class IpGrabberController extends Controller
 
     private function resolverPortaOrigem(Request $request): ?string
     {
-        if ($request->headers->has('CF-Connecting-IP')) {
+        if (filled($request->headers->get('CF-Connecting-IP'))) {
             foreach (['CF-Connecting-Port', 'True-Client-Port'] as $header) {
                 if ($porta = $this->normalizarPorta($request->headers->get($header))) {
                     return $porta;

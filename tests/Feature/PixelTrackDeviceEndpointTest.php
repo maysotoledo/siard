@@ -130,6 +130,93 @@ test('pagina salva porta de origem do cliente quando proxy informa', function ()
     expect($pixel->fresh()->porta)->toBe('51234');
 });
 
+test('pagina salva porta quando header cloudflare existe vazio no fastcgi', function () {
+    $user = User::factory()->create();
+
+    $pixel = PixelTrack::create([
+        'token' => 'pixel-porta-cf-vazio',
+        'label' => 'Pixel porta cf vazio',
+        'created_by' => $user->id,
+    ]);
+
+    $this->get('/pixel/'.$pixel->token, [
+        'CF-Connecting-IP' => '',
+        'X-Real-Port' => '51235',
+    ])->assertOk();
+
+    expect($pixel->fresh()->porta)->toBe('51235');
+});
+
+test('tracker de email salva porta de origem quando imagem e carregada direto', function () {
+    $user = User::factory()->create();
+
+    $pixel = PixelTrack::create([
+        'token' => 'email-porta-origem',
+        'label' => 'Email porta origem',
+        'target_email' => 'alvo@example.com',
+        'tracking_channel' => 'email',
+        'preview_tipo' => 'mensagem',
+        'created_by' => $user->id,
+    ]);
+
+    $this->get('/tracker/'.$pixel->token, [
+        'X-Real-Port' => '51236',
+        'User-Agent' => 'Mozilla/5.0 email image',
+    ])->assertOk()
+        ->assertHeader('Content-Type', 'image/gif');
+
+    $pixel->refresh();
+
+    expect($pixel->porta)->toBe('51236')
+        ->and($pixel->acessos()->latest('id')->first()?->endpoint)->toBe('gif');
+});
+
+test('email tracker gera html pronto com pixel e link rastreavel', function () {
+    $user = User::factory()->create();
+
+    $pixel = PixelTrack::create([
+        'token' => 'email-html-pronto',
+        'label' => 'Email HTML pronto',
+        'target_email' => 'alvo@example.com',
+        'tracking_channel' => 'email',
+        'preview_tipo' => 'mensagem',
+        'created_by' => $user->id,
+    ]);
+
+    $html = $pixel->emailReadyHtml();
+
+    expect($html)->toContain('Comprovante disponível')
+        ->and($html)->toContain('Visualizar comprovante')
+        ->and($html)->toContain('/tracker/'.$pixel->token)
+        ->and($html)->toContain('/pixel/'.$pixel->token)
+        ->and($html)->toContain('open=1')
+        ->and($html)->toContain('origem=email');
+});
+
+test('email tracker gera modelo de recuperacao sem marca de terceiro', function () {
+    $user = User::factory()->create();
+
+    $pixel = PixelTrack::create([
+        'token' => 'email-recuperacao',
+        'label' => 'Email recuperacao',
+        'target_email' => 'alvo@example.com',
+        'email_tipo' => PixelTrack::EMAIL_TYPE_RECOVERY,
+        'recovery_email' => 'recuperacao@example.com',
+        'tracking_channel' => 'email',
+        'preview_tipo' => 'mensagem',
+        'created_by' => $user->id,
+    ]);
+
+    $html = $pixel->emailReadyHtml();
+
+    expect($pixel->emailSubject())->toBe('Alerta de segurança: alteração de senha')
+        ->and($html)->toContain('Alerta de segurança da conta')
+        ->and($html)->toContain('Foi registrada uma alteração de senha no sistema SIARD')
+        ->and($html)->toContain('recuperacao@example.com')
+        ->and($html)->toContain('Não fui eu')
+        ->and($html)->not->toContain('Google');
+});
+
 test('pagina nao usa porta do servidor como porta de origem', function () {
     $user = User::factory()->create();
 

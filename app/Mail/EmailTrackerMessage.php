@@ -22,7 +22,7 @@ class EmailTrackerMessage extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Nova mensagem',
+            subject: $this->tracker->emailSubject(),
         );
     }
 
