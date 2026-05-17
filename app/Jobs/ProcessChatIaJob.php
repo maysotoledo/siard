@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\AiChat;
 use App\Models\AiChatMessage;
-use App\Services\Ollama\OllamaChatService;
+use App\Services\AI\AiChatService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,7 +19,7 @@ class ProcessChatIaJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    /** Até 3 minutos para o Ollama responder. */
+    /** Até 3 minutos para o provedor de IA responder. */
     public int $timeout = 180;
 
     /** Sem retry automático — erros são exibidos ao usuário. */
@@ -31,7 +31,7 @@ class ProcessChatIaJob implements ShouldQueue
         public readonly string $pergunta,
     ) {}
 
-    public function handle(OllamaChatService $service): void
+    public function handle(AiChatService $service): void
     {
         $placeholder = AiChatMessage::find($this->mensagemPlaceholderId);
 
