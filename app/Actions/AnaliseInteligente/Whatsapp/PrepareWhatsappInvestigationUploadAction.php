@@ -36,13 +36,15 @@ class PrepareWhatsappInvestigationUploadAction
         });
 
         $existingTargets = $this->existingTargetsByNormalizedKey($investigation);
+        $groupsForExistingTargets = [];
 
-        foreach ($groupsWithIpLog as $items) {
+        foreach ($groups as $groupKey => $items) {
             $firstParsed = (array) data_get($items, '0.parsed', []);
             $targetRaw = $firstParsed['target'] ?? ($firstParsed['account_identifier'] ?? null);
             $targetKey = $this->normalizeTargetForDuplicateCheck(is_string($targetRaw) ? $targetRaw : null);
 
             if ($targetKey && isset($existingTargets[$targetKey])) {
+                $groupsForExistingTargets[$groupKey] = $items;
                 continue;
             }
 
@@ -63,7 +65,10 @@ class PrepareWhatsappInvestigationUploadAction
             );
         }
 
-        $this->importBilhetagemOnlyGroupsIntoInvestigation($investigation, array_diff_key($groups, $groupsWithIpLog));
+        $this->importBilhetagemOnlyGroupsIntoInvestigation(
+            $investigation,
+            array_diff_key($groupsForExistingTargets, $groupsWithIpLog),
+        );
     }
 
     private function groupUploadsByTarget(array $storedPaths): array
