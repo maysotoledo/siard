@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\AiAnalysis;
+use App\Services\AI\AiManager;
 use App\Services\IA\OllamaService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,15 +35,22 @@ class ProcessAiAnalysisJob implements ShouldQueue
         }
 
         $this->atualizarAnalise($analysis, 'processing', 10, null);
-
         $this->atualizarAnalise($analysis, 'processing', 25, null);
 
-        $resposta = $ollamaService->chat(
-            pergunta: (string) $analysis->pergunta,
-            contexto: is_array($analysis->contexto) ? $analysis->contexto : [],
-            tipo: $analysis->tipo,
-            modelo: $analysis->modelo
-        );
+        // Tenta usar AiManager (multi-provider); cai em OllamaService em caso de falha.
+        try {
+            $manager  = new AiManager();
+            $contexto = is_array($analysis->contexto) ? $analysis->contexto : [];
+            $prompt   = (string) $analysis->pergunta . "\n\nCONTEXTO:\n" . json_encode($contexto, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            $resposta = $manager->generate($prompt);
+        } catch (\Throwable) {
+            $resposta = $ollamaService->chat(
+                pergunta: (string) $analysis->pergunta,
+                contexto: is_array($analysis->contexto) ? $analysis->contexto : [],
+                tipo: $analysis->tipo,
+                modelo: $analysis->modelo
+            );
+        }
 
         $this->atualizarAnalise($analysis, 'processing', 85, null);
 

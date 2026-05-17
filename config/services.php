@@ -43,8 +43,33 @@ return [
     ],
 
     'ollama' => [
-    'url' => env('OLLAMA_URL', 'http://127.0.0.1:11434'),
-    'model' => env('OLLAMA_MODEL', 'qwen2.5:0.5b'),
+        'url' => env('OLLAMA_URL', 'http://127.0.0.1:11434'),
+        'model' => env('OLLAMA_MODEL', 'qwen2.5:0.5b'),
+    ],
+
+    'ai' => [
+        'provider' => env('AI_PROVIDER', 'ollama'),
+        'timeout'  => (int) env('AI_TIMEOUT', 180),
+
+        'gemini' => [
+            'key'   => env('GEMINI_API_KEY'),
+            'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        ],
+
+        'groq' => [
+            'key'   => env('GROQ_API_KEY'),
+            'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        ],
+
+        'openai' => [
+            'key'   => env('OPENAI_API_KEY'),
+            'model' => env('OPENAI_MODEL', 'gpt-4.1-mini'),
+        ],
+
+        'ollama' => [
+            'url'   => env('OLLAMA_URL', 'http://ollama:11434'),
+            'model' => env('OLLAMA_MODEL', 'qwen2.5:7b'),
+        ],
     ],
 
     'mercado_pago' => [
