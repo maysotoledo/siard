@@ -4,7 +4,7 @@ Este projeto inclui os mesmos componentes usados no VPS atual para fazer deploy 
 
 ## Arquivos versionados
 
-- `.githooks/post-push`: hook local que chama o webhook depois de `git push`.
+- `.githooks/pre-push`: hook local que agenda a chamada do webhook ao executar `git push`.
 - `scripts/install-local-deploy-hook.sh`: instala o hook local neste clone.
 - `scripts/vps/siard-deploy`: faz pull/reset em `/opt/siard-repo`, copia para `/opt/siard`, rebuilda containers e roda migrations/cache.
 - `scripts/vps/siard-deploy-webhook`: servidor HTTP local que valida assinatura GitHub e chama o deploy.

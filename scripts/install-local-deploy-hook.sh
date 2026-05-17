@@ -13,8 +13,8 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-if [[ ! -x .githooks/post-push ]]; then
-  chmod +x .githooks/post-push
+if [[ ! -x .githooks/pre-push ]]; then
+  chmod +x .githooks/pre-push
 fi
 
 if [[ -z "$WEBHOOK_SECRET" ]]; then
