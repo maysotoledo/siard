@@ -6,6 +6,7 @@ use App\Models\AnaliseRunEvent;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Tables\TableComponent;
+use Illuminate\Database\Eloquent\Builder;
 
 class GenericUserAgentsTable extends TableComponent
 {
@@ -13,14 +14,18 @@ class GenericUserAgentsTable extends TableComponent
 
     public function table(Table $table): Table
     {
+        $aggregatedQuery = AnaliseRunEvent::query()
+            ->where('analise_run_id', $this->runId)
+            ->where('event_type', 'access')
+            ->whereNotNull('user_agent')
+            ->selectRaw('MAX(id) as id, user_agent, COUNT(*) as occurrences, MAX(occurred_at) as occurred_at')
+            ->groupBy('user_agent');
+
         return $table
             ->query(
-                AnaliseRunEvent::query()
-                    ->where('analise_run_id', $this->runId)
-                    ->where('event_type', 'access')
-                    ->whereNotNull('user_agent')
-                    ->selectRaw('MIN(id) as id, user_agent, COUNT(*) as occurrences, MAX(occurred_at) as occurred_at')
-                    ->groupBy('user_agent')
+                (new AnaliseRunEvent)->setTable('user_agent_stats')->newQuery()
+                    ->fromSub($aggregatedQuery->toBase(), 'user_agent_stats')
+                    ->select('user_agent_stats.*')
             )
             ->columns([
                 TextColumn::make('user_agent')
@@ -37,7 +42,7 @@ class GenericUserAgentsTable extends TableComponent
                     ->formatStateUsing(fn ($state): ?string => $state?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s'))
                     ->sortable(),
             ])
-            ->defaultSort('occurrences', 'desc')
+            ->modifyQueryUsing(fn (Builder $query) => $query->orderByDesc('occurrences')->orderByDesc('id'))
             ->paginated([10, 25, 50])
             ->defaultPaginationPageOption(10);
     }

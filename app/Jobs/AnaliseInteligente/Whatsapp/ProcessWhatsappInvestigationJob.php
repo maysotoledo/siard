@@ -13,7 +13,8 @@ class ProcessWhatsappInvestigationJob implements ShouldQueue
     use Queueable;
 
     public int $timeout = 300;
-    public int $tries = 1;
+    public int $tries = 3;
+    public array $backoff = [30, 120];
 
     public function __construct(
         public int $investigationId,

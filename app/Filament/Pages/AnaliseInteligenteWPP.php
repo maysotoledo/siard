@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Pages\RelatoriosProcessados;
+use App\Jobs\AnaliseInteligente\Platform\EnrichRunIpsJob;
 use App\Jobs\AnaliseInteligente\Whatsapp\ProcessWhatsappInvestigationJob;
 use App\Jobs\AnaliseInteligente\Whatsapp\ProcessWhatsappTargetGroupJob;
 use App\Models\AnaliseRun;
@@ -30,7 +31,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Bus\Dispatcher;
 use Livewire\Attributes\On;
 
 class AnaliseInteligenteWPP extends Page implements HasSchemas
@@ -89,6 +89,10 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
     public array $pendingDuplicateTargetLabels = [];
     public ?int $awaitingRunCreationUntil = null;
     public ?int $awaitingRunCreationBaseCount = null;
+
+    // ====== MODAL BURST ======
+    public ?string $burstHour = null;
+    public array $burstModalRows = [];
 
 
     public static function getNavigationGroup(): string|\UnitEnum|null
@@ -190,13 +194,11 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
             ->where('investigation_id', $investigation->id)
             ->count();
 
-        app(Dispatcher::class)->dispatchAfterResponse(
-            new ProcessWhatsappInvestigationJob(
-                investigationId: $investigation->id,
-                userId: (int) auth()->id(),
-                storedPaths: array_values($storedPaths),
-                batchId: $batchId,
-            )
+        ProcessWhatsappInvestigationJob::dispatch(
+            investigationId: $investigation->id,
+            userId: (int) auth()->id(),
+            storedPaths: array_values($storedPaths),
+            batchId: $batchId,
         );
 
         $this->investigationId = $investigation->id;
@@ -779,6 +781,24 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         }, $runs));
     }
 
+    public function getConsolidatedTargetGroups(): array
+    {
+        if (count($this->targetRuns) < 2) {
+            return [];
+        }
+
+        $groups = [];
+        foreach ($this->targetRuns as $run) {
+            $key = $this->normalizeTargetForDuplicateCheck((string) ($run['target'] ?? '')) ?? ($run['target'] ?? '');
+            $groups[$key] ??= ['target' => $run['target'], 'runs' => [], 'total_ips' => 0, 'unique_ips' => 0];
+            $groups[$key]['runs'][] = $run['id'];
+            $groups[$key]['total_ips'] += (int) ($run['total_ips'] ?? 0);
+            $groups[$key]['unique_ips'] += (int) ($run['unique_ips'] ?? 0);
+        }
+
+        return array_values(array_filter($groups, fn ($g) => count($g['runs']) > 1));
+    }
+
     protected function isRunCompleted(AnaliseRun $run): bool
     {
         return (string) $run->status === 'done' || (int) $run->progress >= 100;
@@ -943,6 +963,60 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
     {
         $this->selectedProvider = null;
         $this->selectedProviderIps = [];
+    }
+
+    #[On('open-burst-modal')]
+    public function openBurstModal(string $burstHour): void
+    {
+        $this->burstHour = $burstHour;
+
+        $run = $this->loadRunForReport($this->selectedTargetRunId ?: $this->runId);
+        if (! $run) {
+            return;
+        }
+
+        [$date, $hour] = explode(' ', $burstHour);
+        $start = \Carbon\Carbon::createFromFormat('Y-m-d H', $burstHour, 'UTC');
+        $end   = $start->copy()->addHour();
+
+        $this->burstModalRows = AnaliseRunEvent::query()
+            ->with('ipEnrichment')
+            ->where('analise_run_id', $run->id)
+            ->where('event_type', 'access')
+            ->whereBetween('occurred_at', [$start->toDateTimeString(), $end->toDateTimeString()])
+            ->orderBy('occurred_at')
+            ->get()
+            ->map(fn (AnaliseRunEvent $e): array => [
+                'datetime' => $e->occurred_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s'),
+                'ip'       => $e->ip ?? '-',
+                'port'     => $e->logical_port ?? '-',
+                'provider' => $e->provider_label,
+                'city'     => $e->city_label,
+                'type'     => $e->connection_type,
+            ])
+            ->all();
+
+        $this->mountAction('burstModal');
+    }
+
+    public function burstModal(): Action
+    {
+        return Action::make('burstModal')
+            ->label('Detalhes do Burst')
+            ->modalHeading(fn (): string => 'Burst de acessos — ' . (
+                $this->burstHour
+                    ? \Carbon\Carbon::createFromFormat('Y-m-d H', $this->burstHour, 'UTC')
+                        ->setTimezone('America/Sao_Paulo')
+                        ->format('d/m/Y H:i') . 'h (GMT-3)'
+                    : '-'
+            ))
+            ->modalWidth(Width::SevenExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Fechar')
+            ->after(fn () => $this->burstHour = null)
+            ->modalContent(fn () => view('filament.pages.partials.modal-burst', [
+                'rows' => $this->burstModalRows,
+            ]));
     }
 
     public function openVinculoTimesModal(string $ip, string $target): void
@@ -1486,11 +1560,8 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
             return $this->existingReportWithSheets($run);
         }
 
-        $addedBilhetagemIps = $this->ensureRunIpsForBilhetagem($run);
-        if ($activeTab === 'bilhetagem') {
-            $this->enrichPendingIpsNow($run, batchSize: 15, maxBatches: 40);
-        } elseif ($addedBilhetagemIps > 0 || $activeTab === 'providers') {
-            $this->enrichPendingIpsNow($run, batchSize: 10, maxBatches: 20);
+        if ($this->ensureRunIpsForBilhetagem($run) > 0) {
+            EnrichRunIpsJob::dispatch($run->id);
         }
 
         $parsed['message_log'] = [];
@@ -1521,7 +1592,32 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
             ? $this->buildVinculoRows($run)
             : [];
 
+        $this->persistReportSnapshot($run, $report);
+
         return $report;
+    }
+
+    protected function persistReportSnapshot(AnaliseRun $run, array $report): void
+    {
+        $existing = is_array($run->report) ? $run->report : [];
+
+        $snapshot = array_merge($existing, array_filter([
+            'timeline_rows'      => $report['timeline_rows'] ?? null,
+            'unique_ip_rows'     => $report['unique_ip_rows'] ?? null,
+            'provider_stats_rows'=> $report['provider_stats_rows'] ?? null,
+            'city_stats_rows'    => $report['city_stats_rows'] ?? null,
+            'night_events_rows'  => $report['night_events_rows'] ?? null,
+            'mobile_events_rows' => $report['mobile_events_rows'] ?? null,
+            'groups_rows'        => $report['groups_rows'] ?? null,
+            'connection_summary' => $report['connection_summary'] ?? null,
+            'period_label'       => $report['period_label'] ?? null,
+            'total_ips'          => $report['total_ips'] ?? null,
+            'night_total_events' => $report['night_total_events'] ?? null,
+            'mobile_total_events'=> $report['mobile_total_events'] ?? null,
+            '_cached_at'         => now()->toIso8601String(),
+        ], fn ($v) => $v !== null));
+
+        $run->forceFill(['report' => $snapshot])->save();
     }
 
     protected function buildParsedPayloadFromDatabase(AnaliseRun $run): ?array
@@ -1623,50 +1719,66 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
             return [];
         }
 
+        $recipients = $summaryRows
+            ->pluck('recipient')
+            ->map(fn ($recipient) => trim((string) $recipient))
+            ->filter(fn ($recipient) => $recipient !== '')
+            ->values()
+            ->all();
+
+        $rankedLatestRows = DB::table('bilhetagens as b')
+            ->select([
+                'b.recipient',
+                'b.timestamp_utc',
+                'b.message_id',
+                'b.sender_ip',
+                'b.sender_port',
+                'b.type',
+            ])
+            ->where('b.analise_run_id', $run->id)
+            ->whereIn('b.recipient', $recipients)
+            ->whereRaw(
+                'b.id = (
+                    select b2.id
+                    from bilhetagens as b2
+                    where b2.analise_run_id = b.analise_run_id
+                        and b2.recipient = b.recipient
+                    order by b2.timestamp_utc desc, b2.id desc
+                    limit 1
+                )'
+            )
+            ->get()
+            ->keyBy('recipient');
+
         $cards = [];
         $latestIps = [];
-        $recipientCandidateIps = [];
 
         foreach ($summaryRows as $summary) {
             $recipient = trim((string) $summary->recipient);
             if ($recipient === '') continue;
 
-            $latest = Bilhetagem::query()
-                ->where('analise_run_id', $run->id)
-                ->where('recipient', $recipient)
-                ->orderByDesc('timestamp_utc')
-                ->orderByDesc('id')
-                ->first(['timestamp_utc', 'message_id', 'sender_ip', 'sender_port', 'type']);
+            $latest = $rankedLatestRows->get($recipient);
 
             $latestRow = null;
             if ($latest) {
-                $ipBase = $this->extractIpBase($latest->sender_ip);
+                $ipBase = $this->extractIpBase(is_string($latest->sender_ip) ? $latest->sender_ip : null);
                 if ($ipBase) {
                     $latestIps[$ipBase] = true;
                 }
 
-                $recipientCandidateIps[$recipient] = Bilhetagem::query()
-                    ->where('analise_run_id', $run->id)
-                    ->where('recipient', $recipient)
-                    ->whereNotNull('sender_ip')
-                    ->orderByDesc('timestamp_utc')
-                    ->orderByDesc('id')
-                    ->limit(20)
-                    ->pluck('sender_ip')
-                    ->map(fn ($ip) => $this->extractIpBase(is_string($ip) ? $ip : null))
-                    ->filter(fn ($ip) => is_string($ip) && trim($ip) !== '')
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                foreach ($recipientCandidateIps[$recipient] as $candidateIp) {
-                    $latestIps[$candidateIp] = true;
+                $timestamp = null;
+                if (! empty($latest->timestamp_utc)) {
+                    try {
+                        $timestamp = Carbon::parse($latest->timestamp_utc, 'UTC')
+                            ->setTimezone('America/Sao_Paulo')
+                            ->format('d/m/Y H:i:s');
+                    } catch (\Throwable) {
+                        $timestamp = null;
+                    }
                 }
 
                 $latestRow = [
-                    'timestamp' => $latest->timestamp_utc
-                        ? $latest->timestamp_utc->copy()->setTimezone('America/Sao_Paulo')->format('d/m/Y H:i:s')
-                        : null,
+                    'timestamp' => $timestamp,
                     'sender_ip' => $latest->sender_ip,
                     'sender_port' => $latest->sender_port,
                     'sender_provider' => 'Desconhecido',
@@ -1691,16 +1803,6 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
         foreach ($cards as &$card) {
             $ipBase = $this->extractIpBase(data_get($card, 'latest.sender_ip'));
             $provider = $ipBase ? $this->resolveProviderFromEnrichment($enrichments->get($ipBase)) : null;
-
-            if ($provider === null) {
-                $recipient = trim((string) ($card['recipient'] ?? ''));
-                foreach ($recipientCandidateIps[$recipient] ?? [] as $candidateIp) {
-                    $provider = $this->resolveProviderFromEnrichment($enrichments->get($candidateIp));
-                    if ($provider !== null) {
-                        break;
-                    }
-                }
-            }
 
             if ($provider !== null) {
                 $card['latest']['sender_provider'] = $provider;
@@ -2093,6 +2195,7 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
             'groups',
             'bilhetagem',
             'vinculo',
+            'burst',
         ];
     }
 
@@ -2245,6 +2348,17 @@ class AnaliseInteligenteWPP extends Page implements HasSchemas
             ]);
 
             $added++;
+        }
+
+        if ($added > 0) {
+            $totalUniqueIps = AnaliseRunIp::query()
+                ->where('analise_run_id', $run->id)
+                ->distinct('ip')
+                ->count('ip');
+
+            $run->forceFill([
+                'total_unique_ips' => $totalUniqueIps,
+            ])->save();
         }
 
         return $added;

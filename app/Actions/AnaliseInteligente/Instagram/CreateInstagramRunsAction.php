@@ -83,7 +83,7 @@ class CreateInstagramRunsAction
             $run->report = $report;
             $run->save();
 
-            app()->call([(new EnrichRunIpsJob($run->id)), 'handle']);
+            EnrichRunIpsJob::dispatch($run->id);
         }
 
         return $runs;
@@ -132,8 +132,11 @@ class CreateInstagramRunsAction
                 ],
             ]);
 
+            $now = now();
+
+            $ipRows = [];
             foreach ($ipsMap as $ip => $meta) {
-                AnaliseRunIp::create([
+                $ipRows[] = [
                     'analise_run_id' => $run->id,
                     'ip' => $ip,
                     'occurrences' => (int) ($meta['occurrences'] ?? 0),
@@ -141,11 +144,18 @@ class CreateInstagramRunsAction
                         ? now()->setTimestamp((int) $meta['last_seen_ts'])
                         : null,
                     'enriched' => false,
-                ]);
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
 
+            foreach (array_chunk($ipRows, 1000) as $chunk) {
+                DB::table('analise_run_ips')->insert($chunk);
+            }
+
+            $eventRows = [];
             foreach ((array) ($parsed['ip_events'] ?? []) as $event) {
-                AnaliseRunEvent::create([
+                $eventRows[] = [
                     'analise_run_id' => $run->id,
                     'event_type' => 'access',
                     'occurred_at' => $this->normalizeDate($event['time_utc'] ?? null),
@@ -153,8 +163,14 @@ class CreateInstagramRunsAction
                     'ip' => $event['ip'] ?? null,
                     'logical_port' => $event['logical_port'] ?? null,
                     'description' => $event['description'] ?? null,
-                    'metadata' => $event,
-                ]);
+                    'metadata' => json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            foreach (array_chunk($eventRows, 1000) as $chunk) {
+                DB::table('analise_run_events')->insert($chunk);
             }
 
             return $run;

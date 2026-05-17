@@ -67,12 +67,18 @@
                     {{ $progress }}%
                     @if($running)
                         @if(empty($targetRuns))
-                            (preparando alvo e consolidando arquivos...)
+                            — <span class="text-gray-500">preparando arquivos e enfileirando investigação...</span>
+                        @elseif($progress < 20)
+                            — <span class="text-gray-500">parsing dos arquivos HTML...</span>
+                        @elseif($progress < 50)
+                            — <span class="text-gray-500">enriquecendo IPs com geolocalização...</span>
+                        @elseif($progress < 85)
+                            — <span class="text-gray-500">consolidando eventos e gerando relatório...</span>
                         @else
-                            (processando...)
+                            — <span class="text-gray-500">finalizando e salvando resultados...</span>
                         @endif
                     @else
-                        (finalizado)
+                        — <span class="text-green-600 font-medium">concluído</span>
                     @endif
                 </div>
             </div>
@@ -249,6 +255,8 @@
                 'residencial' => ['label' => 'Noturno (23–06)', 'icon' => 'heroicon-o-moon'],
                 'movel' => ['label' => 'Móvel', 'icon' => 'heroicon-o-device-phone-mobile'],
                 'direct' => ['label' => 'Direct', 'icon' => 'heroicon-o-chat-bubble-left-right'],
+                'burst' => ['label' => 'Burst', 'icon' => 'heroicon-o-bolt'],
+                'qualidade' => ['label' => 'Qualidade', 'icon' => 'heroicon-o-check-circle'],
             ];
 
             $counts = [
@@ -259,12 +267,13 @@
                 'residencial' => (int) data_get($report, '_counts.residencial', $report['night_total_events'] ?? 0),
                 'movel' => (int) data_get($report, '_counts.movel', $report['mobile_total_events'] ?? 0),
                 'direct' => (int) data_get($report, '_counts.direct', count($report['direct_threads'] ?? [])),
+                'burst' => count($report['hourly_rows'] ?? []),
+                'qualidade' => ($report['parse_stats'] ?? null) ? 1 : 0,
             ];
         @endphp
 
         <x-filament::section class="mt-6" heading="Planilhas">
-            <div class="overflow-x-auto">
-                <div class="inline-flex gap-2 min-w-max pb-1">
+            <div class="flex flex-wrap gap-2">
                     @foreach($tabs as $key => $meta)
                         @php $active = $tab === $key; @endphp
 
@@ -287,13 +296,15 @@
                             </span>
                         </x-filament::button>
                     @endforeach
-                </div>
             </div>
         </x-filament::section>
 
         <div class="mt-6 space-y-6">
             @if ($tab === 'timeline')
                 <x-filament::section heading="Timeline (Eventos)">
+                    <x-slot name="headerEnd">
+                        <x-filament::button size="sm" color="gray" icon="heroicon-o-arrow-down-tray" wire:click="exportTab('timeline')">CSV</x-filament::button>
+                    </x-slot>
                     <livewire:analise-inteligente.timeline-table
                         :rows="$report['timeline_rows'] ?? []"
                         :wire:key="'insta-timeline-' . $runId"
@@ -303,6 +314,9 @@
 
             @if ($tab === 'unique_ips')
                 <x-filament::section heading="IPs Únicos (Relevância)">
+                    <x-slot name="headerEnd">
+                        <x-filament::button size="sm" color="gray" icon="heroicon-o-arrow-down-tray" wire:click="exportTab('unique_ips')">CSV</x-filament::button>
+                    </x-slot>
                     <livewire:analise-inteligente.unique-ips-table
                         :rows="$report['unique_ip_rows'] ?? []"
                         :wire:key="'insta-unique-' . $runId"
@@ -312,6 +326,9 @@
 
             @if ($tab === 'providers')
                 <x-filament::section heading="Provedores (Métricas)">
+                    <x-slot name="headerEnd">
+                        <x-filament::button size="sm" color="gray" icon="heroicon-o-arrow-down-tray" wire:click="exportTab('providers')">CSV</x-filament::button>
+                    </x-slot>
                     <livewire:analise-inteligente.providers-stats-table
                         :rows="$report['provider_stats_rows'] ?? []"
                         :wire:key="'insta-providers-' . $runId"
@@ -321,6 +338,9 @@
 
             @if ($tab === 'cities')
                 <x-filament::section heading="Cidades (Concentração)">
+                    <x-slot name="headerEnd">
+                        <x-filament::button size="sm" color="gray" icon="heroicon-o-arrow-down-tray" wire:click="exportTab('cities')">CSV</x-filament::button>
+                    </x-slot>
                     <livewire:analise-inteligente.cities-stats-table
                         :rows="$report['city_stats_rows'] ?? []"
                         :wire:key="'insta-cities-' . $runId"
@@ -347,24 +367,97 @@
                     @if (count($threads) === 0)
                         <div class="text-sm text-gray-500">Nenhuma conversa encontrada em Unified Messages.</div>
                     @else
-                        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                            @foreach($threads as $t)
-                                @php
-                                    $name = $t['participant'] ?? '—';
-                                    $msgCount = count($t['messages'] ?? []);
-                                @endphp
+                        <div
+                            x-data="{ search: '' }"
+                            class="space-y-4"
+                        >
+                            <input
+                                type="text"
+                                x-model="search"
+                                placeholder="Buscar por participante..."
+                                class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
 
-                                <button
-                                    type="button"
-                                    class="rounded-xl border p-4 text-left hover:bg-gray-50 transition"
-                                    wire:click="openDirectModal({{ json_encode($name) }})"
-                                >
-                                    <div class="text-sm text-gray-500">Conversou com</div>
-                                    <div class="font-semibold break-all">{{ $name }}</div>
-                                    <div class="text-xs text-gray-400 mt-1">
-                                        {{ number_format($msgCount, 0, ',', '.') }} mensagem(ns)
+                            <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                @foreach($threads as $t)
+                                    @php
+                                        $name = $t['participant'] ?? '—';
+                                        $msgCount = count($t['messages'] ?? []);
+                                    @endphp
+
+                                    <button
+                                        type="button"
+                                        x-show="search === '' || '{{ mb_strtolower($name) }}'.includes(search.toLowerCase())"
+                                        class="rounded-xl border p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                        wire:click="openDirectModal({{ json_encode($name) }})"
+                                    >
+                                        <div class="text-sm text-gray-500">Conversou com</div>
+                                        <div class="font-semibold break-all">{{ $name }}</div>
+                                        <div class="text-xs text-gray-400 mt-1">
+                                            {{ number_format($msgCount, 0, ',', '.') }} mensagem(ns)
+                                        </div>
+                                    </button>
+                                @endforeach
+                            </div>
+
+                            <div
+                                x-show="search !== '' && document.querySelectorAll('[x-show][style*=\'display: none\']').length === {{ count($threads) }}"
+                                class="text-sm text-gray-400 text-center py-4"
+                            >
+                                Nenhuma conversa encontrada para "<span x-text="search"></span>"
+                            </div>
+                        </div>
+                    @endif
+                </x-filament::section>
+            @endif
+            @if ($tab === 'burst')
+                <x-filament::section heading="Conexões por hora">
+                    <x-slot name="description">Clique em qualquer hora para ver os IPs e horários exatos de acesso.</x-slot>
+                    <livewire:analise-inteligente.burst-hours-table
+                        :rows="$report['hourly_rows'] ?? []"
+                        :wire:key="'burst-insta-' . $runId"
+                    />
+                </x-filament::section>
+            @endif
+
+            @if ($tab === 'qualidade')
+                @php $stats = $report['parse_stats'] ?? null; @endphp
+                <x-filament::section heading="Qualidade dos dados">
+                    <x-slot name="description">Indicadores de completude extraídos do arquivo HTML do Instagram.</x-slot>
+
+                    @if (! $stats)
+                        <div class="text-sm text-gray-500">Dados de qualidade não disponíveis (relatório gerado antes desta funcionalidade).</div>
+                    @else
+                        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            @php
+                                $qualItems = [
+                                    ['label' => 'Eventos de IP', 'value' => number_format($stats['ip_events_count'], 0, ',', '.'), 'ok' => $stats['ip_events_count'] > 0],
+                                    ['label' => 'Conversas Direct', 'value' => number_format($stats['direct_threads_count'], 0, ',', '.'), 'ok' => true],
+                                    ['label' => 'Seguidores', 'value' => number_format($stats['followers_count'], 0, ',', '.'), 'ok' => true],
+                                    ['label' => 'Seguindo', 'value' => number_format($stats['following_count'], 0, ',', '.'), 'ok' => true],
+                                    ['label' => 'Alvo identificado', 'value' => $stats['has_target'] ? 'Sim' : 'Não', 'ok' => $stats['has_target']],
+                                    ['label' => 'IP de registro', 'value' => $stats['has_registration_ip'] ? 'Encontrado' : 'Ausente', 'ok' => $stats['has_registration_ip']],
+                                    ['label' => 'Telefone de registro', 'value' => $stats['has_registration_phone'] ? 'Encontrado' : 'Ausente', 'ok' => $stats['has_registration_phone']],
+                                    ['label' => 'Última localização', 'value' => $stats['has_last_location'] ? 'Encontrada' : 'Ausente', 'ok' => $stats['has_last_location']],
+                                    ['label' => 'Intervalo de datas', 'value' => $stats['has_date_range'] ? 'Presente' : 'Ausente', 'ok' => $stats['has_date_range']],
+                                    ['label' => 'Erros fatais de parsing', 'value' => $stats['libxml_fatal_errors'], 'ok' => $stats['libxml_fatal_errors'] === 0],
+                                ];
+                            @endphp
+
+                            @foreach($qualItems as $item)
+                                <div class="rounded-xl border p-4 flex items-start gap-3">
+                                    <div class="mt-0.5">
+                                        @if($item['ok'])
+                                            <x-filament::icon icon="heroicon-o-check-circle" class="h-5 w-5 text-success-500" />
+                                        @else
+                                            <x-filament::icon icon="heroicon-o-exclamation-circle" class="h-5 w-5 text-warning-500" />
+                                        @endif
                                     </div>
-                                </button>
+                                    <div>
+                                        <div class="text-xs text-gray-500">{{ $item['label'] }}</div>
+                                        <div class="font-semibold text-sm">{{ $item['value'] }}</div>
+                                    </div>
+                                </div>
                             @endforeach
                         </div>
                     @endif

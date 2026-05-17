@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
+use Illuminate\Support\Facades\Log;
 
 class RecordsHtmlParser
 {
@@ -15,6 +16,17 @@ class RecordsHtmlParser
 
         $dom = new DOMDocument();
         $dom->loadHTML($html);
+
+        $libxmlErrors = libxml_get_errors();
+        libxml_clear_errors();
+
+        $fatalErrors = array_filter($libxmlErrors, fn ($e) => $e->level >= LIBXML_ERR_FATAL);
+        if (! empty($fatalErrors)) {
+            Log::warning('Instagram HTML: erros fatais de parsing', [
+                'count' => count($fatalErrors),
+                'first' => $fatalErrors[array_key_first($fatalErrors)]->message ?? null,
+            ]);
+        }
 
         $xp = new DOMXPath($dom);
 
@@ -43,6 +55,19 @@ class RecordsHtmlParser
         $following = $this->extractRelationshipNames($xp, 'following');
 
         [$rangeStartUtc, $rangeEndUtc] = $this->parseDateRangeUtc($dateRange);
+
+        $parseStats = [
+            'ip_events_count' => count($ipEvents),
+            'direct_threads_count' => count($directThreads),
+            'followers_count' => count($followers),
+            'following_count' => count($following),
+            'has_target' => $target !== null,
+            'has_registration_ip' => $registrationIp !== null,
+            'has_registration_phone' => $phone['phone'] !== null,
+            'has_last_location' => $lastLocation['latitude'] !== null,
+            'has_date_range' => $dateRange !== null,
+            'libxml_fatal_errors' => count($fatalErrors),
+        ];
 
         return [
             'target' => $target,
@@ -74,20 +99,28 @@ class RecordsHtmlParser
             'direct_threads' => $directThreads,
             'followers' => $followers,
             'following' => $following,
+
+            '_parse_stats' => $parseStats,
         ];
     }
 
     private function getSimpleValueByLabel(DOMXPath $xp, string $label): ?string
     {
-        $query = "//div[contains(@class,'t i')][normalize-space(text())='{$label}']/div[contains(@class,'m')]/div";
-        $nodes = $xp->query($query);
+        $queries = [
+            "//div[contains(@class,'t i')][normalize-space(text())='{$label}']/div[contains(@class,'m')]/div",
+            "//div[contains(@class,'t') and contains(@class,'i')][normalize-space(text())='{$label}']/div[contains(@class,'m')]/div",
+            "//*[@data-label='{$label}']/following-sibling::*[1]",
+        ];
 
-        if (! $nodes || $nodes->length === 0) {
-            return null;
+        foreach ($queries as $query) {
+            $nodes = @$xp->query($query);
+            if ($nodes && $nodes->length > 0) {
+                $value = trim($nodes->item(0)?->textContent ?? '');
+                if ($value !== '') return $value;
+            }
         }
 
-        $value = trim($nodes->item(0)?->textContent ?? '');
-        return $value !== '' ? $value : null;
+        return null;
     }
 
     private function extractVanityName(DOMXPath $xp): ?string
@@ -341,7 +374,7 @@ class RecordsHtmlParser
         return [$this->parseUtc($a), $this->parseUtc($b)];
     }
 
-    private function extractRelationshipNames(DOMXPath $xp, string $type): array
+    private function extractRelationshipNames(DOMXPath $xp, string $type, int $limit = 5000): array
     {
         $sections = $this->findRelationshipSections($xp, $type);
         $names = [];
@@ -367,6 +400,7 @@ class RecordsHtmlParser
 
                 if ($this->isRelationshipNameLabel($label, $type) || preg_match('/\(Instagram:\s*\d+\)/i', $value)) {
                     foreach ($this->extractNamesFromRelationshipValue($value) as $name) {
+                        if (count($names) >= $limit) break 2;
                         $names[$this->normalizeRelationshipNameKey($name)] = $name;
                     }
                 }

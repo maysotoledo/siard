@@ -5,13 +5,11 @@ namespace App\Actions\AnaliseInteligente\Whatsapp;
 use App\Jobs\AnaliseInteligente\Platform\EnrichRunIpsJob;
 use App\Models\AnaliseInvestigation;
 use App\Models\AnaliseRun;
-use App\Models\AnaliseRunEvent;
-use App\Models\AnaliseRunIp;
-use App\Models\Bilhetagem;
 use App\Services\AnaliseInteligente\RunPayloadStorage;
 use App\Services\AnaliseInteligente\Whatsapp\RecordsHtmlParser;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -98,6 +96,8 @@ class CreateWhatsappRunForTargetGroupAction
             ? trim($runTargetRaw)
             : (is_string($mainParsed['target'] ?? null) ? trim((string) $mainParsed['target']) : null);
 
+        $this->validateAndLogTarget($resolvedTarget, $investigation->id, $storedPaths);
+
         $run = DB::transaction(function () use (
             $investigation,
             $userId,
@@ -149,40 +149,63 @@ class CreateWhatsappRunForTargetGroupAction
                 ],
             ]);
 
+            $now = now();
+            $ipRows = [];
+
             foreach ($ipsMap as $ip => $meta) {
-                AnaliseRunIp::create([
+                $ipRows[] = [
                     'analise_run_id' => $run->id,
                     'ip' => $ip,
                     'occurrences' => (int) ($meta['occurrences'] ?? 0),
-                    'last_seen_at' => ! empty($meta['last_seen_ts']) ? now()->setTimestamp((int) $meta['last_seen_ts']) : null,
+                    'last_seen_at' => ! empty($meta['last_seen_ts'])
+                        ? now()->setTimestamp((int) $meta['last_seen_ts'])->toDateTimeString()
+                        : null,
                     'enriched' => false,
-                ]);
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
 
             if ($connectionIpBase && ! isset($ipsMap[$connectionIpBase])) {
-                AnaliseRunIp::create([
+                $ipRows[] = [
                     'analise_run_id' => $run->id,
                     'ip' => $connectionIpBase,
                     'occurrences' => 0,
-                    'last_seen_at' => $connectionLastSeenTs ? now()->setTimestamp((int) $connectionLastSeenTs) : null,
+                    'last_seen_at' => $connectionLastSeenTs
+                        ? now()->setTimestamp((int) $connectionLastSeenTs)->toDateTimeString()
+                        : null,
                     'enriched' => false,
-                ]);
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
 
+            foreach (array_chunk($ipRows, 1000) as $chunk) {
+                DB::table('analise_run_ips')->insert($chunk);
+            }
+
+            $eventRows = [];
             foreach ((array) ($mainParsed['ip_events'] ?? []) as $event) {
-                AnaliseRunEvent::create([
+                $eventRows[] = [
                     'analise_run_id' => $run->id,
                     'event_type' => 'access',
-                    'occurred_at' => $this->normalizeDate($event['time_utc'] ?? null),
+                    'occurred_at' => $this->normalizeDate($event['time_utc'] ?? null)?->toDateTimeString(),
                     'timezone_label' => $event['tz_label'] ?? 'UTC',
                     'ip' => $event['ip'] ?? null,
                     'logical_port' => $event['logical_port'] ?? null,
                     'description' => $event['description'] ?? null,
-                    'metadata' => $event,
-                ]);
+                    'metadata' => json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            foreach (array_chunk($eventRows, 1000) as $chunk) {
+                DB::table('analise_run_events')->insert($chunk);
             }
 
             $seen = [];
+            $bilhetagemRows = [];
 
             foreach ($parsedList as $item) {
                 $parsed = (array) ($item['parsed'] ?? []);
@@ -209,23 +232,29 @@ class CreateWhatsappRunForTargetGroupAction
 
                     $seen[$key] = true;
 
-                    Bilhetagem::create([
+                    $bilhetagemRows[] = [
                         'analise_run_id' => $run->id,
-                        'timestamp_utc' => $timestampUtc instanceof Carbon ? $timestampUtc : null,
+                        'timestamp_utc' => $timestampUtc instanceof Carbon ? $timestampUtc->toDateTimeString() : null,
                         'message_id' => $messageId !== '' ? $messageId : null,
                         'sender' => $message['sender'] ?? null,
                         'recipient' => $recipient,
                         'sender_ip' => $message['sender_ip'] ?? null,
                         'sender_port' => $message['sender_port'] ?? null,
                         'type' => $message['type'] ?? null,
-                    ]);
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
                 }
+            }
+
+            foreach (array_chunk($bilhetagemRows, 1000) as $chunk) {
+                DB::table('bilhetagens')->insert($chunk);
             }
 
             return $run;
         });
 
-        app()->call([(new EnrichRunIpsJob($run->id)), 'handle']);
+        EnrichRunIpsJob::dispatch($run->id);
 
         return $run;
     }
@@ -430,6 +459,28 @@ class CreateWhatsappRunForTargetGroupAction
         }
 
         return $ipWithPort;
+    }
+
+    private function validateAndLogTarget(?string $target, int $investigationId, array $storedPaths): void
+    {
+        if ($target === null || trim($target) === '') {
+            Log::warning('Alvo nao identificado no relatorio WhatsApp.', [
+                'investigation_id' => $investigationId,
+                'stored_paths' => $storedPaths,
+            ]);
+            return;
+        }
+
+        $digits = preg_replace('/\D+/', '', $target) ?? '';
+        $isPhone = strlen($digits) >= 10 && strlen($digits) <= 15;
+
+        if (! $isPhone && ! filter_var($target, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Alvo extraido nao parece ser telefone nem e-mail valido.', [
+                'investigation_id' => $investigationId,
+                'target' => $target,
+                'stored_paths' => $storedPaths,
+            ]);
+        }
     }
 
     private function normalizeTarget(?string $value): ?string

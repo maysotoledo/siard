@@ -15,8 +15,9 @@ class EnrichRunIpsJob implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 25;
+    public int $timeout = 900;
     public int $tries = 3;
+    public array $backoff = [60, 300];
 
     public function __construct(
         public int $runId,
@@ -63,37 +64,60 @@ class EnrichRunIpsJob implements ShouldQueue
                 $this->processIpRow($row);
             }
 
-            $processed = AnaliseRunIp::query()
+            $processedRows = AnaliseRunIp::query()
                 ->where('analise_run_id', $run->id)
                 ->where('enriched', true)
                 ->count();
 
+            $processed = AnaliseRunIp::query()
+                ->where('analise_run_id', $run->id)
+                ->where('enriched', true)
+                ->distinct('ip')
+                ->count('ip');
+
+            $processedForProgress = min($processed, (int) $run->total_unique_ips);
+
             $run->forceFill([
-                'processed_unique_ips' => $processed,
-                'progress' => min(95, $run->total_unique_ips > 0 ? (int) floor(($processed / $run->total_unique_ips) * 90) + 5 : 95),
+                'processed_unique_ips' => $processedForProgress,
+                'progress' => min(95, $run->total_unique_ips > 0 ? (int) floor(($processedForProgress / $run->total_unique_ips) * 90) + 5 : 95),
                 'status' => 'running',
             ])->save();
 
             $step->forceFill([
-                'processed' => $processed,
+                'processed' => $processedRows,
                 'total' => (int) $run->total_unique_ips,
             ])->save();
-
-            if ($processed >= (int) $run->total_unique_ips) {
-                $this->finish($run, $step);
-                return;
-            }
         }
     }
 
     private function finish(AnaliseRun $run, AnaliseRunStep $step): void
     {
+        $enriched = AnaliseRunIp::where('analise_run_id', $run->id)->where('enriched', true)->count();
+        $failed = AnaliseRunIp::where('analise_run_id', $run->id)
+            ->leftJoin('ip_enrichments', 'ip_enrichments.ip', '=', 'analise_run_ips.ip')
+            ->where('analise_run_ips.enriched', true)
+            ->where('ip_enrichments.status', 'fail')
+            ->count();
+
+        Log::info('EnrichRunIpsJob: enriquecimento concluido.', [
+            'run_id' => $run->id,
+            'total_ips' => (int) $run->total_unique_ips,
+            'enriched' => $enriched,
+            'failed_providers' => $failed,
+        ]);
+
+        $run->forceFill([
+            'processed_unique_ips' => (int) $run->total_unique_ips,
+            'progress' => 95,
+            'status' => 'running',
+        ])->save();
+
         $step->forceFill([
             'status' => 'done',
             'processed' => (int) $run->total_unique_ips,
             'total' => (int) $run->total_unique_ips,
             'finished_at' => now(),
-            'message' => 'Enriquecimento concluido.',
+            'message' => "Enriquecimento concluido. {$enriched} IPs processados, {$failed} sem provedor.",
         ])->save();
 
         app()->call([(new BuildPlatformRunSummaryJob($run->id)), 'handle']);

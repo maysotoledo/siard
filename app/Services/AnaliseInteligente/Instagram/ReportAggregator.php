@@ -6,9 +6,13 @@ use Carbon\Carbon;
 
 class ReportAggregator
 {
+    private const NIGHT_START = 23;
+
+    private const NIGHT_END = 6;
+
     public function buildReport(array $parsed, array $enrichedByIp): array
     {
-        $tz = 'America/Belem';
+        $tz = 'America/Sao_Paulo';
         $events = $parsed['ip_events'] ?? [];
 
         $timelineRows = [];
@@ -22,6 +26,8 @@ class ReportAggregator
 
         $mobileTotalEvents = 0;
         $mobileEventsRows = [];
+
+        $hourlyAgg = [];
 
         foreach ($events as $e) {
             $ipBase = $e['ip'] ?? null;
@@ -133,8 +139,10 @@ class ReportAggregator
                 $providerIpMap[$provider][$ipDisplay]['last_seen'] = $timeLocal;
             }
 
+            $hourlyAgg[$timeUtc->format('Y-m-d H')] = ($hourlyAgg[$timeUtc->format('Y-m-d H')] ?? 0) + 1;
+
             $hour = (int) $timeLocal->format('G');
-            $isNight = ($hour >= 23 || $hour <= 6);
+            $isNight = ($hour >= self::NIGHT_START || $hour <= self::NIGHT_END);
 
             if ($isNight) {
                 $nightTotalEvents++;
@@ -156,6 +164,18 @@ class ReportAggregator
                     'city' => $city,
                 ];
             }
+        }
+
+        arsort($hourlyAgg);
+        $hourlyRows = [];
+        foreach ($hourlyAgg as $key => $count) {
+            $hourlyRows[] = [
+                'burst_hour' => $key,
+                'label' => Carbon::createFromFormat('Y-m-d H', $key, 'UTC')
+                    ->setTimezone($tz)
+                    ->format('d/m/Y H:i'),
+                'count' => $count,
+            ];
         }
 
         usort($timelineRows, fn ($a, $b) => strcmp($b['datetime'], $a['datetime']));
@@ -263,12 +283,16 @@ class ReportAggregator
             'mobile_total_events' => $mobileTotalEvents,
             'mobile_events_rows' => $mobileEventsRows,
 
+            'hourly_rows' => $hourlyRows,
+
             // ✅ NOVO
             'direct_threads' => $directThreads,
             'followers' => $followers,
             'following' => $following,
             'followers_count' => count($followers),
             'following_count' => count($following),
+
+            'parse_stats' => $parsed['_parse_stats'] ?? null,
         ];
     }
 

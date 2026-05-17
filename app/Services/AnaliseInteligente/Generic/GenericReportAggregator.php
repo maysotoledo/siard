@@ -34,6 +34,8 @@ class GenericReportAggregator
         $mobileRows = [];
         $weekendTotalEvents = 0;
 
+        $hourlyAgg = [];
+
         foreach ($events as $e) {
             $ip = $e['ip'] ?? null;
             $timeUtc = $this->toCarbonUtc($e['time_utc'] ?? null);
@@ -54,6 +56,8 @@ class GenericReportAggregator
 
             $tzLabel = $e['tz_label'] ?? 'UTC';
             $logicalPort = $e['logical_port'] ?? null;
+
+            $hourlyAgg[$timeUtc->format('Y-m-d H')] = ($hourlyAgg[$timeUtc->format('Y-m-d H')] ?? 0) + 1;
 
             $timeLocal = $timeUtc->copy()->setTimezone($tz);
             $hour = (int) $timeLocal->format('G');
@@ -283,6 +287,18 @@ class GenericReportAggregator
             $this->formatIdentifierRows($iosIdfvs, 'Apple iOS IDFV', $tz),
         );
 
+        arsort($hourlyAgg);
+        $hourlyRows = [];
+        foreach ($hourlyAgg as $key => $count) {
+            $hourlyRows[] = [
+                'burst_hour' => $key,
+                'label' => Carbon::createFromFormat('Y-m-d H', $key, 'UTC')
+                    ->setTimezone($tz)
+                    ->format('d/m/Y H:i'),
+                'count' => $count,
+            ];
+        }
+
         $periodLabel = $this->buildPeriodLabel($parsed['range_start_utc'] ?? null, $parsed['range_end_utc'] ?? null, $tz);
         $ipv4Count = count(array_filter(array_keys($uniqueIpAgg), fn (string $ip): bool => (bool) filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)));
         $ipv6Count = count(array_filter(array_keys($uniqueIpAgg), fn (string $ip): bool => (bool) filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)));
@@ -314,6 +330,8 @@ class GenericReportAggregator
 
             'mobile_total_events' => $mobileTotalEvents,
             'mobile_events_rows' => $mobileRows,
+
+            'hourly_rows' => $hourlyRows,
         ];
     }
 

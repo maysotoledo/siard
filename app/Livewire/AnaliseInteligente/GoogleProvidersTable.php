@@ -6,6 +6,7 @@ use App\Models\AnaliseRunIp;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Tables\TableComponent;
+use Illuminate\Database\Eloquent\Builder;
 
 class GoogleProvidersTable extends TableComponent
 {
@@ -18,21 +19,25 @@ class GoogleProvidersTable extends TableComponent
 
     public function table(Table $table): Table
     {
+        $aggregatedQuery = AnaliseRunIp::query()
+            ->leftJoin('ip_enrichments', 'ip_enrichments.ip', '=', 'analise_run_ips.ip')
+            ->where('analise_run_id', $this->runId)
+            ->selectRaw("
+                MAX(analise_run_ips.id) as id,
+                COALESCE(NULLIF(ip_enrichments.isp, ''), NULLIF(ip_enrichments.org, ''), 'Desconhecido') as provider,
+                SUM(analise_run_ips.occurrences) as occurrences,
+                COUNT(*) as unique_ips,
+                COUNT(DISTINCT COALESCE(NULLIF(ip_enrichments.city, ''), 'Desconhecida')) as cities,
+                SUM(CASE WHEN ip_enrichments.mobile = 1 THEN analise_run_ips.occurrences ELSE 0 END) as mobile_occurrences,
+                MAX(analise_run_ips.last_seen_at) as last_seen_at
+            ")
+            ->groupBy('provider');
+
         return $table
             ->query(
-                AnaliseRunIp::query()
-                    ->leftJoin('ip_enrichments', 'ip_enrichments.ip', '=', 'analise_run_ips.ip')
-                    ->where('analise_run_id', $this->runId)
-                    ->selectRaw("
-                        MIN(analise_run_ips.id) as id,
-                        COALESCE(NULLIF(ip_enrichments.isp, ''), NULLIF(ip_enrichments.org, ''), 'Desconhecido') as provider,
-                        SUM(analise_run_ips.occurrences) as occurrences,
-                        COUNT(*) as unique_ips,
-                        COUNT(DISTINCT COALESCE(NULLIF(ip_enrichments.city, ''), 'Desconhecida')) as cities,
-                        SUM(CASE WHEN ip_enrichments.mobile = 1 THEN analise_run_ips.occurrences ELSE 0 END) as mobile_occurrences,
-                        MAX(analise_run_ips.last_seen_at) as last_seen_at
-                    ")
-                    ->groupBy('provider')
+                (new AnaliseRunIp)->setTable('provider_stats')->newQuery()
+                    ->fromSub($aggregatedQuery->toBase(), 'provider_stats')
+                    ->select('provider_stats.*')
             )
             ->columns([
                 TextColumn::make('provider')
@@ -70,7 +75,7 @@ class GoogleProvidersTable extends TableComponent
                     ->formatStateUsing(fn ($state): ?string => $state?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s'))
                     ->sortable(),
             ])
-            ->defaultSort('occurrences', 'desc')
+            ->modifyQueryUsing(fn (Builder $query) => $query->orderByDesc('occurrences')->orderByDesc('id'))
             ->paginated([25, 50, 100])
             ->defaultPaginationPageOption(25);
     }

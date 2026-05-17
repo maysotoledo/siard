@@ -4,9 +4,6 @@ namespace App\Actions\AnaliseInteligente\Platform;
 
 use App\Models\AnaliseInvestigation;
 use App\Models\AnaliseRun;
-use App\Models\AnaliseRunContact;
-use App\Models\AnaliseRunEvent;
-use App\Models\AnaliseRunIp;
 use App\Models\AnaliseRunStep;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -50,21 +47,29 @@ class PersistPlatformRunAction
                 ],
             ]);
 
-            $this->persistContacts($run, $parsed);
-            $this->persistAccessEvents($run, $parsed);
-            $this->persistMapsAndSearch($run, $parsed);
+            $now = now();
 
+            $this->persistContacts($run, $parsed, $now);
+            $this->persistAccessEvents($run, $parsed, $now);
+            $this->persistMapsAndSearch($run, $parsed, $now);
+
+            $ipRows = [];
             foreach ($ipsMap as $ip => $meta) {
-                AnaliseRunIp::updateOrCreate(
-                    ['analise_run_id' => $run->id, 'ip' => $ip],
-                    [
-                        'occurrences' => (int) ($meta['occurrences'] ?? 0),
-                        'last_seen_at' => ! empty($meta['last_seen_ts'])
-                            ? now()->setTimestamp((int) $meta['last_seen_ts'])
-                            : null,
-                        'enriched' => false,
-                    ],
-                );
+                $ipRows[] = [
+                    'analise_run_id' => $run->id,
+                    'ip' => $ip,
+                    'occurrences' => (int) ($meta['occurrences'] ?? 0),
+                    'last_seen_at' => ! empty($meta['last_seen_ts'])
+                        ? now()->setTimestamp((int) $meta['last_seen_ts'])
+                        : null,
+                    'enriched' => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            foreach (array_chunk($ipRows, 1000) as $chunk) {
+                DB::table('analise_run_ips')->insert($chunk);
             }
 
             foreach ([
@@ -82,18 +87,27 @@ class PersistPlatformRunAction
         });
     }
 
-    private function persistContacts(AnaliseRun $run, array $parsed): void
+    private function persistContacts(AnaliseRun $run, array $parsed, Carbon $now): void
     {
+        $rowsByKey = [];
+
         foreach ((array) ($parsed['emails'] ?? []) as $email) {
             $email = trim((string) $email);
             if ($email === '') {
                 continue;
             }
 
-            AnaliseRunContact::updateOrCreate(
-                ['analise_run_id' => $run->id, 'phone' => md5('email:' . mb_strtolower($email))],
-                ['contact_type' => 'email', 'value' => $email, 'name' => $email],
-            );
+            $key = md5('email:' . mb_strtolower($email));
+            $rowsByKey[$key] = [
+                'analise_run_id' => $run->id,
+                'phone' => $key,
+                'contact_type' => 'email',
+                'value' => $email,
+                'name' => $email,
+                'metadata' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
 
         foreach ((array) ($parsed['phones'] ?? []) as $phone) {
@@ -102,10 +116,16 @@ class PersistPlatformRunAction
                 continue;
             }
 
-            AnaliseRunContact::updateOrCreate(
-                ['analise_run_id' => $run->id, 'phone' => $phone],
-                ['contact_type' => 'phone', 'value' => $phone, 'name' => $phone],
-            );
+            $rowsByKey[$phone] = [
+                'analise_run_id' => $run->id,
+                'phone' => $phone,
+                'contact_type' => 'phone',
+                'value' => $phone,
+                'name' => $phone,
+                'metadata' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
 
         foreach ((array) ($parsed['identifiers'] ?? []) as $identifier) {
@@ -115,19 +135,32 @@ class PersistPlatformRunAction
                 continue;
             }
 
-            AnaliseRunContact::updateOrCreate(
-                ['analise_run_id' => $run->id, 'phone' => md5("identifier:{$type}:{$value}")],
-                ['contact_type' => 'identifier', 'value' => $value, 'name' => $type, 'metadata' => ['type' => $type]],
-            );
+            $key = md5("identifier:{$type}:{$value}");
+            $rowsByKey[$key] = [
+                'analise_run_id' => $run->id,
+                'phone' => $key,
+                'contact_type' => 'identifier',
+                'value' => $value,
+                'name' => $type,
+                'metadata' => json_encode(['type' => $type], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk(array_values($rowsByKey), 1000) as $chunk) {
+            DB::table('analise_run_contacts')->insert($chunk);
         }
     }
 
-    private function persistAccessEvents(AnaliseRun $run, array $parsed): void
+    private function persistAccessEvents(AnaliseRun $run, array $parsed, Carbon $now): void
     {
+        $rows = [];
+
         foreach ((array) ($parsed['events'] ?? []) as $event) {
             $occurredAt = $this->normalizeDate($event['time_utc'] ?? null);
 
-            AnaliseRunEvent::create([
+            $rows[] = [
                 'analise_run_id' => $run->id,
                 'event_type' => 'access',
                 'occurred_at' => $occurredAt,
@@ -139,17 +172,25 @@ class PersistPlatformRunAction
                 'user_agent' => $event['user_agent'] ?? null,
                 'device_identifier_type' => ! empty($event['android_id']) ? 'Android ID' : (! empty($event['ios_idfv']) ? 'Apple iOS IDFV' : null),
                 'device_identifier_value' => $event['android_id'] ?? $event['ios_idfv'] ?? null,
-                'metadata' => array_filter([
+                'metadata' => json_encode(array_filter([
                     'ip_version' => filter_var((string) ($event['ip'] ?? ''), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'IPv6' : 'IPv4',
-                ]),
-            ]);
+                ]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($rows, 1000) as $chunk) {
+            DB::table('analise_run_events')->insert($chunk);
         }
     }
 
-    private function persistMapsAndSearch(AnaliseRun $run, array $parsed): void
+    private function persistMapsAndSearch(AnaliseRun $run, array $parsed, Carbon $now): void
     {
+        $rows = [];
+
         foreach ((array) ($parsed['maps_rows'] ?? []) as $row) {
-            AnaliseRunEvent::create([
+            $rows[] = [
                 'analise_run_id' => $run->id,
                 'event_type' => 'map',
                 'category' => $row['type'] ?? null,
@@ -159,19 +200,45 @@ class PersistPlatformRunAction
                 'origin' => $row['origin'] ?? null,
                 'target' => $row['target'] ?? null,
                 'url' => $row['maps_url'] ?? null,
-                'metadata' => $row,
-            ]);
+                'timezone_label' => null,
+                'ip' => null,
+                'logical_port' => null,
+                'action' => null,
+                'user_agent' => null,
+                'device_identifier_type' => null,
+                'device_identifier_value' => null,
+                'metadata' => json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
 
         foreach ((array) ($parsed['search_rows'] ?? []) as $row) {
-            AnaliseRunEvent::create([
+            $rows[] = [
                 'analise_run_id' => $run->id,
                 'event_type' => 'search',
+                'category' => null,
                 'occurred_at' => $this->timestampToDate($row['datetime_ts'] ?? null),
+                'timezone_label' => null,
+                'ip' => null,
+                'logical_port' => null,
+                'action' => null,
                 'description' => $row['query'] ?? null,
+                'title' => null,
+                'origin' => null,
                 'target' => $row['query'] ?? null,
-                'metadata' => $row,
-            ]);
+                'url' => null,
+                'user_agent' => null,
+                'device_identifier_type' => null,
+                'device_identifier_value' => null,
+                'metadata' => json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($rows, 1000) as $chunk) {
+            DB::table('analise_run_events')->insert($chunk);
         }
     }
 

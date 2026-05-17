@@ -22,9 +22,9 @@ use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
-use Illuminate\Bus\Dispatcher;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
@@ -57,6 +57,9 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
 
     public ?string $selectedProvider = null;
     public array $selectedProviderIps = [];
+
+    public ?string $burstHour = null;
+    public array $burstModalRows = [];
 
     // Direct modal
     public ?string $selectedDirectParticipant = null;
@@ -158,13 +161,11 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
 
         $batchId = (string) Str::uuid();
 
-        app(Dispatcher::class)->dispatchAfterResponse(
-            new ProcessInstagramInvestigationJob(
-                investigationId: $investigation->id,
-                userId: (int) auth()->id(),
-                storedPaths: array_values($storedPaths),
-                batchId: $batchId,
-            )
+        ProcessInstagramInvestigationJob::dispatch(
+            investigationId: $investigation->id,
+            userId: (int) auth()->id(),
+            storedPaths: array_values($storedPaths),
+            batchId: $batchId,
         );
 
         $this->investigationId = $investigation->id;
@@ -187,181 +188,6 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
             ->send();
 
         return;
-
-        $disk = Storage::disk('public');
-
-        $parsedList = [];
-        foreach ($storedPaths as $storedPath) {
-            if (! $storedPath || ! $disk->exists($storedPath)) continue;
-
-            $html = $this->resolveHtmlFromUpload($storedPath);
-            if (! is_string($html) || trim($html) === '') continue;
-
-            $parsedList[] = [
-                'stored_path' => $storedPath,
-                'parsed' => (new RecordsHtmlParser())->parse($html),
-            ];
-        }
-
-        if (count($parsedList) === 0) {
-            Notification::make()->title('Nenhum HTML válido / ZIP com records.html')->danger()->send();
-            return;
-        }
-
-        // principal = maior ip_events
-        $groups = [];
-        foreach ($parsedList as $item) {
-            $p = (array) ($item['parsed'] ?? []);
-            $targetRaw = $p['target'] ?? ($p['account_identifier'] ?? null);
-            $targetKey = $this->normalizeInstagramTarget(is_string($targetRaw) ? $targetRaw : null);
-
-            if (! $targetKey) {
-                $targetKey = 'sem-alvo:' . md5((string) ($item['stored_path'] ?? Str::uuid()));
-            }
-
-            $groups[$targetKey] ??= [];
-            $groups[$targetKey][] = $item;
-        }
-
-        if (count($groups) > 1) {
-            $runs = [];
-            $batchId = (string) Str::uuid();
-
-            foreach ($groups as $items) {
-                $mainParsed = $this->resolveMainParsedFromInstagramItems($items);
-                if (! $mainParsed || count($mainParsed['ip_events'] ?? []) === 0) {
-                    continue;
-                }
-
-                $ipsMap = $this->extractIpsMapFromInstagramParsed($mainParsed);
-                if (count($ipsMap) === 0) {
-                    continue;
-                }
-
-                $runs[] = $this->createInstagramRun($investigation, $mainParsed, $ipsMap, $batchId);
-            }
-
-            if (count($runs) === 0) {
-                Notification::make()->title('Nenhum IP encontrado no HTML')->warning()->send();
-                return;
-            }
-
-            $runIds = array_map(fn (AnaliseRun $run): int => (int) $run->id, $runs);
-            foreach ($runs as $run) {
-                $payload = $run->report ?: [];
-                $payload['_batch_run_ids'] = $runIds;
-                $run->report = $payload;
-                $run->save();
-            }
-
-            $this->investigationId = $investigation->id;
-            $this->investigation = [
-                'id' => $investigation->id,
-                'name' => $investigation->name,
-                'source' => $investigation->source,
-                'platform_label' => 'Instagram',
-            ];
-            $this->runId = $runs[0]->id;
-            $this->selectedTargetRunId = $runs[0]->id;
-            $this->targetRuns = $this->formatTargetRuns(
-                AnaliseRun::query()->where('investigation_id', $investigation->id)->orderBy('id')->get()->all(),
-            );
-            $this->running = true;
-
-            Notification::make()
-                ->title('Processamento iniciado para ' . count($runs) . ' alvos')
-                ->success()
-                ->send();
-
-            return;
-        }
-
-        $mainParsed = null;
-        $maxIps = -1;
-
-        foreach ($parsedList as $item) {
-            $p = (array) ($item['parsed'] ?? []);
-            $n = count($p['ip_events'] ?? []);
-            if ($n > $maxIps) {
-                $maxIps = $n;
-                $mainParsed = $p;
-            }
-        }
-
-        if (! $mainParsed || count($mainParsed['ip_events'] ?? []) === 0) {
-            Notification::make()->title('Não encontrei arquivo com IPs (ip_events vazio)')->danger()->send();
-            return;
-        }
-
-        $ipsMap = [];
-        foreach (($mainParsed['ip_events'] ?? []) as $e) {
-            $ip = trim((string) ($e['ip'] ?? ''));
-            if ($ip === '') continue;
-
-            $time = $e['time_utc'] ?? null;
-            $ts = null;
-
-            if ($time instanceof \Carbon\Carbon) $ts = $time->timestamp;
-            elseif (is_string($time) && trim($time) !== '') $ts = strtotime($time) ?: null;
-            elseif (is_int($time)) $ts = $time;
-
-            $ipsMap[$ip] ??= ['occurrences' => 0, 'last_seen_ts' => $ts];
-            $ipsMap[$ip]['occurrences']++;
-
-            if ($ts && ($ipsMap[$ip]['last_seen_ts'] === null || $ts > $ipsMap[$ip]['last_seen_ts'])) {
-                $ipsMap[$ip]['last_seen_ts'] = $ts;
-            }
-        }
-
-        if (count($ipsMap) === 0) {
-            Notification::make()->title('Nenhum IP encontrado no HTML')->warning()->send();
-            return;
-        }
-
-        $run = DB::transaction(function () use ($mainParsed, $ipsMap, $investigation) {
-            $run = AnaliseRun::create([
-                'user_id' => auth()->id(),
-                'investigation_id' => $investigation->id,
-                'uuid' => (string) Str::uuid(),
-                'target' => $mainParsed['target'] ?? null,
-                'total_unique_ips' => count($ipsMap),
-                'processed_unique_ips' => 0,
-                'progress' => 0,
-                'status' => 'running',
-                'report' => [
-                    '_source' => 'instagram',
-                    '_parsed' => $mainParsed,
-                ],
-            ]);
-
-            foreach ($ipsMap as $ip => $meta) {
-                AnaliseRunIp::create([
-                    'analise_run_id' => $run->id,
-                    'ip' => $ip,
-                    'occurrences' => (int) $meta['occurrences'],
-                    'last_seen_at' => $meta['last_seen_ts']
-                        ? now()->setTimestamp((int) $meta['last_seen_ts'])
-                        : null,
-                    'enriched' => false,
-                ]);
-            }
-
-            return $run;
-        });
-
-        $this->investigationId = $investigation->id;
-        $this->investigation = [
-            'id' => $investigation->id,
-            'name' => $investigation->name,
-            'source' => $investigation->source,
-            'platform_label' => 'Instagram',
-        ];
-        $this->runId = $run->id;
-        $this->selectedTargetRunId = $run->id;
-        $this->targetRuns = $this->formatTargetRuns([$run]);
-        $this->running = true;
-
-        Notification::make()->title('Processamento iniciado')->success()->send();
     }
 
     protected function instagramInvestigationName(array $parsed): string
@@ -569,57 +395,43 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
 
             return;
         }
+    }
 
-        if ($this->investigationId) {
-            $runs = AnaliseRun::query()
-                ->where('investigation_id', $this->investigationId)
-                ->orderBy('id')
-                ->get();
+    public function exportTab(string $tab): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $report = $this->report ?? [];
 
-            foreach ($runs as $item) {
-                if ($item->status === 'running') {
-                    app(RunStepper::class)->step($item, $this->chunkSize, 0.0);
-                }
+        $columnMap = [
+            'timeline' => [
+                'headers' => ['Data/Hora', 'IP', 'Provedor', 'Cidade', 'Tipo'],
+                'rows' => array_map(fn ($r) => [$r['datetime'], $r['ip'], $r['provider'], $r['city'], $r['type']], $report['timeline_rows'] ?? []),
+            ],
+            'unique_ips' => [
+                'headers' => ['IP', 'Provedor', 'Cidade', 'Tipo', 'Ocorrências', 'Último acesso'],
+                'rows' => array_map(fn ($r) => [$r['ip'], $r['provider'], $r['city'], $r['type'], $r['count'], $r['last_seen']], $report['unique_ip_rows'] ?? []),
+            ],
+            'providers' => [
+                'headers' => ['Provedor', 'Ocorrências', 'IPs únicos', 'Cidades', 'Acessos móvel', '% móvel', 'Último acesso'],
+                'rows' => array_map(fn ($r) => [$r['provider'], $r['occurrences'], $r['unique_ips'], $r['cities'], $r['mobile_occurrences'], $r['mobile_percent'], $r['last_seen']], $report['provider_stats_rows'] ?? []),
+            ],
+            'cities' => [
+                'headers' => ['Cidade', 'Ocorrências', 'IPs únicos', 'Provedores', 'Acessos móvel', '% móvel', 'Último acesso'],
+                'rows' => array_map(fn ($r) => [$r['city'], $r['occurrences'], $r['unique_ips'], $r['providers'], $r['mobile_occurrences'], $r['mobile_percent'], $r['last_seen']], $report['city_stats_rows'] ?? []),
+            ],
+        ];
+
+        $data = $columnMap[$tab] ?? ['headers' => [], 'rows' => []];
+        $filename = "instagram-{$tab}-" . now()->format('Ymd-His') . '.csv';
+
+        return response()->streamDownload(function () use ($data) {
+            $handle = fopen('php://output', 'w');
+            fputs($handle, "\xEF\xBB\xBF"); // BOM for Excel UTF-8
+            fputcsv($handle, $data['headers'], ';');
+            foreach ($data['rows'] as $row) {
+                fputcsv($handle, $row, ';');
             }
-
-            $runs = AnaliseRun::query()
-                ->where('investigation_id', $this->investigationId)
-                ->orderBy('id')
-                ->get();
-
-            $this->targetRuns = $this->formatTargetRuns($runs->all());
-            $this->running = $runs->contains(fn (AnaliseRun $item): bool => $item->status === 'running');
-            $this->progress = (int) floor($runs->avg('progress') ?? 0);
-
-            $selected = AnaliseRun::find($this->selectedTargetRunId ?: $this->runId);
-            if ($selected && $selected->status === 'done' && $this->report === null) {
-                $this->hydrateReportFromRun($selected, 'timeline');
-                Notification::make()->title('Relatorio pronto')->success()->send();
-            }
-
-            return;
-        }
-
-        if (! $this->runId) return;
-
-        $run = AnaliseRun::find($this->runId);
-        if (! $run) return;
-
-        $this->progress = (int) $run->progress;
-        $this->running = ($run->status === 'running');
-
-        if ($run->status === 'running') {
-            app(RunStepper::class)->step($run, $this->chunkSize, 0.0);
-
-            $run->refresh();
-            $this->progress = (int) $run->progress;
-            $this->running = ($run->status === 'running');
-        }
-
-        if ($run->status === 'done' && $this->report === null) {
-            $this->hydrateReportFromRun($run, 'timeline');
-            Notification::make()->title('Relatório pronto')->success()->send();
-        }
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     public function setTab(string $tab): void
@@ -974,12 +786,64 @@ class AnaliseInteligenteInsta extends Page implements HasSchemas
 
     protected function reportCacheKey(AnaliseRun $run): string
     {
-        return 'analise-insta-report:v2:' . $run->getKey();
+        $updatedHash = substr(md5((string) $run->updated_at), 0, 8);
+        return 'analise-insta-report:v3:' . $run->getKey() . ':' . $updatedHash;
     }
 
     protected function availableTabs(): array
     {
-        return ['timeline', 'unique_ips', 'providers', 'cities', 'residencial', 'movel', 'direct'];
+        return ['timeline', 'unique_ips', 'providers', 'cities', 'residencial', 'movel', 'direct', 'burst', 'qualidade'];
+    }
+
+    #[On('open-burst-modal')]
+    public function openBurstModal(string $burstHour): void
+    {
+        $this->burstHour = $burstHour;
+
+        $run = $this->runId ? AnaliseRun::find($this->runId) : null;
+        if (! $run) return;
+
+        $start = Carbon::createFromFormat('Y-m-d H', $burstHour, 'UTC');
+        $end   = $start->copy()->addHour();
+
+        $this->burstModalRows = AnaliseRunEvent::query()
+            ->with('ipEnrichment')
+            ->where('analise_run_id', $run->id)
+            ->where('event_type', 'access')
+            ->whereBetween('occurred_at', [$start->toDateTimeString(), $end->toDateTimeString()])
+            ->orderBy('occurred_at')
+            ->get()
+            ->map(fn (AnaliseRunEvent $e): array => [
+                'datetime' => $e->occurred_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s'),
+                'ip'       => $e->ip ?? '-',
+                'port'     => $e->logical_port ?? '-',
+                'provider' => $e->provider_label,
+                'city'     => $e->city_label,
+                'type'     => $e->connection_type,
+            ])
+            ->all();
+
+        $this->mountAction('burstModal');
+    }
+
+    public function burstModal(): Action
+    {
+        return Action::make('burstModal')
+            ->label('Detalhes do Burst')
+            ->modalHeading(fn (): string => 'Burst de acessos — ' . (
+                $this->burstHour
+                    ? Carbon::createFromFormat('Y-m-d H', $this->burstHour, 'UTC')
+                        ->setTimezone('America/Sao_Paulo')
+                        ->format('d/m/Y H:i') . 'h (GMT-3)'
+                    : '-'
+            ))
+            ->modalWidth(Width::SevenExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Fechar')
+            ->after(fn () => $this->burstHour = null)
+            ->modalContent(fn () => view('filament.pages.partials.modal-burst', [
+                'rows' => $this->burstModalRows,
+            ]));
     }
 
     // ==========================

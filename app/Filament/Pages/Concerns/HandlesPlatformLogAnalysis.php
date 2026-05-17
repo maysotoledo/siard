@@ -23,7 +23,6 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Str;
-use Illuminate\Bus\Dispatcher;
 use Livewire\Attributes\On;
 
 trait HandlesPlatformLogAnalysis
@@ -45,6 +44,8 @@ trait HandlesPlatformLogAnalysis
     public array $vinculoModalTimes = [];
     public int $vinculoPage = 1;
     public int $vinculoPerPage = 10;
+    public ?string $burstHour = null;
+    public array $burstModalRows = [];
 
     abstract protected function platformSource(): string;
     abstract protected function platformLabel(): string;
@@ -143,15 +144,13 @@ trait HandlesPlatformLogAnalysis
 
         $batchId = (string) Str::uuid();
 
-        app(Dispatcher::class)->dispatchAfterResponse(
-            new ProcessPlatformInvestigationJob(
-                investigationId: $investigation->id,
-                userId: (int) auth()->id(),
-                source: $this->platformSource(),
-                label: $this->platformLabel(),
-                storedPaths: array_values($storedPaths),
-                batchId: $batchId,
-            )
+        ProcessPlatformInvestigationJob::dispatch(
+            investigationId: $investigation->id,
+            userId: (int) auth()->id(),
+            source: $this->platformSource(),
+            label: $this->platformLabel(),
+            storedPaths: array_values($storedPaths),
+            batchId: $batchId,
         );
 
         $this->investigationId = $investigation->id;
@@ -484,7 +483,60 @@ trait HandlesPlatformLogAnalysis
             $tabs[] = 'vinculo';
         }
 
+        $tabs[] = 'burst';
+
         return $tabs;
+    }
+
+    #[On('open-burst-modal')]
+    public function openBurstModal(string $burstHour): void
+    {
+        $this->burstHour = $burstHour;
+
+        $run = $this->runId ? AnaliseRun::find($this->runId) : null;
+        if (! $run) return;
+
+        $start = Carbon::createFromFormat('Y-m-d H', $burstHour, 'UTC');
+        $end   = $start->copy()->addHour();
+
+        $this->burstModalRows = AnaliseRunEvent::query()
+            ->with('ipEnrichment')
+            ->where('analise_run_id', $run->id)
+            ->where('event_type', 'access')
+            ->whereBetween('occurred_at', [$start->toDateTimeString(), $end->toDateTimeString()])
+            ->orderBy('occurred_at')
+            ->get()
+            ->map(fn (AnaliseRunEvent $e): array => [
+                'datetime' => $e->occurred_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s'),
+                'ip'       => $e->ip ?? '-',
+                'port'     => $e->logical_port ?? '-',
+                'provider' => $e->provider_label,
+                'city'     => $e->city_label,
+                'type'     => $e->connection_type,
+            ])
+            ->all();
+
+        $this->mountAction('burstModal');
+    }
+
+    public function burstModal(): Action
+    {
+        return Action::make('burstModal')
+            ->label('Detalhes do Burst')
+            ->modalHeading(fn (): string => 'Burst de acessos — ' . (
+                $this->burstHour
+                    ? Carbon::createFromFormat('Y-m-d H', $this->burstHour, 'UTC')
+                        ->setTimezone('America/Sao_Paulo')
+                        ->format('d/m/Y H:i') . 'h (GMT-3)'
+                    : '-'
+            ))
+            ->modalWidth(Width::SevenExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Fechar')
+            ->after(fn () => $this->burstHour = null)
+            ->modalContent(fn () => view('filament.pages.partials.modal-burst', [
+                'rows' => $this->burstModalRows,
+            ]));
     }
 
     protected function canViewInvestigation(AnaliseInvestigation $investigation): bool

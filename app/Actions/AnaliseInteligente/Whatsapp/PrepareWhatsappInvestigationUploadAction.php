@@ -3,11 +3,12 @@
 namespace App\Actions\AnaliseInteligente\Whatsapp;
 
 use App\Jobs\AnaliseInteligente\Whatsapp\ProcessWhatsappTargetGroupJob;
-use App\Actions\AnaliseInteligente\Whatsapp\CreateWhatsappRunForTargetGroupAction;
 use App\Models\AnaliseInvestigation;
 use App\Models\AnaliseRun;
 use App\Models\Bilhetagem;
 use App\Services\AnaliseInteligente\Whatsapp\RecordsHtmlParser;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -54,8 +55,8 @@ class PrepareWhatsappInvestigationUploadAction
                 continue;
             }
 
-            app(CreateWhatsappRunForTargetGroupAction::class)->execute(
-                investigation: $investigation,
+            ProcessWhatsappTargetGroupJob::dispatch(
+                investigationId: $investigation->id,
                 userId: $userId,
                 storedPaths: $paths,
                 batchId: $batchId,
@@ -142,7 +143,7 @@ class PrepareWhatsappInvestigationUploadAction
     private function insertBilhetagemMessages(AnaliseRun $run, array $messageLog): int
     {
         $seen = [];
-        $inserted = 0;
+        $rowsByKey = [];
 
         foreach ($messageLog as $message) {
             $recipient = trim((string) ($message['recipient'] ?? ''));
@@ -161,32 +162,66 @@ class PrepareWhatsappInvestigationUploadAction
 
             $seen[$key] = true;
 
-            $alreadyExists = Bilhetagem::query()
-                ->where('analise_run_id', $run->id)
-                ->where('recipient', $recipient)
-                ->where('message_id', $messageId !== '' ? $messageId : null)
-                ->where('timestamp_utc', $timestampUtc instanceof \Carbon\Carbon ? $timestampUtc : null)
-                ->exists();
-
-            if ($alreadyExists) {
-                continue;
-            }
-
-            Bilhetagem::create([
+            $rowsByKey[$key] = [
                 'analise_run_id' => $run->id,
-                'timestamp_utc' => $timestampUtc instanceof \Carbon\Carbon ? $timestampUtc : null,
+                'timestamp_utc' => $timestampUtc instanceof Carbon ? $timestampUtc->toDateTimeString() : null,
                 'message_id' => $messageId !== '' ? $messageId : null,
                 'sender' => $message['sender'] ?? null,
                 'recipient' => $recipient,
                 'sender_ip' => $message['sender_ip'] ?? null,
                 'sender_port' => $message['sender_port'] ?? null,
                 'type' => $message['type'] ?? null,
-            ]);
-
-            $inserted++;
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
         }
 
-        return $inserted;
+        if (count($rowsByKey) === 0) {
+            return 0;
+        }
+
+        $existingKeys = [];
+        $candidateRows = array_values($rowsByKey);
+
+        foreach (array_chunk($candidateRows, 500) as $chunk) {
+            $query = Bilhetagem::query()->where('analise_run_id', $run->id);
+
+            $query->where(function ($outer) use ($chunk): void {
+                foreach ($chunk as $row) {
+                    $outer->orWhere(function ($inner) use ($row): void {
+                        $inner->where('recipient', $row['recipient']);
+
+                        $row['message_id'] === null
+                            ? $inner->whereNull('message_id')
+                            : $inner->where('message_id', $row['message_id']);
+
+                        $row['timestamp_utc'] === null
+                            ? $inner->whereNull('timestamp_utc')
+                            : $inner->where('timestamp_utc', $row['timestamp_utc']);
+                    });
+                }
+            });
+
+            foreach ($query->get(['recipient', 'message_id', 'timestamp_utc']) as $existing) {
+                $ts = $existing->timestamp_utc instanceof Carbon
+                    ? $existing->timestamp_utc->format('Y-m-d H:i:s')
+                    : '-';
+                $msg = trim((string) ($existing->message_id ?? ''));
+                $existingKeys[$existing->recipient . '|' . ($msg !== '' ? $msg : '-') . '|' . $ts] = true;
+            }
+        }
+
+        $rows = array_values(array_filter(
+            $rowsByKey,
+            fn (array $row, string $key): bool => ! isset($existingKeys[$key]),
+            ARRAY_FILTER_USE_BOTH,
+        ));
+
+        foreach (array_chunk($rows, 1000) as $chunk) {
+            DB::table('bilhetagens')->insert($chunk);
+        }
+
+        return count($rows);
     }
 
     private function existingTargetsByNormalizedKey(AnaliseInvestigation $investigation): array

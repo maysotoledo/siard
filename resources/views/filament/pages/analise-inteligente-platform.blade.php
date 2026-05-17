@@ -233,6 +233,7 @@
                 $tabs['user_agents'] = ['label' => 'Dispositivo/UA', 'icon' => 'heroicon-o-device-phone-mobile'];
                 $tabs['vinculo'] = ['label' => 'Vinculo', 'icon' => 'heroicon-o-link'];
             }
+            $tabs['burst'] = ['label' => 'Burst', 'icon' => 'heroicon-o-bolt'];
 
             $counts = [
                 'timeline' => (int) data_get($report, '_counts.timeline', 0),
@@ -242,6 +243,7 @@
                 'residencial' => (int) data_get($report, '_counts.residencial', $report['night_total_events'] ?? 0),
                 'movel' => (int) data_get($report, '_counts.movel', $report['mobile_total_events'] ?? 0),
                 'vinculo' => (int) data_get($report, '_counts.vinculo', count($report['vinculo_rows'] ?? [])),
+                'burst' => count($report['hourly_rows'] ?? []),
             ];
 
             if ($isGoogle) {
@@ -336,6 +338,16 @@
                     @include('filament.pages.partials.sheet-vinculo', [
                         'rows' => $report['vinculo_rows'] ?? [],
                     ])
+                </x-filament::section>
+            @endif
+
+            @if ($tab === 'burst')
+                <x-filament::section heading="Conexões por hora">
+                    <x-slot name="description">Clique em qualquer hora para ver os IPs e horários exatos de acesso.</x-slot>
+                    <livewire:analise-inteligente.burst-hours-table
+                        :rows="$report['hourly_rows'] ?? []"
+                        :wire:key="'burst-platform-' . $runId"
+                    />
                 </x-filament::section>
             @endif
         </div>

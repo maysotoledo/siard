@@ -107,9 +107,95 @@
                 @endforeach
             </div>
         </x-filament::section>
+
+        @php $consolidatedGroups = $this->getConsolidatedTargetGroups(); @endphp
+        @if (count($consolidatedGroups) > 0)
+            <x-filament::section class="mt-4" heading="Visão Consolidada por Alvo">
+                <p class="text-sm text-gray-500 mb-3">
+                    Os alvos abaixo possuem múltiplos relatórios. Os totais são somados entre todos os períodos importados.
+                </p>
+                <div class="grid gap-3 md:grid-cols-2">
+                    @foreach ($consolidatedGroups as $group)
+                        <div class="rounded-xl border border-primary-200 bg-primary-50/30 p-4 dark:border-primary-700 dark:bg-primary-950/30">
+                            <div class="text-xs text-gray-500">Alvo ({{ count($group['runs']) }} relatórios)</div>
+                            <div class="font-semibold break-all mb-3">{{ $group['target'] }}</div>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <div class="text-xs text-gray-500">Total de IPs (soma)</div>
+                                    <div class="font-semibold">{{ number_format($group['total_ips'], 0, ',', '.') }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500">IPs únicos (soma)</div>
+                                    <div class="font-semibold">{{ number_format($group['unique_ips'], 0, ',', '.') }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </x-filament::section>
+        @endif
     @endif
 
     @if ($report)
+        @if (!empty($report['alerts']))
+            <div class="mt-6 space-y-2">
+                @foreach ($report['alerts'] as $alert)
+                    @php
+                        $colors = [
+                            'danger'  => 'bg-red-50 border-red-300 text-red-800 dark:bg-red-950 dark:border-red-700 dark:text-red-200',
+                            'warning' => 'bg-yellow-50 border-yellow-300 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-700 dark:text-yellow-200',
+                            'info'    => 'bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-200',
+                        ];
+                        $icons = [
+                            'danger'  => 'heroicon-o-exclamation-triangle',
+                            'warning' => 'heroicon-o-exclamation-circle',
+                            'info'    => 'heroicon-o-information-circle',
+                        ];
+                        $colorClass = $colors[$alert['level']] ?? $colors['info'];
+                        $icon = $icons[$alert['level']] ?? $icons['info'];
+                    @endphp
+                    @if (($alert['action'] ?? null) === 'burst')
+                        @php
+                            $hoverMap = [
+                                'danger'  => 'hover:bg-blue-50 dark:hover:bg-blue-950/60 hover:shadow-md hover:ring-1 hover:ring-blue-400/50 dark:hover:ring-blue-600/50',
+                                'warning' => 'hover:bg-blue-50 dark:hover:bg-blue-950/60 hover:shadow-md hover:ring-1 hover:ring-blue-400/50',
+                                'info'    => 'hover:bg-blue-50 dark:hover:bg-blue-950/60 hover:shadow-md hover:ring-1 hover:ring-blue-400/50',
+                            ];
+                            $hoverClass = $hoverMap[$alert['level']] ?? $hoverMap['info'];
+                        @endphp
+                        <button
+                            type="button"
+                            wire:click="openBurstModal('{{ $alert['burst_hour'] }}')"
+                            class="group flex w-full cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 {{ $colorClass }} {{ $hoverClass }}"
+                        >
+                            <x-filament::icon :icon="$icon" class="mt-0.5 h-5 w-5 shrink-0 transition-transform duration-150 group-hover:scale-110" />
+                            <div class="flex-1 min-w-0">
+                                <div class="font-semibold text-sm flex items-center gap-2">
+                                    {{ $alert['title'] }}
+                                    <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium opacity-70">
+                                        Ver detalhes
+                                    </span>
+                                </div>
+                                <div class="text-sm mt-0.5 opacity-90">{{ $alert['message'] }}</div>
+                            </div>
+                            <x-filament::icon
+                                icon="heroicon-o-chevron-right"
+                                class="mt-0.5 h-4 w-4 shrink-0 opacity-50 transition-all duration-150 group-hover:opacity-100 group-hover:translate-x-1"
+                            />
+                        </button>
+                    @else
+                        <div class="flex items-start gap-3 rounded-xl border px-4 py-3 {{ $colorClass }}">
+                            <x-filament::icon :icon="$icon" class="mt-0.5 h-5 w-5 shrink-0" />
+                            <div>
+                                <div class="font-semibold text-sm">{{ $alert['title'] }}</div>
+                                <div class="text-sm mt-0.5 opacity-90">{{ $alert['message'] }}</div>
+                            </div>
+                        </div>
+                    @endif
+                @endforeach
+            </div>
+        @endif
+
         <x-filament::section class="mt-6" heading="Resumo da Análise">
             <div class="space-y-4">
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -208,6 +294,7 @@
                 'groups' => ['label' => 'Grupos', 'icon' => 'heroicon-o-user-group'],
                 'bilhetagem' => ['label' => 'Mensagens', 'icon' => 'heroicon-o-chat-bubble-left-right'],
                 'vinculo' => ['label' => 'Vínculo', 'icon' => 'heroicon-o-link'],
+                'burst' => ['label' => 'Burst', 'icon' => 'heroicon-o-bolt'],
             ];
 
             $counts = [
@@ -220,6 +307,7 @@
                 'groups' => (int) data_get($report, '_counts.groups', count($report['groups_rows'] ?? [])),
                 'bilhetagem' => (int) data_get($report, '_counts.bilhetagem', count($report['bilhetagem_cards'] ?? [])),
                 'vinculo' => (int) data_get($report, '_counts.vinculo', count($report['vinculo_rows'] ?? [])),
+                'burst' => count($report['hourly_rows'] ?? []),
             ];
         @endphp
 
@@ -289,13 +377,13 @@
 
             @if ($tab === 'residencial')
                 <x-filament::section heading="Noturno">
-                    @include('filament.pages.partials.sheet-residencial', ['report' => $report])
+                    @include('filament.pages.partials.sheet-residencial', ['report' => $report, 'runId' => $runId])
                 </x-filament::section>
             @endif
 
             @if ($tab === 'movel')
                 <x-filament::section heading="Móvel">
-                    @include('filament.pages.partials.sheet-movel', ['report' => $report])
+                    @include('filament.pages.partials.sheet-movel', ['report' => $report, 'runId' => $runId])
                 </x-filament::section>
             @endif
 
@@ -338,6 +426,16 @@
                     @include('filament.pages.partials.sheet-vinculo', [
                         'rows' => $report['vinculo_rows'] ?? [],
                     ])
+                </x-filament::section>
+            @endif
+
+            @if ($tab === 'burst')
+                <x-filament::section heading="Conexões por hora">
+                    <x-slot name="description">Clique em qualquer hora para ver os IPs e horários exatos de acesso.</x-slot>
+                    <livewire:analise-inteligente.burst-hours-table
+                        :rows="$report['hourly_rows'] ?? []"
+                        :wire:key="'burst-' . $runId"
+                    />
                 </x-filament::section>
             @endif
         </div>

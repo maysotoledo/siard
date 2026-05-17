@@ -3,6 +3,7 @@
 namespace App\Services\AnaliseInteligente\Whatsapp;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class RecordsHtmlParser
 {
@@ -12,6 +13,17 @@ class RecordsHtmlParser
 
         $dom = new \DOMDocument();
         $dom->loadHTML($html);
+
+        $libxmlErrors = libxml_get_errors();
+        libxml_clear_errors();
+
+        $criticalErrors = array_filter($libxmlErrors, fn (\LibXMLError $e) => $e->level === LIBXML_ERR_FATAL);
+        if (count($criticalErrors) > 0) {
+            Log::warning('RecordsHtmlParser: erros criticos no HTML do WhatsApp.', [
+                'errors' => array_map(fn (\LibXMLError $e) => trim($e->message), array_values($criticalErrors)),
+            ]);
+        }
+
         $xp = new \DOMXPath($dom);
 
         $target = $this->getSimpleValueByLabel($xp, 'Target');
@@ -50,6 +62,17 @@ class RecordsHtmlParser
 
         [$rangeStartUtc, $rangeEndUtc] = $this->parseDateRangeUtc($dateRange);
         $generatedAtUtc = $this->parseUtc($generated);
+
+        if ($target === null || trim((string) $target) === '') {
+            Log::warning('RecordsHtmlParser: alvo (Target/Account Identifier) nao encontrado no HTML.');
+        }
+
+        if (count($ipEvents) === 0) {
+            Log::warning('RecordsHtmlParser: nenhum IP event extraido do HTML.', [
+                'target' => $target,
+                'date_range' => $dateRange,
+            ]);
+        }
 
         return [
             'target' => $target,

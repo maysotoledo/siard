@@ -12,12 +12,18 @@ class ProcessInstagramInvestigationJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $timeout = 900;
+    public int $tries = 3;
+    public array $backoff = [30, 120];
+
     public function __construct(
         public int $investigationId,
         public int $userId,
         public array $storedPaths,
         public string $batchId,
-    ) {}
+    ) {
+        $this->onConnection('database');
+    }
 
     public function handle(CreateInstagramRunsAction $action): void
     {

@@ -149,6 +149,13 @@ body,
     background-color: rgba(37,99,235,.06) !important;
 }
 
+.siard-modal-row td {
+    transition: background-color 0.1s ease;
+}
+.siard-modal-row:hover td {
+    background-color: rgba(59, 130, 246, 0.18) !important;
+}
+
 /* ── INPUTS / FORM ───────────────────────────────────── */
 .fi-input,
 .fi-select-input,

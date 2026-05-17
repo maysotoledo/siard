@@ -62,6 +62,8 @@ class ReportAggregator
         $mobileTotalEvents = 0;
         $mobileEventsRows = [];
 
+        $hourlyAgg = [];
+
         foreach ($events as $e) {
             $ipBase = $e['ip'] ?? null;
             if (! $ipBase) continue;
@@ -152,6 +154,8 @@ class ReportAggregator
                 $providerIpMap[$provider][$ipDisplay]['last_seen'] = $timeLocal;
             }
 
+            $hourlyAgg[$timeUtc->format('Y-m-d H')] = ($hourlyAgg[$timeUtc->format('Y-m-d H')] ?? 0) + 1;
+
             $hour = (int) $timeLocal->format('G');
             $isNight = ($hour >= 23 || $hour <= 6);
 
@@ -175,6 +179,18 @@ class ReportAggregator
                     'city' => $city,
                 ];
             }
+        }
+
+        arsort($hourlyAgg);
+        $hourlyRows = [];
+        foreach ($hourlyAgg as $key => $count) {
+            $hourlyRows[] = [
+                'burst_hour' => $key,
+                'label' => Carbon::createFromFormat('Y-m-d H', $key, 'UTC')
+                    ->setTimezone($tz)
+                    ->format('d/m/Y H:i'),
+                'count' => $count,
+            ];
         }
 
         $uniqueIpRows = array_values($uniqueIpAgg);
@@ -236,6 +252,15 @@ class ReportAggregator
             ], $list);
         }
 
+        $alerts = $this->detectAnomalies(
+            $events,
+            $uniqueIpAgg,
+            $providerStatsAgg,
+            $nightTotalEvents,
+            $mobileTotalEvents,
+            $tz
+        );
+
         return [
             'generated_at' => $generatedAt,
             'file_hash' => $fileHash,
@@ -243,6 +268,7 @@ class ReportAggregator
             'total_ips' => count($events),
             'device' => $device,
             'period_label' => $periodLabel,
+            'alerts' => $alerts,
 
             'registered_emails' => $parsed['registered_emails'] ?? [],
 
@@ -275,7 +301,102 @@ class ReportAggregator
             'fixed_night_top' => [],
             'fixed_recent_provider' => null,
             'fixed_recent_ips' => [],
+
+            'hourly_rows' => $hourlyRows,
         ];
+    }
+
+    private function detectAnomalies(
+        array $events,
+        array $uniqueIpAgg,
+        array $providerStatsAgg,
+        int $nightTotalEvents,
+        int $mobileTotalEvents,
+        string $tz
+    ): array {
+        $alerts = [];
+        $totalEvents = count($events);
+
+        if ($totalEvents === 0) {
+            return $alerts;
+        }
+
+        // Muitos IPs únicos
+        $uniqueIpCount = count($uniqueIpAgg);
+        if ($uniqueIpCount >= 80) {
+            $alerts[] = [
+                'level' => 'warning',
+                'title' => 'Volume elevado de IPs',
+                'message' => "{$uniqueIpCount} endereços IP distintos registrados. No WhatsApp isso pode refletir intensa movimentação ao longo dos dias analisados (redes domésticas, trabalho, dados móveis de diferentes torres). Verifique na aba IPs Únicos se há endereços de outras cidades, estados ou países.",
+            ];
+        } elseif ($uniqueIpCount >= 40) {
+            $alerts[] = [
+                'level' => 'info',
+                'title' => 'Alta rotatividade de redes',
+                'message' => "{$uniqueIpCount} IPs distintos registrados — compatível com uso ativo do WhatsApp em diferentes redes ao longo do período.",
+            ];
+        }
+
+        // Alto percentual de eventos noturnos
+        $nightPercent = $totalEvents > 0 ? ($nightTotalEvents / $totalEvents) * 100 : 0;
+        if ($nightPercent >= 40) {
+            $pct = number_format($nightPercent, 1);
+            $alerts[] = [
+                'level' => 'warning',
+                'title' => 'Alta atividade noturna',
+                'message' => "{$pct}% dos eventos ocorreram entre 23h e 06h (horário de Brasília).",
+            ];
+        }
+
+        // Alto percentual de conexões móveis
+        $mobilePercent = $totalEvents > 0 ? ($mobileTotalEvents / $totalEvents) * 100 : 0;
+        if ($mobilePercent >= 70) {
+            $pct = number_format($mobilePercent, 1);
+            $alerts[] = [
+                'level' => 'info',
+                'title' => 'Uso predominantemente móvel',
+                'message' => "{$pct}% das conexões são de redes móveis.",
+            ];
+        }
+
+        // Múltiplos provedores distintos
+        $providerCount = count($providerStatsAgg);
+        if ($providerCount >= 15) {
+            $alerts[] = [
+                'level' => 'info',
+                'title' => 'Diversidade de operadoras',
+                'message' => "{$providerCount} operadoras/ISPs detectados. No WhatsApp é natural variar entre Wi-Fi doméstico, rede corporativa e dados móveis. Confira a aba Provedores para identificar ISPs de outras regiões ou países.",
+            ];
+        }
+
+        // Burst: muitos acessos em curto período (> 20 eventos em 1 hora)
+        $eventsByHour = [];
+        foreach ($events as $e) {
+            $t = $this->toCarbonUtc($e['time_utc'] ?? null);
+            if (! $t) continue;
+            $hourKey = $t->format('Y-m-d H');
+            $eventsByHour[$hourKey] = ($eventsByHour[$hourKey] ?? 0) + 1;
+        }
+        if ($eventsByHour !== []) {
+            $maxInHour = max($eventsByHour);
+            $burstHour = (string) array_search($maxInHour, $eventsByHour);
+
+            if ($maxInHour >= 20) {
+                $localHour = Carbon::createFromFormat('Y-m-d H', $burstHour, 'UTC')
+                    ->setTimezone($tz)
+                    ->format('d/m/Y H:i');
+
+                $alerts[] = [
+                    'level'      => 'danger',
+                    'title'      => 'Burst de acessos detectado',
+                    'message'    => "{$maxInHour} conexões em uma única hora ({$localHour} horário de Brasília). Possível comportamento automatizado.",
+                    'action'     => 'burst',
+                    'burst_hour' => $burstHour,
+                ];
+            }
+        }
+
+        return $alerts;
     }
 
     /**

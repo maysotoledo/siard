@@ -16,7 +16,7 @@ class ProcessPlatformInvestigationJob implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 300;
+    public int $timeout = 900;
     public int $tries = 1;
 
     public function __construct(
@@ -69,7 +69,7 @@ class ProcessPlatformInvestigationJob implements ShouldQueue
                 ipsMap: $ipsMap,
             );
 
-            app()->call([(new EnrichRunIpsJob($run->id)), 'handle']);
+            EnrichRunIpsJob::dispatch($run->id);
         }
     }
 

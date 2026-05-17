@@ -35,7 +35,7 @@ class GenericProvidersTable extends TableComponent
 
         return $table
             ->query(
-                AnaliseRunIp::query()
+                (new AnaliseRunIp)->setTable('provider_stats')->newQuery()
                     ->fromSub($aggregatedQuery->toBase(), 'provider_stats')
                     ->select('provider_stats.*')
             )
@@ -75,7 +75,6 @@ class GenericProvidersTable extends TableComponent
                     ->formatStateUsing(fn ($state): ?string => $state?->timezone('America/Sao_Paulo')->format('d/m/Y H:i:s'))
                     ->sortable(),
             ])
-            ->defaultSort('occurrences', 'desc')
             ->modifyQueryUsing(fn (Builder $query) => $query->orderByDesc('occurrences')->orderByDesc('id'))
             ->paginated([25, 50, 100])
             ->defaultPaginationPageOption(25);

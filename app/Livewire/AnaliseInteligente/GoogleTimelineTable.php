@@ -2,7 +2,9 @@
 
 namespace App\Livewire\AnaliseInteligente;
 
+use App\Filament\Exports\AnaliseRunEventExporter;
 use App\Models\AnaliseRunEvent;
+use Filament\Actions\ExportAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Tables\TableComponent;
@@ -55,6 +57,11 @@ class GoogleTimelineTable extends TableComponent
                     ->label('Acao')
                     ->searchable()
                     ->toggleable(),
+            ])
+            ->headerActions([
+                ExportAction::make()
+                    ->label('Exportar CSV')
+                    ->exporter(AnaliseRunEventExporter::class),
             ])
             ->defaultSort('occurred_at', 'desc')
             ->paginated([25, 50, 100])
