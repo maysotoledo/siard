@@ -11,6 +11,7 @@ use App\Filament\Resources\PixelAdmin\Widgets\PaymentStatusChart;
 use App\Filament\Resources\PixelAdmin\Widgets\ReceivablesOverview;
 use App\Filament\Resources\PixelAdmin\Widgets\SubscriptionHealthChart;
 use App\Filament\Resources\PixelAdmin\Widgets\SistemaAtualizacaoWidget;
+use App\Filament\Resources\PixelAdmin\Widgets\SystemResourcesOverview;
 use App\Filament\Resources\PixelAdmin\Widgets\UserGrowthChart;
 use Filament\Resources\Pages\ListRecords;
 
@@ -22,6 +23,7 @@ class ListPixelAdmins extends ListRecords
     {
         return [
             SistemaAtualizacaoWidget::class,
+            SystemResourcesOverview::class,
             ReceivablesOverview::class,
             AccessesOverview::class,
             AdminOperationsOverview::class,
