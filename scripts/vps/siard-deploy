@@ -10,6 +10,10 @@ COMPOSE_FILE="${SIARD_COMPOSE_FILE:-docker-compose.prod.yml}"
 APP_SERVICES="${SIARD_APP_SERVICES:-web queue scheduler}"
 INFRA_SERVICES="${SIARD_INFRA_SERVICES:-db proxy}"
 
+export DOCKER_CLIENT_TIMEOUT="${DOCKER_CLIENT_TIMEOUT:-900}"
+export COMPOSE_HTTP_TIMEOUT="${COMPOSE_HTTP_TIMEOUT:-900}"
+export COMPOSE_BAKE="${COMPOSE_BAKE:-false}"
+
 exec 9>"$LOCK"
 flock -n 9 || { echo "[$(date -Is)] deploy already running"; exit 0; }
 
