@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+LOCK="${SIARD_DEPLOY_LOCK:-/var/lock/siard-deploy.lock}"
+REPO_DIR="${SIARD_REPO_DIR:-/opt/siard-repo}"
+APP_DIR="${SIARD_APP_DIR:-/opt/siard}"
+REMOTE="${SIARD_GIT_REMOTE:-https://github.com/maysotoledo/siard.git}"
+BRANCH="${SIARD_GIT_BRANCH:-main}"
+COMPOSE_FILE="${SIARD_COMPOSE_FILE:-docker-compose.prod.yml}"
+APP_SERVICES="${SIARD_APP_SERVICES:-web queue scheduler}"
+INFRA_SERVICES="${SIARD_INFRA_SERVICES:-db proxy}"
+
+exec 9>"$LOCK"
+flock -n 9 || { echo "[$(date -Is)] deploy already running"; exit 0; }
+
+echo "[$(date -Is)] deploy started"
+
+if [[ ! -d "$REPO_DIR/.git" ]]; then
+  rm -rf "$REPO_DIR"
+  git clone --branch "$BRANCH" "$REMOTE" "$REPO_DIR"
+else
+  git -C "$REPO_DIR" fetch origin "$BRANCH"
+  git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
+fi
+
+mkdir -p "$APP_DIR"
+
+rsync -a --delete \
+  --exclude='.git' \
+  --exclude='.env' \
+  --exclude='storage' \
+  --exclude='vendor' \
+  --exclude='node_modules' \
+  "$REPO_DIR"/ "$APP_DIR"/
+
+git -C "$REPO_DIR" rev-parse HEAD > "$APP_DIR/.deploy-revision"
+
+APP_DIR="$APP_DIR" python3 - <<'PY_DEPLOY'
+import os
+from pathlib import Path
+
+app_dir = Path(os.environ["APP_DIR"])
+
+caddy = app_dir / "docker/production/Caddyfile"
+if caddy.exists():
+    text = caddy.read_text()
+    marker = "    reverse_proxy web:80 {"
+    block = "    @githubWebhook path /github /health\n    reverse_proxy @githubWebhook host.docker.internal:9001\n\n"
+    if "@githubWebhook path /github /health" not in text and marker in text:
+        caddy.write_text(text.replace(marker, block + marker, 1))
+
+compose = app_dir / "docker-compose.prod.yml"
+if compose.exists():
+    text = compose.read_text()
+    marker = '    ports:\n      - "80:80"\n      - "443:443"\n'
+    replacement = marker + '    extra_hosts:\n      - "host.docker.internal:host-gateway"\n'
+    if "host.docker.internal:host-gateway" not in text and marker in text:
+        compose.write_text(text.replace(marker, replacement, 1))
+PY_DEPLOY
+
+cd "$APP_DIR"
+COMPOSE=(docker compose -f "$COMPOSE_FILE")
+
+echo "[$(date -Is)] starting infrastructure services"
+"${COMPOSE[@]}" up -d --no-build --remove-orphans $INFRA_SERVICES
+
+echo "[$(date -Is)] rebuilding application images: $APP_SERVICES"
+"${COMPOSE[@]}" build $APP_SERVICES
+
+echo "[$(date -Is)] recreating application services: $APP_SERVICES"
+"${COMPOSE[@]}" up -d --force-recreate --remove-orphans $APP_SERVICES
+
+echo "[$(date -Is)] running migrations and optimizing Laravel"
+"${COMPOSE[@]}" exec -T web php artisan migrate --force
+"${COMPOSE[@]}" exec -T web php artisan optimize:clear
+"${COMPOSE[@]}" exec -T web php artisan optimize
+"${COMPOSE[@]}" exec -T web php artisan queue:restart || true
+"${COMPOSE[@]}" ps
+
+echo "[$(date -Is)] deploy finished"

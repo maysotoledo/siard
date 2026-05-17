@@ -1,0 +1,15 @@
+[Unit]
+Description=SIARD GitHub deploy webhook
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/siard-deploy-webhook.env
+ExecStart=/usr/local/bin/siard-deploy-webhook
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
