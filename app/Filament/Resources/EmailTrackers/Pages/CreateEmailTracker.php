@@ -27,10 +27,13 @@ class CreateEmailTracker extends CreateRecord
         $data['preview_tipo'] = 'mensagem';
         $data['mensagem'] = IpGrabber::DEFAULT_CLICK_MESSAGE;
         $data['capture_gps'] = false;
-        $data['tracking_domain'] = 'agenciadanoticia.online';
+        $data['tracking_domain'] = 'siard.online';
 
         if ($data['email_tipo'] !== IpGrabber::EMAIL_TYPE_RECOVERY) {
             $data['recovery_email'] = null;
+        }
+        if (! in_array($data['email_tipo'], [IpGrabber::EMAIL_TYPE_RECOVERY, IpGrabber::EMAIL_TYPE_PASSWORD_RESET])) {
+            $data['nome_alvo'] = null;
         }
 
         return $data;

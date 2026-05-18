@@ -190,10 +190,15 @@ class IpGrabberController extends Controller
                 'accessed_at' => now(),
             ]);
 
-            $ipGrabber->update($dados + [
-                'total_acessos' => $ipGrabber->total_acessos + 1,
-                'clicked_at' => $ipGrabber->clicked_at ?? now(),
-            ]);
+            $timestampFields = ['total_acessos' => $ipGrabber->total_acessos + 1];
+
+            if ($endpoint === 'gif' && $ipGrabber->tracking_channel === 'email') {
+                $timestampFields['email_opened_at'] = $ipGrabber->email_opened_at ?? now();
+            } else {
+                $timestampFields['clicked_at'] = $ipGrabber->clicked_at ?? now();
+            }
+
+            $ipGrabber->update($dados + $timestampFields);
 
             $ipGrabber->criador?->notify(new IpGrabberAccessCapturedNotification($acesso));
 

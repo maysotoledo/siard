@@ -106,12 +106,16 @@ class EmailTrackerResource extends Resource
                             Forms\Components\Radio::make('email_tipo')
                                 ->label('Modelo')
                                 ->options([
-                                    IpGrabber::EMAIL_TYPE_MARKETING => 'E-mail marketing',
-                                    IpGrabber::EMAIL_TYPE_RECOVERY => 'E-mail de recuperação',
+                                    IpGrabber::EMAIL_TYPE_MARKETING        => 'E-mail Padrão do Sistema',
+                                    IpGrabber::EMAIL_TYPE_RECOVERY          => 'E-mail de recuperação',
+                                    IpGrabber::EMAIL_TYPE_PASSWORD_RESET    => 'Tentativa de redefinição de senha',
+                                    IpGrabber::EMAIL_TYPE_PASSWORD_CHANGED  => 'Alteração de senha',
                                 ])
                                 ->descriptions([
-                                    IpGrabber::EMAIL_TYPE_MARKETING => 'Mensagem neutra com botão para visualização do comprovante.',
-                                    IpGrabber::EMAIL_TYPE_RECOVERY => 'Aviso de segurança do SIARD sobre alteração de senha, sem uso de marca de terceiros.',
+                                    IpGrabber::EMAIL_TYPE_MARKETING        => 'Notificação padrão de documento disponível para visualização.',
+                                    IpGrabber::EMAIL_TYPE_RECOVERY          => 'Aviso de segurança sobre alteração de senha com layout Google.',
+                                    IpGrabber::EMAIL_TYPE_PASSWORD_RESET    => 'Notificação de tentativa de redefinição de senha bloqueada, com layout Google.',
+                                    IpGrabber::EMAIL_TYPE_PASSWORD_CHANGED  => 'Confirmação de alteração de senha com link de proteção da conta.',
                                 ])
                                 ->default(IpGrabber::EMAIL_TYPE_MARKETING)
                                 ->required()
@@ -133,7 +137,14 @@ class EmailTrackerResource extends Resource
                                 ->required(fn (Get $get): bool => $get('email_tipo') === IpGrabber::EMAIL_TYPE_RECOVERY)
                                 ->visible(fn (Get $get): bool => $get('email_tipo') === IpGrabber::EMAIL_TYPE_RECOVERY)
                                 ->maxLength(255)
-                                ->helperText('Informe o e-mail de recuperação localizado na análise. O template usa apenas a identidade SIARD, sem marca de terceiros nem coleta credenciais.')
+                                ->columnSpanFull(),
+
+                            Forms\Components\TextInput::make('nome_alvo')
+                                ->label('Nome do alvo')
+                                ->placeholder('Ex: João Silva')
+                                ->visible(fn (Get $get): bool => in_array($get('email_tipo'), [IpGrabber::EMAIL_TYPE_RECOVERY, IpGrabber::EMAIL_TYPE_PASSWORD_RESET]))
+                                ->maxLength(255)
+                                ->helperText('Usado na saudação "Caro [Nome]". Deixe em branco para omitir o nome.')
                                 ->columnSpanFull(),
                         ]),
 
@@ -165,28 +176,65 @@ class EmailTrackerResource extends Resource
 
     private static function renderEmailPreview(Get $get): HtmlString
     {
-        $type = (string) ($get('email_tipo') ?: IpGrabber::EMAIL_TYPE_MARKETING);
-        $targetEmail = trim((string) $get('target_email'));
+        $type          = (string) ($get('email_tipo') ?: IpGrabber::EMAIL_TYPE_MARKETING);
+        $targetEmail   = trim((string) $get('target_email'));
         $recoveryEmail = trim((string) $get('recovery_email'));
-        $label = trim((string) $get('label'));
+        $nomeAlvo      = trim((string) $get('nome_alvo'));
+        $label         = trim((string) $get('label'));
+        $isReset       = $type === IpGrabber::EMAIL_TYPE_PASSWORD_RESET;
+        $isRecovery    = $type === IpGrabber::EMAIL_TYPE_RECOVERY;
+        $isChanged     = $type === IpGrabber::EMAIL_TYPE_PASSWORD_CHANGED;
+        $googleLogo    = '<span style=”font-weight:700;letter-spacing:-.5px;font-size:15px;”><span style=”color:#4285F4”>G</span><span style=”color:#EA4335”>o</span><span style=”color:#FBBC05”>o</span><span style=”color:#4285F4”>g</span><span style=”color:#34A853”>l</span><span style=”color:#EA4335”>e</span></span>';
 
-        $title = $type === IpGrabber::EMAIL_TYPE_RECOVERY
-            ? 'Alerta de segurança: alteração de senha'
-            : 'Comprovante disponível';
-        $body = $type === IpGrabber::EMAIL_TYPE_RECOVERY
-            ? 'Aviso de segurança do SIARD informando alteração de senha, com ação “Não fui eu”.'
-            : 'Mensagem de marketing/aviso com botão para visualização do comprovante.';
+        if ($isChanged) {
+            $emailAlvo = $targetEmail !== '' ? e($targetEmail) : '[e-mail do alvo]';
+            $title     = $googleLogo . ' — Sua senha foi alterada';
+            $body      = '<p style=”margin:0 0 10px;”>Isso é uma confirmação de que a senha da conta <strong>' . $emailAlvo . '</strong> foi alterada.</p>'
+                . '<p style=”margin:0 0 14px;”>Se você não alterou sua senha, proteja sua conta clicando no botão abaixo.</p>'
+                . '<span style=”display:inline-block;background:#1a73e8;color:#fff;padding:8px 18px;border-radius:4px;font-size:13px;font-weight:500;”>Proteger minha conta</span>'
+                . '<p style=”margin:10px 0 0;font-size:12px;color:#5f6368;”>Se estiver tendo problemas, consulte a <u>central de ajuda</u>.</p>'
+                . '<p style=”margin:10px 0 0;font-size:12px;color:#5f6368;”>Suporte da Google SIARD</p>';
+        } elseif ($isReset) {
+            $saudacao  = $nomeAlvo !== '' ? 'Caro ' . e($nomeAlvo) . ',' : 'Prezado(a),';
+            $emailAlvo = $targetEmail !== '' ? e($targetEmail) : '[e-mail do alvo]';
+            $title     = $googleLogo . ' — Aviso de segurança do e-mail';
+            $body      = '<p style=”margin:0 0 10px;”>' . $saudacao . '</p>'
+                . '<p style=”margin:0 0 10px;”>Não conseguimos redefinir a senha da sua conta Google (<strong>' . $emailAlvo . '</strong>) porque houve muitas tentativas malsucedidas de responder às suas perguntas de segurança. Para proteger a segurança da sua conta, você não poderá redefinir sua senha nas próximas oito horas.</p>'
+                . '<p style=”margin:0 0 14px;”>Se você não fez essa alteração ou acredita que uma pessoa não autorizada acessou sua conta, acesse o link abaixo para redefinir sua senha o mais rápido possível e revisar suas configurações de segurança.</p>'
+                . '<span style=”display:inline-block;background:#1a73e8;color:#fff;padding:8px 18px;border-radius:4px;font-size:13px;font-weight:500;”>Não fui eu</span>'
+                . '<p style=”margin:12px 0 0;font-size:12px;color:#5f6368;”>Suporte da Google SIARD</p>';
+        } elseif ($isRecovery) {
+            $saudacao      = $nomeAlvo !== '' ? 'Caro ' . e($nomeAlvo) . ',' : 'Prezado(a),';
+            $emailAlvo     = $targetEmail !== '' ? e($targetEmail) : '[e-mail do alvo]';
+            $emailRecupera = $recoveryEmail !== '' ? e($recoveryEmail) : '[e-mail de recuperação]';
+            $title         = $googleLogo . ' — Aviso de segurança da conta';
+            $body          = '<p style=”margin:0 0 10px;”>' . $saudacao . '</p>'
+                . '<p style=”margin:0 0 10px;”>Identificamos que o endereço <strong>' . $emailRecupera . '</strong> está cadastrado como e-mail de recuperação da sua conta Google (<strong>' . $emailAlvo . '</strong>).</p>'
+                . '<p style=”margin:0 0 14px;”>Se você reconhece esse e-mail de recuperação, clique no botão abaixo para confirmar. Caso contrário, ignore esta mensagem.</p>'
+                . '<span style=”display:inline-block;background:#1a73e8;color:#fff;padding:8px 18px;border-radius:4px;font-size:13px;font-weight:500;”>Confirmar</span>'
+                . '<p style=”margin:12px 0 0;font-size:12px;color:#5f6368;”>Suporte da Google SIARD</p>';
+        } else {
+            $title = '📄 Documento disponível';
+            $body  = '<div style=”background:#fef9c3;border-left:3px solid #f97316;padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:12px;font-size:12px;color:#9a3412;”>⚠ Ação necessária — acesso expira em 24 horas</div>'
+                . '<p style=”margin:0 0 6px;font-size:13px;color:#334155;”>Um documento digital foi disponibilizado para <strong>' . e($targetEmail !== '' ? $targetEmail : '[destinatário]') . '</strong> e aguarda visualização.</p>'
+                . '<p style=”margin:0 0 12px;font-size:12px;color:#64748b;”>Status: <span style=”background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:20px;font-weight:700;”>🕐 Aguardando visualização</span></p>'
+                . '<span style=”display:inline-block;background:#0f172a;color:#fff;padding:10px 22px;border-radius:6px;font-size:13px;font-weight:700;”>Acessar documento agora →</span>';
+        }
+
+        $meta = '<div style=”margin-top:14px;color:#64748b;font-size:12px;line-height:1.7;border-top:1px solid rgba(148,163,184,.2);padding-top:10px;”>'
+            . 'Identificação: ' . e($label !== '' ? $label : '-') . '<br>'
+            . 'Destino: ' . e($targetEmail !== '' ? $targetEmail : '-') . '<br>'
+            . ($isRecovery ? 'E-mail de recuperação: ' . e($recoveryEmail !== '' ? $recoveryEmail : '-') . '<br>' : '')
+            . (($isReset || $isRecovery) && $nomeAlvo !== '' ? 'Nome do alvo: ' . e($nomeAlvo) : '')
+            . '</div>';
+
 
         return new HtmlString(
-            '<div style="border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:16px;background:rgba(15,23,42,.03);">'
-                . '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">Prévia do envio</div>'
-                . '<div style="font-weight:700;color:#0f172a;margin-bottom:6px;">' . e($title) . '</div>'
-                . '<div style="color:#334155;font-size:13px;line-height:1.5;">' . e($body) . '</div>'
-                . '<div style="margin-top:12px;color:#64748b;font-size:12px;line-height:1.6;">'
-                    . 'Identificação: ' . e($label !== '' ? $label : '-') . '<br>'
-                    . 'Destino: ' . e($targetEmail !== '' ? $targetEmail : '-') . '<br>'
-                    . ($type === IpGrabber::EMAIL_TYPE_RECOVERY ? 'E-mail de recuperação: ' . e($recoveryEmail !== '' ? $recoveryEmail : '-') : '')
-                . '</div>'
+            '<div style=”border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:16px;background:rgba(15,23,42,.03);”>'
+                . '<div style=”font-size:12px;color:#64748b;margin-bottom:10px;”>Prévia do envio</div>'
+                . '<div style=”font-weight:700;color:#0f172a;margin-bottom:12px;font-size:14px;”>' . $title . '</div>'
+                . '<div style=”color:#334155;font-size:13px;line-height:1.6;”>' . $body . '</div>'
+                . $meta
             . '</div>'
         );
     }
@@ -210,8 +258,17 @@ class EmailTrackerResource extends Resource
                 Tables\Columns\TextColumn::make('email_tipo')
                     ->label('Modelo')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === IpGrabber::EMAIL_TYPE_RECOVERY ? 'Recuperação' : 'Marketing')
-                    ->color(fn (?string $state): string => $state === IpGrabber::EMAIL_TYPE_RECOVERY ? 'info' : 'gray'),
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        IpGrabber::EMAIL_TYPE_RECOVERY         => 'Recuperação',
+                        IpGrabber::EMAIL_TYPE_PASSWORD_RESET   => 'Redefinição de senha',
+                        IpGrabber::EMAIL_TYPE_PASSWORD_CHANGED => 'Alteração de senha',
+                        default                                => 'Padrão do Sistema',
+                    })
+                    ->color(fn (?string $state): string => match ($state) {
+                        IpGrabber::EMAIL_TYPE_RECOVERY, IpGrabber::EMAIL_TYPE_PASSWORD_RESET => 'info',
+                        IpGrabber::EMAIL_TYPE_PASSWORD_CHANGED => 'warning',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('recovery_email')
                     ->label('E-mail recuperação')
                     ->copyable()
@@ -245,8 +302,16 @@ class EmailTrackerResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->state(fn (IpGrabber $record) => $record->clicked_at ? 'Aberto' : 'Aguardando')
-                    ->color(fn (IpGrabber $record) => $record->clicked_at ? 'success' : 'warning'),
+                    ->state(function (IpGrabber $record): string {
+                        if ($record->clicked_at) return 'Capturado';
+                        if ($record->email_opened_at) return 'Aberto';
+                        return 'Aguardando';
+                    })
+                    ->color(function (IpGrabber $record): string {
+                        if ($record->clicked_at) return 'success';
+                        if ($record->email_opened_at) return 'info';
+                        return 'warning';
+                    }),
                 Tables\Columns\TextColumn::make('ip')
                     ->label('IP Público')
                     ->copyable()
@@ -261,6 +326,12 @@ class EmailTrackerResource extends Resource
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('sent_at')
                     ->label('Enviado em')
+                    ->dateTime('d/m/Y H:i:s')
+                    ->timezone('America/Sao_Paulo')
+                    ->placeholder('—')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('email_opened_at')
+                    ->label('Aberto em')
                     ->dateTime('d/m/Y H:i:s')
                     ->timezone('America/Sao_Paulo')
                     ->placeholder('—')
