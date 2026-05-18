@@ -349,26 +349,6 @@ class EmailTrackerResource extends Resource
             ])
             ->recordActions([
                 Actions\ViewAction::make()->label('Histórico'),
-                Actions\Action::make('copiar_tag')
-                    ->label('Copiar tag')
-                    ->icon('heroicon-o-code-bracket')
-                    ->action(function (IpGrabber $record): void {
-                        Notification::make()
-                            ->title('Tag HTML pronta para uso')
-                            ->body($record->emailTrackingTag())
-                            ->success()
-                            ->persistent()
-                            ->send();
-                    }),
-                Actions\Action::make('copiar_email_html')
-                    ->label('Ver HTML')
-                    ->icon('heroicon-o-envelope')
-                    ->modalHeading('E-mail HTML pronto')
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Fechar')
-                    ->modalContent(fn (IpGrabber $record) => view('filament.resources.email-trackers.partials.email-html-modal', [
-                        'html' => $record->emailReadyHtml(),
-                    ])),
                 Actions\DeleteAction::make()->label('Excluir'),
             ])
             ->emptyStateHeading('Nenhum tracker de e-mail enviado')
