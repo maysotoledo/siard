@@ -20,6 +20,13 @@ class MercadoPagoPixelWebhookController extends Controller
         $requestId = (string) $request->header('x-request-id', '');
         $signatureDataId = (string) ($request->query('data.id') ?? $paymentId);
 
+        if ($paymentId !== '' && $billingService->webhookSecret() && $signature === '') {
+            return response()->json([
+                'ok' => false,
+                'message' => 'missing signature',
+            ], 401);
+        }
+
         if (
             $signature !== ''
             && ! $billingService->validateWebhookSignature($signature, $requestId, $signatureDataId)
